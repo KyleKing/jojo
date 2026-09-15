@@ -3,7 +3,7 @@
 Written on 2026-08-19 against jj-diff, on the premise that jj-diff would grow into a full
 jj TUI in place. That premise was dropped on 2026-09-02, jj-diff stayed the diff tool, and
 these requirements moved here with the project they describe. Sections that still say
-"jj-diff" mean the diff engine jj-tui runs as jj's configured diff editor, not a package
+"jj-diff" mean the diff engine jojo runs as jj's configured diff editor, not a package
 inside this repo.
 
 Scope, as decided going in: this stays a TUI (not a browser app), the forge is detected

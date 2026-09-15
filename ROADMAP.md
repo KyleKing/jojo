@@ -1,4 +1,4 @@
-# jj-tui roadmap
+# jojo roadmap
 
 Nothing is built yet. [docs/requirements.md](docs/requirements.md) is the full spec and
 this file is the order to build it in. Three of the features below arrived from
@@ -85,7 +85,7 @@ and actions are bound on the selected row, with no separate mode to enter.
 ## Not here
 
 Hunk-level and line-level diff selection stays in
-[jj-diff](https://github.com/KyleKing/jj-diff), which jj-tui runs as jj's diff editor.
+[jj-diff](https://github.com/KyleKing/jj-diff), which jojo runs as jj's diff editor.
 Anything that reads across many repositories at once belongs to
 [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) or
 [gh-sweep](https://github.com/KyleKing/gh-sweep).

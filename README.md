@@ -1,4 +1,4 @@
-# jj-tui
+# jojo
 
 A terminal UI for [Jujutsu](https://github.com/jj-vcs/jj), meant as a replacement for
 lazygit rather than as another jj log browser.
@@ -54,11 +54,11 @@ interface (`gh` for GitHub first, `glab` and Forgejo later). This is not a `gh` 
 and does not install as one, which is where it parts company with
 [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) and
 [gh-sweep](https://github.com/KyleKing/gh-sweep). Those two are fleet tools that read
-many repositories through GitHub. jj-tui reads one repository deeply and asks the forge
+many repositories through GitHub. jojo reads one repository deeply and asks the forge
 about it second.
 
 Hunk-level and line-level diff work is not rebuilt here.
-[jj-diff](https://github.com/KyleKing/jj-diff) already does it, so jj-tui runs it as jj's
+[jj-diff](https://github.com/KyleKing/jj-diff) already does it, so jojo runs it as jj's
 configured diff editor the same way `jj split -i` does.
 
 Shared plumbing comes from [aragonite](https://github.com/KyleKing/aragonite), which
@@ -75,5 +75,7 @@ packages for theming, overlays, tables, and key hints.
 
 ## Name
 
-[madicen/jj-tui](https://github.com/madicen/jj-tui) exists and is a different project
-with the same name. Worth deciding whether to keep this one before the repo has users.
+Was jj-tui, until [madicen/jj-tui](https://github.com/madicen/jj-tui) turned out to be an
+unrelated project with the same name. jojo replaced it: short, easy to type over an SSH
+session, and close enough to the abbreviation to read as one. If you're wondering why it
+fits so well: it was jj, all along.
