@@ -18,6 +18,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/statusbar"
+	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/ui"
@@ -62,6 +63,11 @@ type opLogLoadedMsg struct {
 	ops []jj.Operation
 }
 
+type workspacesLoadedMsg struct {
+	err    error
+	spaces []jj.Workspace
+}
+
 // Model is the application.
 type Model struct {
 	// ctx is the program lifetime, so quitting cancels a jj call already
@@ -77,6 +83,7 @@ type Model struct {
 	prompt     prompt.Model
 	destPicker destpicker.Model
 	opLog      oplogview.Model
+	spaces     workspaceview.Model
 	pendingOn  string
 	redoOp     string
 	revset     string
@@ -105,6 +112,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		prompt:     prompt.New(skin),
 		destPicker: destpicker.New(skin),
 		opLog:      oplogview.New(skin),
+		spaces:     workspaceview.New(skin),
 		status:     statusbar.New(skin),
 		help:       help.New(skin),
 		revset:     revset,
@@ -130,6 +138,10 @@ func (m Model) loadLog(revset string) tea.Cmd {
 // Update routes messages. Key handling lives in handleKeyPress so there is one
 // place a new binding is added.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.handleOverlayMsg(msg); handled {
+		return next, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -142,16 +154,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.followBookmark(msg.Revision)
 
 		return m, cmd
-	case prompt.SubmittedMsg:
-		return m.handleSubmitted(msg)
-	case destpicker.PickedMsg:
-		return m.handlePicked(msg)
-	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg:
-		return m.cancelModals()
-	case opLogLoadedMsg:
-		return m.applyOpLog(msg)
-	case oplogview.RestoreMsg:
-		return m.restoreOperation(msg)
 	case logLoadedMsg:
 		return m.applyLog(msg)
 	case messageMsg:
@@ -171,6 +173,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.routeToPanes(msg)
+}
+
+// handleOverlayMsg covers what the modals report back, and what the root loads to open one.
+func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case prompt.SubmittedMsg:
+		next, cmd := m.handleSubmitted(msg)
+
+		return next, cmd, true
+	case destpicker.PickedMsg:
+		next, cmd := m.handlePicked(msg)
+
+		return next, cmd, true
+	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg:
+		return m.cancelModals(), nil, true
+	case opLogLoadedMsg:
+		next, cmd := m.applyOpLog(msg)
+
+		return next, cmd, true
+	case oplogview.RestoreMsg:
+		next, cmd := m.restoreOperation(msg)
+
+		return next, cmd, true
+	case workspacesLoadedMsg:
+		next, cmd := m.applyWorkspaces(msg)
+
+		return next, cmd, true
+	case workspaceview.AddRequestedMsg:
+		next, cmd := m.openWorkspaceAdd()
+
+		return next, cmd, true
+	case workspaceview.ForgetMsg:
+		next, cmd := m.forgetWorkspace(msg)
+
+		return next, cmd, true
+	}
+
+	return m, nil, false
 }
 
 // routeToPanes hands anything the root does not own to every sub-model, because
@@ -248,6 +288,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.destPicker.Update(msg), true
 	case m.opLog.IsOpen():
 		return m.opLog.Update(msg), true
+	case m.spaces.IsOpen():
+		return m.spaces.Update(msg), true
 	}
 
 	return nil, false
@@ -288,6 +330,8 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadLog(m.revset), true
 	case "o":
 		return m, m.loadOpLog(), true
+	case "w":
+		return m, m.loadWorkspaces(), true
 	}
 
 	return m, nil, false
@@ -425,6 +469,8 @@ func (m Model) render() string {
 		return m.destPicker.View(m.width, m.height)
 	case m.opLog.IsOpen():
 		return m.opLog.View(m.width, m.height)
+	case m.spaces.IsOpen():
+		return m.spaces.View(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}
