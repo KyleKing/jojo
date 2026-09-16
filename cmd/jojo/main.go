@@ -2,8 +2,16 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"os"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/model"
+	"github.com/kyleking/jojo/internal/ui"
 )
 
 var (
@@ -13,17 +21,6 @@ var (
 )
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "-v", "--version":
-			fmt.Printf("jojo %s (commit: %s, built: %s)\n", version, commit, date)
-			os.Exit(0)
-		case "-h", "--help":
-			printHelp()
-			os.Exit(0)
-		}
-	}
-
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -31,20 +28,40 @@ func main() {
 }
 
 func run() error {
-	// Replace this stub with the real entry point.
-	// Consider using internal/ packages for organization.
-	fmt.Println("jojo: Not yet implemented")
+	repo := flag.String("repo", ".", "repository to browse")
+	revset := flag.String("r", "", "revset to log, defaulting to the repository's revsets.log")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("jojo %s (commit: %s, built: %s)\n", version, commit, date)
+
+		return nil
+	}
+
+	ctx := context.Background()
+
+	client := jj.NewClient(*repo)
+	if err := client.CheckInstalled(ctx); err != nil {
+		return fmt.Errorf("jj is not usable: %w", err)
+	}
+
+	if _, err := client.Root(ctx); err != nil {
+		return fmt.Errorf("%s is not a jj repository: %w", *repo, err)
+	}
+
+	if *revset == "" {
+		configured, err := client.DefaultRevset(ctx)
+		if err != nil {
+			return fmt.Errorf("reading revsets.log: %w", err)
+		}
+
+		*revset = configured
+	}
+
+	if _, err := tea.NewProgram(model.New(client, ui.Detected(), *revset), tea.WithContext(ctx)).Run(); err != nil {
+		return fmt.Errorf("jojo exited: %w", err)
+	}
+
 	return nil
-}
-
-func printHelp() {
-	fmt.Printf(`jojo - A terminal UI for Jujutsu, meant as a replacement for lazygit
-
-Usage:
-  jojo [options]
-
-Options:
-  -h, --help     Show this help message
-  -v, --version  Show version information
-`)
 }

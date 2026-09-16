@@ -1,0 +1,10 @@
+@      wkwyyxvq          (empty)                                                      fixture     2y
+○      rnzxmskv          large refactor across many files                 6f +240 -0  fixture     2y
+│ ○    koopqtrk          merge branch one and branch two                              fixture     2y
+│ ├─╮
+│ │ ○  ryvkrytz          branch two: add branch-two.txt                     1f +1 -0  fixture     2y
+├───╯
+○      twnsvwmr  main    add c                                              1f +1 -0  fixture     2y
+◆      nptwozlo  wip     add b                                              1f +1 -0  fixture     2y
+│ ×    kyvykpum          edit shared file another way                       1f +8 -1  fixture     2y
+│ ~  (elided revisions)
