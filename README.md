@@ -3,9 +3,18 @@
 A terminal UI for [Jujutsu](https://github.com/jj-vcs/jj), meant as a replacement for
 lazygit rather than as another jj log browser.
 
-No code yet. This repo currently holds the requirements, the survey of what exists, and
-the roadmap, relocated from [jj-diff](https://github.com/KyleKing/jj-diff) on 2026-09-02
-once that project settled on staying a diff tool.
+The log view, the revset box, and the forge pane work. See
+[ROADMAP.md](ROADMAP.md) for what is done and what is next, and
+[docs/dogfooding.md](docs/dogfooding.md) for how to drive it.
+
+```sh
+mise run build
+./jojo --repo path/to/repo
+```
+
+The requirements and the survey of what exists were relocated from
+[jj-diff](https://github.com/KyleKing/jj-diff) on 2026-09-02 once that project settled on
+staying a diff tool.
 
 ## Why another one
 
@@ -64,6 +73,25 @@ configured diff editor the same way `jj split -i` does.
 Shared plumbing comes from [aragonite](https://github.com/KyleKing/aragonite), which
 already ships `vcs`, `forge/github`, `cache`, `transport`, `ratelimit`, and the `tui/`
 packages for theming, overlays, tables, and key hints.
+
+## Keys
+
+`?` in the app is the authoritative list, generated from the same table the footer and
+the handlers read. The ones worth knowing before you start:
+
+| Key | Does |
+| --- | --- |
+| `j` / `k` | move a revision, skipping the graph connectors |
+| `space` | check a revision, so the next action runs over all the checked ones |
+| `@` | jump to the working copy |
+| `L` | edit the revset, which re-filters the log as you type |
+| `p` | open the forge pane |
+| `Tab` | cycle the log, the revset box, and the forge pane |
+| `n` `e` `d` `s` `S` `a` `A` `r` `D` | new, edit, describe, squash, split, abandon, absorb, rebase, duplicate |
+| `u` | undo the last operation |
+
+Every action in that last row runs immediately and tells you to press `u`, because jj's
+operation log makes all of them reversible.
 
 ## Docs
 

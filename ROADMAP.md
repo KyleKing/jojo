@@ -1,7 +1,7 @@
 # jojo roadmap
 
-Nothing is built yet. [docs/requirements.md](docs/requirements.md) is the full spec and
-this file is the order to build it in. Three of the features below arrived from
+[docs/requirements.md](docs/requirements.md) is the full spec and this file is the order
+to build it in. Three of the features below arrived from
 [jj-diff's roadmap](https://github.com/KyleKing/jj-diff/blob/main/ROADMAP.md) on
 2026-09-02, where they had been planned for a repo browser that repo decided not to
 become.
@@ -11,15 +11,19 @@ become.
 The first two are what the tool is for, and nothing after them matters until they are
 readable.
 
-1. Log view with the row composition from the requirements: change id, bookmarks,
-   description, and size (files touched, `+`/`-` lines), with author and timestamp
-   demoted
-2. Revset box, editable and live-filtering, defaulting to `revsets.log`
-3. Forge pane: pull request state, review decision, and CI rollup for the bookmark at or
-   near `@`, with the forge detected from the git remote
-4. Per-commit actions bound directly (new, edit, describe, squash, split, abandon,
-   rebase, absorb), each executing immediately with an undo hint rather than a confirm
-   gate, because `jj undo` already covers them
+1. **Done.** Log view with the row composition from the requirements: change id,
+   bookmarks, description, and size (files touched, `+`/`-` lines), with author and
+   timestamp demoted. The size counts come out of the same `jj log` call, because jj
+   0.45's template language exposes `diff.stat()`
+2. **Done.** Revset box, editable and live-filtering, defaulting to `revsets.log`, with
+   completion over jj's revset functions and the repository's own aliases
+3. **Done.** Forge pane: pull request state, review decision, and CI rollup for the
+   bookmark at or near `@`, with the forge detected from the git remote
+4. **In progress.** Per-commit actions bound directly (new, edit, describe, squash,
+   split, abandon, rebase, absorb), each executing immediately with an undo hint rather
+   than a confirm gate, because `jj undo` already covers them. New, edit, abandon,
+   absorb, duplicate, and split are bound; describe, squash, and rebase are waiting on
+   the prompt and destination-picker modals
 5. Operation log view
 6. Evolution timeline and interdiff
 7. Workspace panel
