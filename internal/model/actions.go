@@ -1,0 +1,119 @@
+package model
+
+import (
+	"context"
+	"os/exec"
+	"strconv"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+// targets is what an action acts on: the checked revisions when any are
+// checked, otherwise the one under the cursor. Batch and single are the same
+// code path, so a multi-select cannot silently act on one revision.
+func (m Model) targets() []string {
+	if checked := m.log.Checked(); len(checked) > 0 {
+		return checked
+	}
+
+	if rev := m.log.Selected(); rev != nil {
+		return []string{rev.ChangeID}
+	}
+
+	return nil
+}
+
+// handleActionKey runs the per-commit verbs. Every one of them is reversible
+// through the operation log, so each executes immediately and reports an undo
+// hint rather than opening a confirm gate.
+func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
+	rev := m.log.Selected()
+	if rev == nil {
+		return m, nil, false
+	}
+
+	switch key {
+	case "n":
+		return m, m.run(undoable("new change on "+rev.ChangeID), func(ctx context.Context) error {
+			return m.client.New(ctx, m.targets())
+		}), true
+	case "e":
+		if rev.Immutable {
+			return m, m.say(rev.ChangeID + " is immutable"), true
+		}
+
+		return m, m.run(undoable("editing "+rev.ChangeID), func(ctx context.Context) error {
+			return m.client.Edit(ctx, rev.ChangeID)
+		}), true
+	case "a":
+		return m, m.run(undoable("abandoned "+joinIDs(m.targets())), func(ctx context.Context) error {
+			return m.client.Abandon(ctx, m.targets())
+		}), true
+	case "A":
+		return m, m.run(undoable("absorbed "+rev.ChangeID), func(ctx context.Context) error {
+			return m.client.Absorb(ctx, rev.ChangeID)
+		}), true
+	case "D":
+		return m, m.run(undoable("duplicated "+joinIDs(m.targets())), func(ctx context.Context) error {
+			return m.client.Duplicate(ctx, m.targets())
+		}), true
+	case "S":
+		return m, m.exec(undoable("split"), "split", "-i", "-r", rev.ChangeID), true
+	}
+
+	return m, nil, false
+}
+
+func joinIDs(ids []string) string {
+	if len(ids) == 1 {
+		return ids[0]
+	}
+
+	return ids[0] + " and " + strconv.Itoa(len(ids)-1) + " more"
+}
+
+// exec suspends the TUI and hands the terminal to jj, which is how the
+// interactive verbs reach jj's configured diff editor.
+func (m Model) exec(done string, args ...string) tea.Cmd {
+	//nolint:gosec // G204: the binary is a literal and args are built here, never from user input.
+	cmd := exec.CommandContext(m.ctx, "jj", args...)
+	cmd.Dir = m.repoPath
+	revset := m.revset
+
+	return tea.Sequence(
+		tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				return messageMsg{text: err.Error()}
+			}
+
+			return messageMsg{text: done}
+		}),
+		m.loadLog(revset),
+	)
+}
+
+func (Model) say(text string) tea.Cmd {
+	return func() tea.Msg { return messageMsg{text: text} }
+}
+
+// undoable adds the hint that replaces a confirm gate, because the operation
+// log makes every one of these reversible.
+func undoable(done string) string {
+	return done + ", press u to undo"
+}
+
+// run executes a jj write then reloads the log.
+func (m Model) run(done string, mutate func(context.Context) error) tea.Cmd {
+	revset, ctx := m.revset, m.ctx
+
+	return tea.Sequence(
+		func() tea.Msg {
+			if err := mutate(ctx); err != nil {
+				return messageMsg{text: err.Error()}
+			}
+
+			return messageMsg{text: done}
+		},
+		m.loadLog(revset),
+	)
+}

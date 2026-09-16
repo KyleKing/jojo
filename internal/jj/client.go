@@ -79,18 +79,35 @@ func (c *Client) executeJJ(ctx context.Context, args ...string) (string, error) 
 }
 
 // wrapJJError classifies stderr from a failed jj invocation into the sentinel errors callers inspect
-// with errors.Is, falling back to ErrCommandFailed for anything else.
+// with errors.Is. A classified failure reports jj's own complaint alone, because it is shown to the
+// user in place; an unclassified one keeps the command line, because it is a bug report.
 func wrapJJError(args []string, stderr string) error {
 	trimmed := strings.TrimSpace(stderr)
 
-	sentinel := ErrCommandFailed
-
 	switch {
 	case strings.Contains(stderr, "Failed to parse revset"):
-		sentinel = ErrRevsetSyntax
+		return fmt.Errorf("%w: %s", ErrRevsetSyntax, complaint(trimmed))
 	case strings.Contains(stderr, "is immutable"):
-		sentinel = ErrImmutable
+		return fmt.Errorf("%w: %s", ErrImmutable, complaint(trimmed))
 	}
 
-	return fmt.Errorf("jj %s: %w: %s", strings.Join(args, " "), sentinel, trimmed)
+	return fmt.Errorf("jj %s: %w: %s", strings.Join(args, " "), ErrCommandFailed, trimmed)
+}
+
+// complaint reduces jj's stderr to its headline and the one "= detail" line of
+// its caret diagram, which is where a syntax error says what it expected.
+func complaint(stderr string) string {
+	lines := strings.Split(stderr, "\n")
+	headline := strings.TrimPrefix(strings.TrimSpace(lines[0]), "Error: ")
+
+	for _, line := range lines[1:] {
+		detail, found := strings.CutPrefix(strings.TrimSpace(line), "= ")
+		if !found || strings.Contains(headline, detail) {
+			continue
+		}
+
+		return headline + " (" + detail + ")"
+	}
+
+	return headline
 }

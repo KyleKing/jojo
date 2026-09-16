@@ -59,7 +59,8 @@ func run() error {
 		*revset = configured
 	}
 
-	if _, err := tea.NewProgram(model.New(client, ui.Detected(), *revset), tea.WithContext(ctx)).Run(); err != nil {
+	app := model.New(ctx, client, ui.Detected(), *repo, *revset)
+	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}
 

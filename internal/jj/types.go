@@ -13,14 +13,23 @@ type Revision struct {
 	AuthorEmail string
 	Age         string
 	Graph       string
-	Bookmarks   []string
-	Added       int
-	Removed     int
-	Files       int
-	Immutable   bool
-	Conflict    bool
-	Empty       bool
-	WorkingCopy bool
+	// Bookmarks is what the row renders, so it keeps jj's markers: a trailing
+	// "*" for a local bookmark ahead of its remote, and "name@remote" forms.
+	Bookmarks []string
+	// LocalBookmarks is the same set with jj's markers stripped and remotes
+	// dropped, which is what a forge can be asked about.
+	LocalBookmarks []string
+	// RemoteBookmarks names the branches this revision is on at a remote, with
+	// the "@remote" suffix dropped, so a revision that was pushed but never
+	// tracked locally can still be matched to a pull request.
+	RemoteBookmarks []string
+	Added           int
+	Removed         int
+	Files           int
+	Immutable       bool
+	Conflict        bool
+	Empty           bool
+	WorkingCopy     bool
 }
 
 // GraphLine is a log line carrying no revision, such as a connector between two

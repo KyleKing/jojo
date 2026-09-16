@@ -17,6 +17,8 @@ const fieldSep = "\x1f"
 const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`commit_id.short(8) ++ "` + fieldSep + `" ++ ` +
 	`bookmarks.join(",") ++ "` + fieldSep + `" ++ ` +
+	`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
+	`remote_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`(if(immutable,"I","") ++ if(conflict,"C","") ++ ` +
 	`if(empty,"E","") ++ if(current_working_copy,"@","")) ++ "` + fieldSep + `" ++ ` +
 	`author.email() ++ "` + fieldSep + `" ++ ` +
@@ -30,7 +32,7 @@ const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 // change ID alphabet (lowercase k-z) never overlaps with the symbols and spaces that make up a graph.
 var changeIDSuffix = regexp.MustCompile(`[a-z]+$`)
 
-const logFieldCount = 10
+const logFieldCount = 12
 
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
@@ -89,29 +91,51 @@ func parseRevisionLine(line string) *Revision {
 	}
 
 	graph, changeID := fields[0][:loc[0]], fields[0][loc[0]:]
-	flags := fields[3]
-
-	var bookmarks []string
-	if fields[2] != "" {
-		bookmarks = strings.Split(fields[2], ",")
-	}
+	flags := fields[5]
 
 	return &Revision{
-		ChangeID:    changeID,
-		CommitID:    fields[1],
-		Description: fields[9],
-		AuthorEmail: fields[4],
-		Age:         fields[5],
-		Graph:       graph,
-		Bookmarks:   bookmarks,
-		Added:       atoiOrZero(fields[6]),
-		Removed:     atoiOrZero(fields[7]),
-		Files:       atoiOrZero(fields[8]),
-		Immutable:   strings.Contains(flags, "I"),
-		Conflict:    strings.Contains(flags, "C"),
-		Empty:       strings.Contains(flags, "E"),
-		WorkingCopy: strings.Contains(flags, "@"),
+		ChangeID:        changeID,
+		CommitID:        fields[1],
+		Description:     fields[11],
+		AuthorEmail:     fields[6],
+		Age:             fields[7],
+		Graph:           graph,
+		Bookmarks:       splitList(fields[2]),
+		LocalBookmarks:  splitList(fields[3]),
+		RemoteBookmarks: dedupe(splitList(fields[4])),
+		Added:           atoiOrZero(fields[8]),
+		Removed:         atoiOrZero(fields[9]),
+		Files:           atoiOrZero(fields[10]),
+		Immutable:       strings.Contains(flags, "I"),
+		Conflict:        strings.Contains(flags, "C"),
+		Empty:           strings.Contains(flags, "E"),
+		WorkingCopy:     strings.Contains(flags, "@"),
 	}
+}
+
+func splitList(field string) []string {
+	if field == "" {
+		return nil
+	}
+
+	return strings.Split(field, ",")
+}
+
+// dedupe collapses one branch tracked at several remotes to a single name.
+func dedupe(names []string) []string {
+	seen := map[string]bool{}
+	out := names[:0]
+
+	for _, name := range names {
+		if seen[name] {
+			continue
+		}
+
+		seen[name] = true
+		out = append(out, name)
+	}
+
+	return out
 }
 
 func atoiOrZero(s string) int {

@@ -57,6 +57,8 @@ var Bindings = []Binding{
 	{Layer: L2, Hint: keyhint.Hint{Key: "s", What: "squash"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "S", What: "split"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "a", What: "abandon"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "A", What: "absorb"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "D", What: "duplicate"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "r", What: "rebase"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "b", What: "bookmarks"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "o", What: "op log"}},
@@ -64,6 +66,8 @@ var Bindings = []Binding{
 	{Layer: L2, Hint: keyhint.Hint{Key: "@", What: "jump to working copy"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "w", What: "workspaces"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "p", What: "forge pane"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "L", What: "edit the revset"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "space", What: "check for a batch action"}},
 
 	{Layer: L3, Hint: keyhint.Hint{What: "Power", Head: true}},
 	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
