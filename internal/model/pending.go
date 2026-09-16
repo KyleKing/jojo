@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
@@ -145,6 +146,39 @@ func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
 	})
 }
 
+func (m Model) loadEvolog(changeID string) tea.Cmd {
+	client, ctx := m.client, m.ctx
+
+	return func() tea.Msg {
+		entries, err := client.Evolog(ctx, changeID)
+
+		return evologLoadedMsg{changeID: changeID, entries: entries, err: err}
+	}
+}
+
+func (m Model) applyEvolog(msg evologLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = msg.err.Error()
+
+		return m, nil
+	}
+
+	cmd := m.evolog.Open(msg.changeID, msg.entries)
+
+	return m, cmd
+}
+
+// restoreVersion puts an earlier version's content back into the change it belongs to, which leaves
+// the change's description and its place in the graph alone.
+func (m Model) restoreVersion(msg evologview.RestoreMsg) (tea.Model, tea.Cmd) {
+	from, into := msg.CommitID, m.evolog.ChangeID()
+	m.evolog.Close()
+
+	return m, m.run(undoable("restored "+into+" to "+from), func(ctx context.Context) error {
+		return m.client.Restore(ctx, from, into)
+	})
+}
+
 func (m Model) loadWorkspaces() tea.Cmd {
 	client, ctx := m.client, m.ctx
 
@@ -210,6 +244,7 @@ func (m Model) cancelModals() Model {
 	m.destPicker.Close()
 	m.opLog.Close()
 	m.spaces.Close()
+	m.evolog.Close()
 	m.pending, m.pendingOn = pendingNone, ""
 
 	return m

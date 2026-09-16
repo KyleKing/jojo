@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
@@ -63,6 +64,12 @@ type opLogLoadedMsg struct {
 	ops []jj.Operation
 }
 
+type evologLoadedMsg struct {
+	err      error
+	changeID string
+	entries  []jj.Evolution
+}
+
 type workspacesLoadedMsg struct {
 	err    error
 	spaces []jj.Workspace
@@ -84,6 +91,7 @@ type Model struct {
 	destPicker destpicker.Model
 	opLog      oplogview.Model
 	spaces     workspaceview.Model
+	evolog     evologview.Model
 	pendingOn  string
 	redoOp     string
 	revset     string
@@ -113,6 +121,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		destPicker: destpicker.New(skin),
 		opLog:      oplogview.New(skin),
 		spaces:     workspaceview.New(skin),
+		evolog:     evologview.New(skin),
 		status:     statusbar.New(skin),
 		help:       help.New(skin),
 		revset:     revset,
@@ -186,7 +195,8 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handlePicked(msg)
 
 		return next, cmd, true
-	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg:
+	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg,
+		evologview.CancelledMsg:
 		return m.cancelModals(), nil, true
 	case opLogLoadedMsg:
 		next, cmd := m.applyOpLog(msg)
@@ -206,6 +216,18 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return next, cmd, true
 	case workspaceview.ForgetMsg:
 		next, cmd := m.forgetWorkspace(msg)
+
+		return next, cmd, true
+	case evologLoadedMsg:
+		next, cmd := m.applyEvolog(msg)
+
+		return next, cmd, true
+	case evologview.ShowMsg:
+		return m, m.exec("", "diff", "-r", msg.CommitID), true
+	case evologview.InterdiffMsg:
+		return m, m.exec("", "diff", "--from", msg.From, "--to", msg.To), true
+	case evologview.RestoreMsg:
+		next, cmd := m.restoreVersion(msg)
 
 		return next, cmd, true
 	}
@@ -290,6 +312,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.opLog.Update(msg), true
 	case m.spaces.IsOpen():
 		return m.spaces.Update(msg), true
+	case m.evolog.IsOpen():
+		return m.evolog.Update(msg), true
 	}
 
 	return nil, false
@@ -471,6 +495,8 @@ func (m Model) render() string {
 		return m.opLog.View(m.width, m.height)
 	case m.spaces.IsOpen():
 		return m.spaces.View(m.width, m.height)
+	case m.evolog.IsOpen():
+		return m.evolog.View(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}

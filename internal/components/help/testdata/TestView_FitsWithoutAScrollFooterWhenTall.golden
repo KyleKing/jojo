@@ -25,6 +25,7 @@
 │             R  rebase it and its descendants             │
 │             b  bookmarks                                 │
 │             o  op log                                    │
+│             E  evolution of the revision                 │
 │    u / Ctrl+r  undo / redo                               │
 │        Ctrl+l  reload the log                            │
 │             @  jump to working copy                      │
@@ -34,7 +35,6 @@
 │         space  check for a batch action                  │
 │                Power                                     │
 │                edit the revset aliases                   │
-│                jj arrange                                │
-│                                              1-35 of 37  │
+│                                              1-35 of 38  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

@@ -81,6 +81,8 @@ func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 		cmd := m.openRebase(*rev, pendingRebaseSource)
 
 		return m, cmd, true
+	case "E":
+		return m, m.loadEvolog(rev.ChangeID), true
 	case "S":
 		return m, m.exec(undoable("split"), "split", "-i", "-r", rev.ChangeID), true
 	}

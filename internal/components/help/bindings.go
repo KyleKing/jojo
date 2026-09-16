@@ -63,6 +63,7 @@ var Bindings = []Binding{
 	{Layer: L2, Hint: keyhint.Hint{Key: "R", What: "rebase it and its descendants"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "b", What: "bookmarks"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "o", What: "op log"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "E", What: "evolution of the revision"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "u / Ctrl+r", What: "undo / redo"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "Ctrl+l", What: "reload the log"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "@", What: "jump to working copy"}},
