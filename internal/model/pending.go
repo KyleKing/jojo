@@ -25,6 +25,8 @@ const (
 	pendingRebaseRevisions
 	pendingRebaseSource
 	pendingWorkspaceAdd
+	pendingBookmarkCreate
+	pendingBookmarkRename
 )
 
 // openDescribe seeds the prompt with the current description, because an edit
@@ -66,11 +68,20 @@ func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 
 	switch action {
 	case pendingDescribe:
-		return m, m.run(undoable("described "+source), func(ctx context.Context) error {
-			return m.client.Describe(ctx, source, msg.Value)
-		})
+		cmd := m.act(undoable("described "+source), source,
+			func(ctx context.Context, c *jj.Client) error { return c.Describe(ctx, source, msg.Value) })
+
+		return m, cmd
 	case pendingWorkspaceAdd:
 		return m, m.addWorkspace(msg.Value)
+	case pendingBookmarkCreate:
+		return m, m.bookmarkWrite("created "+msg.Value, func(ctx context.Context) error {
+			return m.client.BookmarkSet(ctx, msg.Value, source)
+		})
+	case pendingBookmarkRename:
+		return m, m.bookmarkWrite("renamed "+source+" to "+msg.Value, func(ctx context.Context) error {
+			return m.client.BookmarkRename(ctx, source, msg.Value)
+		})
 	case pendingNone, pendingSquash, pendingRebaseRevisions, pendingRebaseSource:
 		return m, nil
 	}
@@ -85,27 +96,30 @@ func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
 	m.pending, m.pendingOn = pendingNone, ""
 
 	switch action {
-	case pendingWorkspaceAdd, pendingNone, pendingDescribe:
+	case pendingWorkspaceAdd, pendingBookmarkCreate, pendingBookmarkRename, pendingNone, pendingDescribe:
 		return m, nil
 	case pendingSquash:
-		return m, m.run(undoable("squashed "+source+" into "+dest), func(ctx context.Context) error {
-			return m.client.Squash(ctx, source, dest)
-		})
+		cmd := m.act(undoable("squashed "+source+" into "+dest), source,
+			func(ctx context.Context, c *jj.Client) error { return c.Squash(ctx, source, dest) })
+
+		return m, cmd
 	case pendingRebaseRevisions, pendingRebaseSource:
-		return m, m.rebase(source, dest, action)
+		cmd := m.rebase(source, dest, action)
+
+		return m, cmd
 	}
 
 	return m, nil
 }
 
-func (m Model) rebase(source, dest string, action pending) tea.Cmd {
+func (m *Model) rebase(source, dest string, action pending) tea.Cmd {
 	scope := jj.RebaseScopeRevisions
 	if action == pendingRebaseSource {
 		scope = jj.RebaseScopeSource
 	}
 
-	return m.run(undoable("rebased "+source+" onto "+dest), func(ctx context.Context) error {
-		return m.client.Rebase(ctx, jj.RebaseOptions{
+	return m.act(undoable("rebased "+source+" onto "+dest), source, func(ctx context.Context, c *jj.Client) error {
+		return c.Rebase(ctx, jj.RebaseOptions{
 			Revisions:   []string{source},
 			Destination: jj.RebaseDestination{Revisions: []string{dest}, Mode: jj.RebaseDestOnto},
 			Scope:       scope,
@@ -245,6 +259,7 @@ func (m Model) cancelModals() Model {
 	m.opLog.Close()
 	m.spaces.Close()
 	m.evolog.Close()
+	m.bookmarks.Close()
 	m.pending, m.pendingOn = pendingNone, ""
 
 	return m

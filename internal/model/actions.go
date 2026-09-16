@@ -38,34 +38,37 @@ func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 
 	switch key {
 	case "n":
-		return m, m.run(undoable("new change on "+rev.ChangeID), func(ctx context.Context) error {
-			return m.client.New(ctx, m.targets())
-		}), true
+		targets := m.targets()
+
+		cmd := m.act(undoable("new change on "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.New(ctx, targets) })
+
+		return m, cmd, true
 	case "e":
-		if rev.Immutable {
-			return m, m.say(rev.ChangeID + " is immutable"), true
-		}
+		cmd := m.act(undoable("editing "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.Edit(ctx, rev.ChangeID) })
 
-		return m, m.run(undoable("editing "+rev.ChangeID), func(ctx context.Context) error {
-			return m.client.Edit(ctx, rev.ChangeID)
-		}), true
+		return m, cmd, true
 	case "a":
-		return m, m.run(undoable("abandoned "+joinIDs(m.targets())), func(ctx context.Context) error {
-			return m.client.Abandon(ctx, m.targets())
-		}), true
-	case "A":
-		return m, m.run(undoable("absorbed "+rev.ChangeID), func(ctx context.Context) error {
-			return m.client.Absorb(ctx, rev.ChangeID)
-		}), true
-	case "D":
-		return m, m.run(undoable("duplicated "+joinIDs(m.targets())), func(ctx context.Context) error {
-			return m.client.Duplicate(ctx, m.targets())
-		}), true
-	case "d":
-		if rev.Immutable {
-			return m, m.say(rev.ChangeID + " is immutable"), true
-		}
+		targets := m.targets()
 
+		cmd := m.act(undoable("abandoned "+joinIDs(targets)), joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) error { return c.Abandon(ctx, targets) })
+
+		return m, cmd, true
+	case "A":
+		cmd := m.act(undoable("absorbed "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.Absorb(ctx, rev.ChangeID) })
+
+		return m, cmd, true
+	case "D":
+		targets := m.targets()
+
+		cmd := m.act(undoable("duplicated "+joinIDs(targets)), joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) error { return c.Duplicate(ctx, targets) })
+
+		return m, cmd, true
+	case "d":
 		cmd := m.openDescribe(*rev)
 
 		return m, cmd, true
@@ -137,6 +140,8 @@ func (m Model) run(done string, mutate func(context.Context) error) tea.Cmd {
 			switch err := mutate(ctx); {
 			case errors.Is(err, jj.ErrNothingChanged):
 				return messageMsg{text: "nothing changed"}
+			case errors.Is(err, jj.ErrImmutable):
+				return refusedMsg{err: err}
 			case err != nil:
 				return messageMsg{text: err.Error()}
 			}

@@ -136,20 +136,23 @@ func wrapJJError(args []string, stderr string) error {
 		return fmt.Errorf("%w: %s", ErrRevsetSyntax, complaint(trimmed))
 	case strings.Contains(stderr, "is immutable"):
 		return fmt.Errorf("%w: %s", ErrImmutable, complaint(trimmed))
+	case strings.Contains(stderr, "Won't push"):
+		return fmt.Errorf("%w: %s", ErrPushRefused, complaint(trimmed))
 	}
 
 	return fmt.Errorf("jj %s: %w: %s", strings.Join(args, " "), ErrCommandFailed, trimmed)
 }
 
-// complaint reduces jj's stderr to its headline and the one "= detail" line of
-// its caret diagram, which is where a syntax error says what it expected.
+// complaint reduces jj's stderr to its headline and the one line that says something the headline
+// does not: the "= detail" of a caret diagram, or jj's own "Hint:" line. Both are where jj explains
+// what it wanted, which is the part worth putting in front of someone.
 func complaint(stderr string) string {
 	lines := strings.Split(stderr, "\n")
 	headline := strings.TrimPrefix(strings.TrimSpace(lines[0]), "Error: ")
 
 	for _, line := range lines[1:] {
-		detail, found := strings.CutPrefix(strings.TrimSpace(line), "= ")
-		if !found || strings.Contains(headline, detail) {
+		detail := detailOf(line)
+		if detail == "" || strings.Contains(headline, detail) {
 			continue
 		}
 
@@ -157,4 +160,18 @@ func complaint(stderr string) string {
 	}
 
 	return headline
+}
+
+func detailOf(line string) string {
+	trimmed := strings.TrimSpace(line)
+
+	if detail, found := strings.CutPrefix(trimmed, "= "); found {
+		return detail
+	}
+
+	if detail, found := strings.CutPrefix(trimmed, "Hint: "); found {
+		return detail
+	}
+
+	return ""
 }
