@@ -89,10 +89,14 @@ the handlers read. The ones worth knowing before you start:
 | `Tab` | cycle the log, the revset box, and the forge pane |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
 | `r` / `R` | rebase the revision, or rebase it and its descendants |
-| `u` | undo the last operation |
+| `o` | browse the operation log and restore to one |
+| `E` | the evolution of the revision, with interdiff and restore |
+| `w` | the workspace panel, with add and forget |
+| `u` / `Ctrl+r` | undo the last operation, or redo it |
 
-Every action in that last row runs immediately and tells you to press `u`, because jj's
-operation log makes all of them reversible.
+Every action runs immediately and tells you to press `u`, because jj's operation log
+makes all of them reversible. jj has no redo, so `Ctrl+r` restores the operation the undo
+moved away from.
 
 ## Docs
 

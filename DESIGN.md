@@ -57,6 +57,15 @@ three places it has to agree.
 and each handles its own bindings while focused. That is what lets `r` mean rebase in the
 log and refresh in the forge pane.
 
+**An open overlay owns every key.** The operation log, the evolution timeline, the
+workspace panel, the describe prompt, and the destination picker all share `j` and `k`
+with the log underneath them, so the root routes keys to whichever one is open before
+anything else looks at them.
+
+**Redo is an operation id, not a command.** jj has no redo. `u` records the operation the
+repository was at and `Ctrl+r` restores it, which is exact rather than a guess at which
+operation to return to.
+
 **Unrecognized messages fan out to every sub-model.** A component's debounce and poll ticks
 are its own unexported types, so the root model cannot switch on them. Anything it does
 not own goes to every pane instead.

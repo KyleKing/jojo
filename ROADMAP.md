@@ -23,62 +23,47 @@ readable.
    abandon, rebase, absorb), each executing immediately with an undo hint rather than a
    confirm gate, because `jj undo` already covers them. Rebase scope is picked by the
    key rather than inferred: `r` moves the revision, `R` moves it and its descendants
-5. Operation log view
-6. Evolution timeline and interdiff
-7. Workspace panel
+5. **Done.** Operation log view on `o`, jj's undo history as a browsable list rather
+   than a bare `jj undo` binding with nothing to see. Restoring to an operation is itself
+   an operation, so it undoes like everything else
+6. **Done.** Evolution timeline on `E` and the interdiff built on it: how a change
+   reached its current state, what a describe, squash, or rebase actually changed, and a
+   way back to an earlier version
+7. **Done.** Workspace panel on `w`, with add and forget, which neither lazyjj nor jjui
+   exposes
 8. Repo health surface: stale-working-copy recovery, conflicted-bookmark resolution,
    and divergent-side abandonment, built on the markers the log view already carries.
    The stale-checkout detection has to exist from day one in practice, because any jj
    command the app itself runs can hit or cause it — see the serialized-command-queue
    note in requirements.md
 
-## Operation log view
+## Decisions worth keeping
 
-**Keybinding**: `o`
+**Redo is `jj op restore`, not a jj command.** jj has no redo, so `u` records the
+operation the repository was at before undoing and `Ctrl+r` restores it. That makes redo
+exact rather than a guess at which operation to go back to, and it is why the redo key
+reports having nothing to go back to until an undo has run. `Ctrl+l` reloads the log,
+which is what `Ctrl+r` used to do.
 
-jj's undo history, which deserves browsing rather than a bare `jj undo` binding with no
-visibility into what else is restorable.
+**The timeline lists newest first and numbers from the oldest.** `jj evolog` prints
+newest first and the numbering counts up from the oldest version, so `[1]` stays `[1]`
+as newer versions arrive.
 
-```
-jj op log --no-graph -T 'operation_id ++ "\t" ++ description ++ "\t" ++ time ++ "\n"'
-jj undo
-jj op restore <op-id>
-```
+**Restore from the timeline replaces content, not identity.** `r` runs
+`jj restore --from <version> --into <change>`, which leaves the change's description and
+its place in the graph alone. Restoring a whole revision is what the operation log is
+for.
 
-Bind `u` anywhere for undo and `Ctrl+r` for the redo pattern (`jj op restore` to the
-previous operation).
-
-## Evolution timeline
-
-**Keybinding**: `E`
-
-How a change evolved through rebases, amends, and squashes, which is jj's core
-differentiator from git and which no other tool surfaces well.
-
-```
-jj evolog -r <rev> --no-graph -T 'commit_id ++ "\t" ++ description.first_line() ++ "\n"'
-jj diff --from <old> --to <new>
-```
-
-```
-Evolution of change abc123
-─────────────────────────────
-  [3] 2h ago   rebase onto main
-  [2] 5h ago   amend: fix typo        ← cursor
-  [1] 1d ago   initial commit
-─────────────────────────────
-[Enter] view diff  [d] interdiff  [r] restore  [q] close
-```
-
-Interdiff hangs off the same view: mark one version with space, move to a second, and
-diff the pair. Reading what a `describe`, `squash`, or `rebase` actually changed before
-undoing it is the case that earns it.
+**A new workspace lands beside the repository.** A working copy nested under the
+repository root would be snapshotted into its own commits. The panel refuses to forget
+the workspace the process is running in, because that leaves jj with no working copy to
+act on. jj-diff's scratch workspace is a separate mechanism and never appears here.
 
 ## Interactive smartlog
 
-The log view already is this once per-commit actions land, so it is listed here only to
-record that Sapling's smartlog shape was the reference: the graph is the primary surface
-and actions are bound on the selected row, with no separate mode to enter.
+The log view is this, which is recorded here only because Sapling's smartlog was the
+reference: the graph is the primary surface and actions are bound on the selected row,
+with no separate mode to enter.
 
 ```
   @  abc123  (empty) working copy
@@ -97,3 +82,8 @@ Hunk-level and line-level diff selection stays in
 Anything that reads across many repositories at once belongs to
 [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) or
 [gh-sweep](https://github.com/KyleKing/gh-sweep).
+
+Everything in the order above except the repo health surface is shipped.
+[docs/requirements.md](docs/requirements.md) carries what else is still open: conflict
+resolution in jj-diff's hunk engine, bisect, `jj arrange`, and sharing the operation log
+between machines.
