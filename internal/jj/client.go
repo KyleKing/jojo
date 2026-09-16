@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -60,11 +61,23 @@ func (c *Client) jjCommand(ctx context.Context, args ...string) *exec.Cmd {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.CommandContext(ctx, "jj", args...)
 	cmd.Dir = c.baseDir
+	// A jj call that reaches for an editor has to fail rather than block: this
+	// process holds the terminal, so a spawned editor would hang unseen. The
+	// interactive verbs bypass this by handing the terminal over instead.
+	cmd.Env = append(os.Environ(), "JJ_EDITOR=false", "EDITOR=false", "VISUAL=false")
 
 	return cmd
 }
 
 func (c *Client) executeJJ(ctx context.Context, args ...string) (string, error) {
+	out, _, err := c.execute(ctx, args...)
+
+	return out, err
+}
+
+// execute returns jj's stdout and, on success, the notices it writes to stderr,
+// which is where jj says what it did.
+func (c *Client) execute(ctx context.Context, args ...string) (string, string, error) {
 	cmd := c.jjCommand(ctx, args...)
 
 	var stdout, stderr bytes.Buffer
@@ -72,10 +85,28 @@ func (c *Client) executeJJ(ctx context.Context, args ...string) (string, error) 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", wrapJJError(args, stderr.String())
+		return "", "", wrapJJError(args, stderr.String())
 	}
 
-	return stdout.String(), nil
+	return stdout.String(), stderr.String(), nil
+}
+
+// nothingChangedNotice is what jj prints when a command succeeds and moves
+// nothing, which the caller must not report as a completed edit.
+const nothingChangedNotice = "Nothing changed."
+
+// mutate runs a jj write and reports ErrNothingChanged when jj did nothing.
+func (c *Client) mutate(ctx context.Context, args ...string) error {
+	_, notice, err := c.execute(ctx, args...)
+	if err != nil {
+		return err
+	}
+
+	if strings.Contains(notice, nothingChangedNotice) {
+		return ErrNothingChanged
+	}
+
+	return nil
 }
 
 // wrapJJError classifies stderr from a failed jj invocation into the sentinel errors callers inspect

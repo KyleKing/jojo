@@ -75,53 +75,44 @@ func (m RebaseDestinationMode) flag() string {
 // New creates a new change on top of revs, or on top of @ when revs is empty.
 func (c *Client) New(ctx context.Context, revs []string) error {
 	args := append([]string{"new"}, revs...)
-	_, err := c.executeJJ(ctx, args...)
 
-	return err
+	return c.mutate(ctx, args...)
 }
 
 // Edit makes rev the working-copy commit.
 func (c *Client) Edit(ctx context.Context, rev string) error {
-	_, err := c.executeJJ(ctx, "edit", rev)
-
-	return err
+	return c.mutate(ctx, "edit", rev)
 }
 
 // Describe sets rev's change description.
 func (c *Client) Describe(ctx context.Context, rev, message string) error {
-	_, err := c.executeJJ(ctx, "describe", "-r", rev, "-m", message)
-
-	return err
+	return c.mutate(ctx, "describe", "-r", rev, "-m", message)
 }
 
 // Squash moves from's changes into into.
 func (c *Client) Squash(ctx context.Context, from, into string) error {
-	_, err := c.executeJJ(ctx, "squash", "--from", from, "--into", into)
-
-	return err
+	// Without --use-destination-message jj opens $EDITOR to combine the two
+	// descriptions, which blocks a TUI that has its own describe flow.
+	return c.mutate(ctx, "squash", "--from", from, "--into", into, "--use-destination-message")
 }
 
 // Abandon abandons revs, rebasing their descendants onto their parents.
 func (c *Client) Abandon(ctx context.Context, revs []string) error {
 	args := append([]string{"abandon"}, revs...)
-	_, err := c.executeJJ(ctx, args...)
 
-	return err
+	return c.mutate(ctx, args...)
 }
 
 // Absorb moves rev's changes into the closest mutable ancestor where each line last changed.
 func (c *Client) Absorb(ctx context.Context, rev string) error {
-	_, err := c.executeJJ(ctx, "absorb", "-r", rev)
-
-	return err
+	return c.mutate(ctx, "absorb", "-r", rev)
 }
 
 // Duplicate creates new changes with the same content as revs.
 func (c *Client) Duplicate(ctx context.Context, revs []string) error {
 	args := append([]string{"duplicate"}, revs...)
-	_, err := c.executeJJ(ctx, args...)
 
-	return err
+	return c.mutate(ctx, args...)
 }
 
 // Rebase moves opts.Revisions, scoped by opts.Scope, to opts.Destination.
@@ -146,21 +137,15 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) error {
 		args = append(args, destFlag, rev)
 	}
 
-	_, err := c.executeJJ(ctx, args...)
-
-	return err
+	return c.mutate(ctx, args...)
 }
 
 // Undo reverts the last jj operation in the repository.
 func (c *Client) Undo(ctx context.Context) error {
-	_, err := c.executeJJ(ctx, "undo")
-
-	return err
+	return c.mutate(ctx, "undo")
 }
 
 // OpRestore restores the repository to the state at opID.
 func (c *Client) OpRestore(ctx context.Context, opID string) error {
-	_, err := c.executeJJ(ctx, "op", "restore", opID)
-
-	return err
+	return c.mutate(ctx, "op", "restore", opID)
 }

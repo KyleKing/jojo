@@ -63,4 +63,7 @@ var (
 	ErrRevsetSyntax = errors.New("invalid revset")
 	// ErrImmutable marks an edit refused because the target is immutable.
 	ErrImmutable = errors.New("revision is immutable")
+	// ErrNothingChanged marks a jj command that succeeded and moved nothing, so
+	// a caller must not report the edit as done.
+	ErrNothingChanged = errors.New("nothing changed")
 )

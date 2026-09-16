@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/kyleking/jojo/internal/jj"
 )
@@ -225,5 +226,80 @@ func TestRebaseRequiresExplicitScopeAndDestination(t *testing.T) {
 
 	if err := client.Rebase(ctx, jj.RebaseOptions{Revisions: []string{"@"}}); err == nil {
 		t.Fatal("expected an error when no destination is given")
+	}
+}
+
+// Two described revisions are what make jj reach for $EDITOR to combine them,
+// which would block a TUI holding the terminal.
+func TestSquashBetweenTwoDescribedRevisionsDoesNotBlock(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := t.Context()
+
+	writeFile(t, dir, "a.txt", "one\n")
+	runJJ(t, dir, "describe", "-m", "destination")
+	runJJ(t, dir, "new", "-m", "source")
+	writeFile(t, dir, "b.txt", "two\n")
+
+	rows, err := client.Log(ctx, "@ | @-", 0)
+	if err != nil {
+		t.Fatalf("log: %v", err)
+	}
+
+	source, destination := rows[0].Revision.ChangeID, rows[1].Revision.ChangeID
+
+	done := make(chan error, 1)
+	go func() { done <- client.Squash(ctx, source, destination) }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("squash: %v", err)
+		}
+	case <-time.After(squashTimeout):
+		t.Fatal("squash blocked, most likely waiting on an editor")
+	}
+
+	after, err := client.Log(ctx, destination, 0)
+	if err != nil {
+		t.Fatalf("log after squash: %v", err)
+	}
+
+	if got := after[0].Revision.Description; got != "destination" {
+		t.Errorf("description after squash = %q, want the destination's kept", got)
+	}
+}
+
+// squashTimeout is long enough for a cold jj on a loaded machine and far short
+// of an editor that never returns.
+const squashTimeout = 30 * time.Second
+
+// jj exits zero when a command moves nothing, so a caller that only checks the
+// exit status would report an edit that never happened.
+func TestMutationThatMovesNothingReportsIt(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := t.Context()
+
+	runJJ(t, dir, "describe", "-m", "base")
+	runJJ(t, dir, "new", "-m", "child")
+
+	rows, err := client.Log(ctx, "@ | @-", 0)
+	if err != nil {
+		t.Fatalf("log: %v", err)
+	}
+
+	child, base := rows[0].Revision.ChangeID, rows[1].Revision.ChangeID
+
+	opts := jj.RebaseOptions{
+		Revisions:   []string{child},
+		Destination: jj.RebaseDestination{Revisions: []string{base}, Mode: jj.RebaseDestOnto},
+		Scope:       jj.RebaseScopeRevisions,
+	}
+
+	if err := client.Rebase(ctx, opts); !errors.Is(err, jj.ErrNothingChanged) {
+		t.Errorf("rebasing a revision onto its own parent returned %v, want ErrNothingChanged", err)
 	}
 }
