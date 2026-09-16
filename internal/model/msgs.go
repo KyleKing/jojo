@@ -8,6 +8,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/evologview"
+	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
@@ -37,8 +38,13 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case confirm.CancelledMsg:
 		return m.cancelConfirm(), nil, true
 	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg,
-		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg:
+		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg,
+		fileview.CancelledMsg:
 		return m.cancelModals(), nil, true
+	}
+
+	if next, cmd, handled := m.handleFileMsg(msg); handled {
+		return next, cmd, true
 	}
 
 	return m.handlePanelMsg(msg)

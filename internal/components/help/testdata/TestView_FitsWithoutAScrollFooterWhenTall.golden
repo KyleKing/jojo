@@ -26,15 +26,15 @@
 │          D  duplicate                                    │
 │          r  rebase the revision                          │
 │          R  rebase it and its descendants                │
+│          l  files in the revision                        │
+│          c  resolve the conflict                         │
 │          b  bookmarks                                    │
+│          f  fetch                                        │
+│          P  push the revision's bookmarks                │
 │          o  op log                                       │
-│          v  details of the revision                      │
 │          v  details of the revision                      │
 │          E  evolution of the revision                    │
 │          u  undo                                         │
-│     Ctrl+r  redo                                         │
-│     Ctrl+l  reload the log                               │
-│          @  jump to working copy                         │
-│                                              1-35 of 44  │
+│                                              1-35 of 47  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

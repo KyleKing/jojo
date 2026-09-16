@@ -15,6 +15,13 @@ const (
 	confirmPush  = "push"
 )
 
+// pendingPush is the push a confirmation is standing over, kept whole so the message it reports
+// names what was pushed rather than rebuilding it from the flags.
+type pendingPush struct {
+	what string
+	opts jj.PushOptions
+}
+
 // refusedMsg carries a write jj declined because the target is protected.
 type refusedMsg struct {
 	err error
@@ -67,10 +74,10 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 
 		return m, m.run(undoHint, func(ctx context.Context) (string, error) { return forced.fn(ctx, client) })
 	case confirmPush:
-		opts := m.pushing
-		m.pushing = jj.PushOptions{}
+		pending := m.pushing
+		m.pushing = pendingPush{}
 
-		return m, m.push(opts)
+		return m, m.push(pending)
 	}
 
 	return m, nil
@@ -79,7 +86,7 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 func (m Model) cancelConfirm() Model {
 	m.confirm.Close()
 	m.forcible = forcible{}
-	m.pushing = jj.PushOptions{}
+	m.pushing = pendingPush{}
 
 	return m
 }

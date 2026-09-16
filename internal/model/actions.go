@@ -38,6 +38,10 @@ func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, cmd, true
 	}
 
+	if cmd, handled := m.viewKey(key, *rev); handled {
+		return m, cmd, true
+	}
+
 	return m.openKey(key, *rev)
 }
 
@@ -68,6 +72,26 @@ func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// viewKey covers the verbs that read rather than write, each opening a panel or a diff.
+func (m Model) viewKey(key string, rev jj.Revision) (tea.Cmd, bool) {
+	switch key {
+	case "E":
+		return m.loadEvolog(rev.ChangeID), true
+	case "v":
+		return m.loadDetail(rev.ChangeID), true
+	case "l":
+		return m.loadFiles(rev.ChangeID), true
+	case "c":
+		return m.resolveKey(rev), true
+	case "P":
+		return m.previewPush(rev.ChangeID, jj.PushOptions{Revisions: []string{rev.ChangeID}}), true
+	case "enter":
+		return m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
+	}
+
+	return nil, false
+}
+
 // openKey covers the verbs that need an argument, a terminal, or a view of their own.
 func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 	switch key {
@@ -87,16 +111,10 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 		cmd := m.openRebase(rev, jj.RebaseScopeSource)
 
 		return m, cmd, true
-	case "E":
-		return m, m.loadEvolog(rev.ChangeID), true
-	case "v":
-		return m, m.loadDetail(rev.ChangeID), true
 	case "S":
 		return m, m.exec("split"+undoHint, "split", "-i", "-r", rev.ChangeID), true
 	case "i":
 		return m, m.exec("squashed interactively"+undoHint, "squash", "-i", "-r", rev.ChangeID), true
-	case "enter":
-		return m, m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
 	case "alt+d":
 		cmd := m.openDiffRange()
 

@@ -85,13 +85,25 @@ var Bindings = []Binding{
 		Layer: L2, Run: "R", Cmd: "jj rebase -s <rev> --onto <dest>",
 		Hint: keyhint.Hint{Key: "R", What: "rebase it and its descendants"},
 	},
+	{
+		Layer: L2, Run: "l", Cmd: "jj diff -r <rev> --summary",
+		Hint: keyhint.Hint{Key: "l", What: "files in the revision"},
+	},
+	{
+		Layer: L2, Run: "c", Cmd: "jj resolve -r <rev>",
+		Hint: keyhint.Hint{Key: "c", What: "resolve the conflict"},
+	},
 	{Layer: L2, Run: "b", Cmd: "jj bookmark list", Hint: keyhint.Hint{Key: "b", What: "bookmarks"}},
+	{Layer: L2, Run: "f", Cmd: "jj git fetch --all-remotes", Hint: keyhint.Hint{Key: "f", What: "fetch"}},
+	{
+		Layer: L2, Run: "P", Cmd: "jj git push -r <rev>",
+		Hint: keyhint.Hint{Key: "P", What: "push the revision's bookmarks"},
+	},
 	{Layer: L2, Run: "o", Cmd: "jj op log", Hint: keyhint.Hint{Key: "o", What: "op log"}},
 	{
 		Layer: L2, Run: "v", Cmd: "jj log -r <rev> -T ...",
 		Hint: keyhint.Hint{Key: "v", What: "details of the revision"},
 	},
-	{Layer: L2, Run: "v", Cmd: "jj log -r <rev>", Hint: keyhint.Hint{Key: "v", What: "details of the revision"}},
 	{
 		Layer: L2, Run: "E", Cmd: "jj evolog -r <rev>",
 		Hint: keyhint.Hint{Key: "E", What: "evolution of the revision"},

@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/evologview"
+	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
@@ -82,9 +83,10 @@ type Model struct {
 	palette    palette.Model
 	bookmarks  bookmarkview.Model
 	detail     detailview.Model
+	files      fileview.Model
 	confirm    confirm.Model
 	forcible   forcible
-	pushing    jj.PushOptions
+	pushing    pendingPush
 	onSubmit   submitted
 	onPick     picked
 	redoOp     string
@@ -119,6 +121,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		find:       search.New(skin),
 		bookmarks:  bookmarkview.New(skin),
 		detail:     detailview.New(skin),
+		files:      fileview.New(skin),
 		confirm:    confirm.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
@@ -263,32 +266,42 @@ func (m Model) View() tea.View {
 	return view
 }
 
+// overlay is the frame drawn in place of the log, or nil when none is open. One table rather than a
+// chain of branches, so an overlay added here cannot be drawn in the wrong order.
+func (m Model) overlay() func(width, height int) string {
+	frames := []struct {
+		view func(width, height int) string
+		open bool
+	}{
+		{m.help.View, m.showHelp},
+		{m.confirm.View, m.confirm.IsOpen()},
+		{m.bookmarks.View, m.bookmarks.IsOpen()},
+		{m.detail.View, m.detail.IsOpen()},
+		{m.files.View, m.files.IsOpen()},
+		{m.prompt.View, m.prompt.IsOpen()},
+		{m.destPicker.View, m.destPicker.IsOpen()},
+		{m.opLog.View, m.opLog.IsOpen()},
+		{m.spaces.View, m.spaces.IsOpen()},
+		{m.evolog.View, m.evolog.IsOpen()},
+		{m.palette.View, m.palette.IsOpen()},
+	}
+
+	for _, frame := range frames {
+		if frame.open {
+			return frame.view
+		}
+	}
+
+	return nil
+}
+
 func (m Model) render() string {
 	if m.quitting || m.width == 0 {
 		return ""
 	}
 
-	switch {
-	case m.showHelp:
-		return m.help.View(m.width, m.height)
-	case m.confirm.IsOpen():
-		return m.confirm.View(m.width, m.height)
-	case m.bookmarks.IsOpen():
-		return m.bookmarks.View(m.width, m.height)
-	case m.detail.IsOpen():
-		return m.detail.View(m.width, m.height)
-	case m.prompt.IsOpen():
-		return m.prompt.View(m.width, m.height)
-	case m.destPicker.IsOpen():
-		return m.destPicker.View(m.width, m.height)
-	case m.opLog.IsOpen():
-		return m.opLog.View(m.width, m.height)
-	case m.spaces.IsOpen():
-		return m.spaces.View(m.width, m.height)
-	case m.evolog.IsOpen():
-		return m.evolog.View(m.width, m.height)
-	case m.palette.IsOpen():
-		return m.palette.View(m.width, m.height)
+	if view := m.overlay(); view != nil {
+		return view(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}

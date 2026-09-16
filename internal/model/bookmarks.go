@@ -15,8 +15,9 @@ import (
 // pushPreviewMsg carries what a dry run says a push would do, which is what the confirmation shows.
 type pushPreviewMsg struct {
 	err    error
-	name   string
+	what   string
 	notice string
+	opts   jj.PushOptions
 }
 
 // handleBookmarkMsg runs what the panel asked for. Only the push is gated, since jj can undo the
@@ -64,7 +65,7 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m.client.BookmarkUntrack(ctx, msg.Ref)
 		}), true
 	case bookmarkview.PushMsg:
-		return m, m.previewPush(msg.Name), true
+		return m, m.previewPush(msg.Name, jj.PushOptions{Bookmarks: []string{msg.Name}}), true
 	case pushPreviewMsg:
 		return m.offerPush(msg)
 	}
@@ -83,6 +84,10 @@ func (m Model) askBookmarkName(title string, then submitted) Model {
 
 // dryRunNotice is jj saying it stopped short, which would only confuse what the dialog agrees to.
 const dryRunNotice = "Dry-run requested, not pushing."
+
+// nothingToPushNotice is what jj reports when the revision carries no bookmark, which is a fact to
+// state rather than an action to confirm.
+const nothingToPushNotice = "Nothing changed."
 
 // noticeLines turns jj's dry-run notice into the detail block.
 func noticeLines(notice string) []string {
@@ -105,13 +110,15 @@ func (m Model) bookmarkWrite(write func(context.Context) (string, error)) tea.Cm
 }
 
 // previewPush asks jj what the push would do, so the dialog shows jj's answer rather than ours.
-func (m Model) previewPush(name string) tea.Cmd {
+func (m Model) previewPush(what string, opts jj.PushOptions) tea.Cmd {
 	client, ctx := m.client, m.ctx
+	dry := opts
+	dry.DryRun = true
 
 	return func() tea.Msg {
-		notice, err := client.Push(ctx, jj.PushOptions{Bookmarks: []string{name}, DryRun: true})
+		notice, err := client.Push(ctx, dry)
 
-		return pushPreviewMsg{name: name, notice: notice, err: err}
+		return pushPreviewMsg{what: what, opts: opts, notice: notice, err: err}
 	}
 }
 
@@ -122,12 +129,19 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 
-	m.pushing = jj.PushOptions{Bookmarks: []string{msg.name}}
+	detail := noticeLines(msg.notice)
+	if len(detail) == 0 || strings.Contains(msg.notice, nothingToPushNotice) {
+		m.message = "nothing to push for " + msg.what
+
+		return m, nil, true
+	}
+
+	m.pushing = pendingPush{what: msg.what, opts: msg.opts}
 
 	cmd := m.confirm.Open(confirm.Request{
 		Key:    confirmPush,
-		Title:  "push " + msg.name + "?",
-		Detail: noticeLines(msg.notice),
+		Title:  "push " + msg.what + "?",
+		Detail: detail,
 		Danger: "a push leaves this machine, so u cannot take it back",
 	})
 
@@ -157,16 +171,16 @@ func pushProblem(err error) string {
 	return text
 }
 
-func (m Model) push(opts jj.PushOptions) tea.Cmd {
+func (m Model) push(p pendingPush) tea.Cmd {
 	client, ctx, revset := m.client, m.ctx, m.revset
 
 	return tea.Sequence(
 		func() tea.Msg {
-			if _, err := client.Push(ctx, opts); err != nil {
+			if _, err := client.Push(ctx, p.opts); err != nil {
 				return messageMsg{text: pushProblem(err)}
 			}
 
-			return messageMsg{text: "pushed " + strings.Join(opts.Bookmarks, ", ")}
+			return messageMsg{text: "pushed " + p.what}
 		},
 		m.loadLog(revset),
 	)

@@ -41,7 +41,7 @@ func rowHints(rev *jj.Revision) []keyhint.Hint {
 	case rev == nil:
 		return nil
 	case rev.Conflict:
-		return []keyhint.Hint{{Key: "e", What: "conflicted, edit it to resolve"}}
+		return []keyhint.Hint{{Key: "c", What: "conflicted, resolve it"}}
 	case rev.Immutable:
 		return []keyhint.Hint{{Key: "e", What: "immutable, an edit asks first"}}
 	case rev.Empty && !rev.WorkingCopy:

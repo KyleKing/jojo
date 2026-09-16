@@ -120,7 +120,7 @@ func TestPushConfirmationShowsTheDryRun(t *testing.T) {
 
 	notice := "Changes to push to origin:\n  bookmark: main [add to 311d3d63]\nDry-run requested, not pushing.\n"
 
-	next, _, handled := testModel(t, twoRows()).offerPush(pushPreviewMsg{name: "main", notice: notice})
+	next, _, handled := testModel(t, twoRows()).offerPush(pushPreviewMsg{what: "main", notice: notice})
 	if !handled {
 		t.Fatal("the push preview was not handled")
 	}

@@ -44,6 +44,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.bookmarks.Update(msg), true
 	case m.detail.IsOpen():
 		return m.detail.Update(msg), true
+	case m.files.IsOpen():
+		return m.files.Update(msg), true
 	case m.prompt.IsOpen():
 		return m.prompt.Update(msg), true
 	case m.destPicker.IsOpen():
@@ -102,6 +104,8 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadWorkspaces(), true
 	case "b":
 		return m, m.loadBookmarks(), true
+	case "f":
+		return m, m.fetch(), true
 	case "/":
 		cmd := m.find.Open()
 		m.resize()

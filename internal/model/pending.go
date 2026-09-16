@@ -172,6 +172,7 @@ func (m Model) cancelModals() Model {
 	m.evolog.Close()
 	m.bookmarks.Close()
 	m.detail.Close()
+	m.files.Close()
 	m.onSubmit, m.onPick = nil, nil
 
 	return m

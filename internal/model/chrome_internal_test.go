@@ -20,7 +20,7 @@ func TestRowHintsSayTheOneThingThatMatters(t *testing.T) {
 		{
 			name: "conflict outranks immutable",
 			rev:  &jj.Revision{Conflict: true, Immutable: true},
-			want: "conflicted, edit it to resolve",
+			want: "conflicted, resolve it",
 		},
 		{name: "immutable", rev: &jj.Revision{Immutable: true}, want: "immutable, an edit asks first"},
 		{name: "empty", rev: &jj.Revision{Empty: true}, want: "empty, abandon it"},

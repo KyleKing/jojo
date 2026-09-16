@@ -88,7 +88,9 @@ the handlers read. The ones worth knowing before you start:
 | `L` | edit the revset, which re-filters the log as you type |
 | `Tab` | cycle the log, the revset box, and the forge pane |
 | `Enter` / `Alt+d` | diff the revision, or diff any two revisions |
-| `v` | details: the full description, the author, and the timestamps |
+| `v` / `l` | details of the revision, or the files it touches |
+| `c` | resolve the conflict, in the whole revision or one file of it |
+| `f` / `P` | fetch every remote, or push the revision's bookmarks |
 | `n` `e` `d` `s` `S` `i` `a` `A` `D` | new, edit, describe, squash, split, squash interactively, abandon, absorb, duplicate |
 | `r` / `R` | rebase the revision, or it and its descendants; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |

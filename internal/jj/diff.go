@@ -13,6 +13,8 @@ type DiffTarget struct {
 	From      string
 	To        string
 	Operation string
+	// Paths narrows the diff to these files. An operation ignores it, since jj op show takes none.
+	Paths []string
 }
 
 // ErrInvalidDiffTarget marks a DiffTarget that sets none of, or more than one of, its three forms.
@@ -36,11 +38,11 @@ func (t DiffTarget) args() ([]string, error) {
 	case splitPair || forms != 1:
 		return nil, ErrInvalidDiffTarget
 	case revision:
-		return []string{"diff", "-r", t.Revision}, nil
+		return append([]string{"diff", "-r", t.Revision}, t.Paths...), nil
 	case operation:
 		return []string{"op", "show", t.Operation}, nil
 	default:
-		return []string{"diff", "--from", t.From, "--to", t.To}, nil
+		return append([]string{"diff", "--from", t.From, "--to", t.To}, t.Paths...), nil
 	}
 }
 
