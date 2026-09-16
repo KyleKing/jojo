@@ -10,9 +10,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
+	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	jforge "github.com/kyleking/jojo/internal/forge"
@@ -52,39 +54,45 @@ type clearMessageMsg struct{}
 type Model struct {
 	// ctx is the program lifetime, so quitting cancels a jj call already
 	// running rather than leaving it to finish into a dead model.
-	ctx       context.Context //nolint:containedctx // the model owns every jj call it starts.
-	skin      ui.Skin
-	repoPath  string
-	status    statusbar.Model
-	client    *jj.Client
-	help      help.Model
-	revsetBox revsetbox.Model
-	forge     forgepane.Model
-	revset    string
-	message   string
-	rows      []jj.LogRow
-	log       logview.Model
-	focus     focus
-	width     int
-	height    int
-	showForge bool
-	showHelp  bool
-	quitting  bool
+	ctx        context.Context //nolint:containedctx // the model owns every jj call it starts.
+	skin       ui.Skin
+	repoPath   string
+	status     statusbar.Model
+	client     *jj.Client
+	help       help.Model
+	revsetBox  revsetbox.Model
+	forge      forgepane.Model
+	prompt     prompt.Model
+	destPicker destpicker.Model
+	pendingOn  string
+	revset     string
+	message    string
+	rows       []jj.LogRow
+	log        logview.Model
+	focus      focus
+	pending    pending
+	width      int
+	height     int
+	showForge  bool
+	showHelp   bool
+	quitting   bool
 }
 
 // New builds the root model against a repository jj already recognizes.
 func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset string) Model {
 	return Model{
-		ctx:       ctx,
-		client:    client,
-		skin:      skin,
-		repoPath:  repoPath,
-		log:       logview.New(logview.StylesFrom(skin)),
-		revsetBox: revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
-		forge:     forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
-		status:    statusbar.New(skin),
-		help:      help.New(skin),
-		revset:    revset,
+		ctx:        ctx,
+		client:     client,
+		skin:       skin,
+		repoPath:   repoPath,
+		log:        logview.New(logview.StylesFrom(skin)),
+		revsetBox:  revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
+		forge:      forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
+		prompt:     prompt.New(skin),
+		destPicker: destpicker.New(skin),
+		status:     statusbar.New(skin),
+		help:       help.New(skin),
+		revset:     revset,
 	}
 }
 
@@ -116,7 +124,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case revsetbox.ChangedMsg:
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
-		return m, m.followBookmark(msg.Revision)
+		cmd := m.followBookmark(msg.Revision)
+
+		return m, cmd
+	case prompt.SubmittedMsg:
+		return m.handleSubmitted(msg)
+	case destpicker.PickedMsg:
+		return m.handlePicked(msg)
+	case prompt.CancelledMsg, destpicker.CancelledMsg:
+		return m.cancelModals()
 	case logLoadedMsg:
 		return m.applyLog(msg)
 	case messageMsg:
@@ -138,7 +154,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // their debounce and poll ticks are their own unexported types and would
 // otherwise never come back to the component that scheduled them.
 func (m Model) routeToPanes(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return m, tea.Batch(m.revsetBox.Update(msg), m.forge.Update(msg))
+	cmd := tea.Batch(m.revsetBox.Update(msg), m.forge.Update(msg))
+
+	return m, cmd
 }
 
 // applyLog keeps the last good log on screen when a revset fails, because an
@@ -162,12 +180,26 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.log.SetRows(msg.rows)
 	m.resize()
 
-	return m, m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows))
+	cmd := m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows))
+
+	return m, cmd
 }
 
 func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
 		return m.handleHelpKey(msg)
+	}
+
+	if m.prompt.IsOpen() {
+		cmd := m.prompt.Update(msg)
+
+		return m, cmd
+	}
+
+	if m.destPicker.IsOpen() {
+		cmd := m.destPicker.Update(msg)
+
+		return m, cmd
 	}
 
 	switch m.focus {
@@ -182,7 +214,9 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "L":
 		m.focus = focusRevset
 
-		return m, m.revsetBox.Focus()
+		cmd := m.revsetBox.Focus()
+
+		return m, cmd
 	case keyTab:
 		return m.cycleFocus()
 	case "p":
@@ -206,7 +240,9 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 
-	return m, m.log.Update(msg)
+	cmd := m.log.Update(msg)
+
+	return m, cmd
 }
 
 // cycleFocus walks Tab through the panes that are open, so a focused pane owns
@@ -216,7 +252,9 @@ func (m Model) cycleFocus() (tea.Model, tea.Cmd) {
 	case m.focus == focusLog:
 		m.focus = focusRevset
 
-		return m, m.revsetBox.Focus()
+		cmd := m.revsetBox.Focus()
+
+		return m, cmd
 	case m.focus == focusRevset && m.showForge:
 		m.revsetBox.Blur()
 		m.focus = focusForge
@@ -240,7 +278,9 @@ func (m Model) handleForgeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.cycleFocus()
 	}
 
-	return m, m.forge.Update(msg)
+	cmd := m.forge.Update(msg)
+
+	return m, cmd
 }
 
 // followBookmark points the forge pane at the selected revision's bookmark, so
@@ -281,7 +321,9 @@ func (m Model) toggleForge() (tea.Model, tea.Cmd) {
 
 	m.resize()
 
-	return m, m.forge.SetFocused(m.showForge)
+	cmd := m.forge.SetFocused(m.showForge)
+
+	return m, cmd
 }
 
 // resize hands each pane its share of the terminal. The log takes whatever the
@@ -326,8 +368,13 @@ func (m Model) render() string {
 		return ""
 	}
 
-	if m.showHelp {
+	switch {
+	case m.showHelp:
 		return m.help.View(m.width, m.height)
+	case m.prompt.IsOpen():
+		return m.prompt.View(m.width, m.height)
+	case m.destPicker.IsOpen():
+		return m.destPicker.View(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}

@@ -2,10 +2,13 @@ package model
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/jojo/internal/jj"
 )
 
 // targets is what an action acts on: the checked revisions when any are
@@ -26,6 +29,7 @@ func (m Model) targets() []string {
 // handleActionKey runs the per-commit verbs. Every one of them is reversible
 // through the operation log, so each executes immediately and reports an undo
 // hint rather than opening a confirm gate.
+
 func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 	rev := m.log.Selected()
 	if rev == nil {
@@ -57,6 +61,26 @@ func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.run(undoable("duplicated "+joinIDs(m.targets())), func(ctx context.Context) error {
 			return m.client.Duplicate(ctx, m.targets())
 		}), true
+	case "d":
+		if rev.Immutable {
+			return m, m.say(rev.ChangeID + " is immutable"), true
+		}
+
+		cmd := m.openDescribe(*rev)
+
+		return m, cmd, true
+	case "s":
+		cmd := m.openSquash(*rev)
+
+		return m, cmd, true
+	case "r":
+		cmd := m.openRebase(*rev, pendingRebaseRevisions)
+
+		return m, cmd, true
+	case "R":
+		cmd := m.openRebase(*rev, pendingRebaseSource)
+
+		return m, cmd, true
 	case "S":
 		return m, m.exec(undoable("split"), "split", "-i", "-r", rev.ChangeID), true
 	}
@@ -108,7 +132,10 @@ func (m Model) run(done string, mutate func(context.Context) error) tea.Cmd {
 
 	return tea.Sequence(
 		func() tea.Msg {
-			if err := mutate(ctx); err != nil {
+			switch err := mutate(ctx); {
+			case errors.Is(err, jj.ErrNothingChanged):
+				return messageMsg{text: "nothing changed"}
+			case err != nil:
 				return messageMsg{text: err.Error()}
 			}
 
