@@ -61,11 +61,11 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return next, cmd, true
 	case bookmarkview.SetMsg:
-		return m, m.bookmarkWrite("moved "+msg.Name+" onto "+msg.Target, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkSet(ctx, msg.Name, msg.Target)
 		}), true
 	case bookmarkview.AdvanceMsg:
-		return m, m.bookmarkWrite("advanced "+msg.Name, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkAdvance(ctx, []string{msg.Name}, msg.Target)
 		}), true
 	case bookmarkview.CreateRequestedMsg:
@@ -73,19 +73,19 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case bookmarkview.RenameRequestedMsg:
 		return m.openBookmarkName(pendingBookmarkRename, "rename "+msg.Name+" to", msg.Name), nil, true
 	case bookmarkview.DeleteMsg:
-		return m, m.bookmarkWrite("deleted "+msg.Name, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkDelete(ctx, msg.Name)
 		}), true
 	case bookmarkview.ForgetMsg:
-		return m, m.bookmarkWrite("forgot "+msg.Name, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkForget(ctx, msg.Name)
 		}), true
 	case bookmarkview.TrackMsg:
-		return m, m.bookmarkWrite("tracking "+msg.Ref, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkTrack(ctx, msg.Ref)
 		}), true
 	case bookmarkview.UntrackMsg:
-		return m, m.bookmarkWrite("stopped tracking "+msg.Ref, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkUntrack(ctx, msg.Ref)
 		}), true
 	case bookmarkview.PushMsg:
@@ -128,8 +128,8 @@ func noticeLines(notice string) []string {
 	return out
 }
 
-func (m Model) bookmarkWrite(done string, write func(context.Context) error) tea.Cmd {
-	return m.run(undoable(done), write)
+func (m Model) bookmarkWrite(write func(context.Context) (string, error)) tea.Cmd {
+	return m.run(undoHint, write)
 }
 
 // previewPush asks jj what the push would do before anything leaves the machine, so the confirmation

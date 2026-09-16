@@ -33,12 +33,12 @@ func TestIgnoringImmutableIsTheOnlyWayPast(t *testing.T) {
 	client, dir := immutableRepo(t)
 	ctx := context.Background()
 
-	err := client.Describe(ctx, "main", "rewritten")
+	_, err := client.Describe(ctx, "main", "rewritten")
 	if !errors.Is(err, jj.ErrImmutable) {
 		t.Fatalf("describing an immutable revision returned %v, want ErrImmutable", err)
 	}
 
-	if err = client.IgnoringImmutable().Describe(ctx, "main", "rewritten"); err != nil {
+	if _, err = client.IgnoringImmutable().Describe(ctx, "main", "rewritten"); err != nil {
 		t.Fatalf("IgnoringImmutable().Describe: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestIgnoringImmutableIsTheOnlyWayPast(t *testing.T) {
 		t.Error("the working copy changed, so the rewrite landed on the wrong revision")
 	}
 
-	if err = client.Describe(ctx, "main", "again"); !errors.Is(err, jj.ErrImmutable) {
+	if _, err = client.Describe(ctx, "main", "again"); !errors.Is(err, jj.ErrImmutable) {
 		t.Errorf("the original client stopped refusing immutable edits: %v", err)
 	}
 }
@@ -62,7 +62,7 @@ func TestParallelizeMakesAChainIntoSiblings(t *testing.T) {
 	writeFile(t, dir, "b.txt", "b\n")
 	runJJ(t, dir, "commit", "-m", "second")
 
-	if err := client.Parallelize(ctx, []string{"@--::@-"}); err != nil {
+	if _, err := client.Parallelize(ctx, []string{"@--::@-"}); err != nil {
 		t.Fatalf("Parallelize: %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestOpRevertKeepsLaterOperations(t *testing.T) {
 
 	runJJ(t, dir, "new", "-m", "later work")
 
-	if err = client.OpRevert(ctx, bookmarkOp); err != nil {
+	if _, err = client.OpRevert(ctx, bookmarkOp); err != nil {
 		t.Fatalf("OpRevert: %v", err)
 	}
 

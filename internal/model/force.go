@@ -23,18 +23,17 @@ type refusedMsg struct {
 // forcible is the last write that could be retried past jj's immutable guard. Keeping the closure
 // rather than the arguments means a retry runs the same call, including a description already typed.
 type forcible struct {
-	fn   func(context.Context, *jj.Client) error
-	done string
+	fn   func(context.Context, *jj.Client) (string, error)
 	what string
 }
 
 // act runs a write and remembers how to run it again with the immutable guard off, so a refusal can
 // offer the way past rather than reporting a dead end.
-func (m *Model) act(done, what string, fn func(context.Context, *jj.Client) error) tea.Cmd {
-	m.forcible = forcible{done: done, what: what, fn: fn}
+func (m *Model) act(what string, fn func(context.Context, *jj.Client) (string, error)) tea.Cmd {
+	m.forcible = forcible{fn: fn, what: what}
 	client := m.client
 
-	return m.run(done, func(ctx context.Context) error { return fn(ctx, client) })
+	return m.run(undoHint, func(ctx context.Context) (string, error) { return fn(ctx, client) })
 }
 
 // offerForce explains why jj refused and what the escape costs, because the refusal is the one place
@@ -66,7 +65,7 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 		m.forcible = forcible{}
 		client := m.client.IgnoringImmutable()
 
-		return m, m.run(forced.done, func(ctx context.Context) error { return forced.fn(ctx, client) })
+		return m, m.run(undoHint, func(ctx context.Context) (string, error) { return forced.fn(ctx, client) })
 	case confirmPush:
 		opts := m.pushing
 		m.pushing = jj.PushOptions{}

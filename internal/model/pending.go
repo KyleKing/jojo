@@ -71,8 +71,8 @@ func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 
 	switch action {
 	case pendingDescribe:
-		cmd := m.act(undoable("described "+source), source,
-			func(ctx context.Context, c *jj.Client) error { return c.Describe(ctx, source, msg.Value) })
+		cmd := m.act(source,
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Describe(ctx, source, msg.Value) })
 
 		return m, cmd
 	case pendingWorkspaceAdd:
@@ -80,11 +80,11 @@ func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 	case pendingBisect:
 		return m, m.bisect(source, msg.Value)
 	case pendingBookmarkCreate:
-		return m, m.bookmarkWrite("created "+msg.Value, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkSet(ctx, msg.Value, source)
 		})
 	case pendingBookmarkRename:
-		return m, m.bookmarkWrite("renamed "+source+" to "+msg.Value, func(ctx context.Context) error {
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkRename(ctx, source, msg.Value)
 		})
 	case pendingNone, pendingSquash, pendingRebaseRevisions, pendingRebaseSource,
@@ -112,8 +112,8 @@ func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
 		pendingNone, pendingDescribe:
 		return m, nil
 	case pendingSquash:
-		cmd := m.act(undoable("squashed "+source+" into "+dest), source,
-			func(ctx context.Context, c *jj.Client) error { return c.Squash(ctx, source, dest) })
+		cmd := m.act(source,
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Squash(ctx, source, dest) })
 
 		return m, cmd
 	case pendingRebaseRevisions, pendingRebaseSource:
@@ -131,7 +131,7 @@ func (m *Model) rebase(source, dest string, action pending) tea.Cmd {
 		scope = jj.RebaseScopeSource
 	}
 
-	return m.act(undoable("rebased "+source+" onto "+dest), source, func(ctx context.Context, c *jj.Client) error {
+	return m.act(source, func(ctx context.Context, c *jj.Client) (string, error) {
 		return c.Rebase(ctx, jj.RebaseOptions{
 			Revisions:   []string{source},
 			Destination: jj.RebaseDestination{Revisions: []string{dest}, Mode: jj.RebaseDestOnto},
@@ -168,7 +168,7 @@ func (m Model) applyOpLog(msg opLogLoadedMsg) (tea.Model, tea.Cmd) {
 func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
 	op := msg.Operation.ID
 
-	return m, m.run(undoable("restored "+op), func(ctx context.Context) error {
+	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.OpRestore(ctx, op)
 	})
 }
@@ -201,7 +201,7 @@ func (m Model) restoreVersion(msg evologview.RestoreMsg) (tea.Model, tea.Cmd) {
 	from, into := msg.CommitID, m.evolog.ChangeID()
 	m.evolog.Close()
 
-	return m, m.run(undoable("restored "+into+" to "+from), func(ctx context.Context) error {
+	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.Restore(ctx, from, into)
 	})
 }
@@ -246,7 +246,7 @@ func (m Model) addWorkspace(name string) tea.Cmd {
 
 	path := workspacePath(m.repoPath, name)
 
-	return m.run(undoable("added "+name+" at "+path), func(ctx context.Context) error {
+	return m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.WorkspaceAdd(ctx, name, path)
 	})
 }
@@ -261,7 +261,7 @@ func (m Model) forgetWorkspace(msg workspaceview.ForgetMsg) (tea.Model, tea.Cmd)
 	name := msg.Name
 	m.spaces.Close()
 
-	return m, m.run(undoable("forgot "+name), func(ctx context.Context) error {
+	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.WorkspaceForget(ctx, name)
 	})
 }

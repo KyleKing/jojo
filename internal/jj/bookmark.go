@@ -81,38 +81,38 @@ func (b Bookmark) Ref() string {
 }
 
 // BookmarkSet creates name or moves it onto rev, which is the one verb that covers both.
-func (c *Client) BookmarkSet(ctx context.Context, name, rev string) error {
+func (c *Client) BookmarkSet(ctx context.Context, name, rev string) (string, error) {
 	return c.mutate(ctx, "bookmark", "set", name, "-r", rev)
 }
 
 // BookmarkRename renames a local bookmark, leaving its remote counterparts alone until the next push.
-func (c *Client) BookmarkRename(ctx context.Context, from, to string) error {
+func (c *Client) BookmarkRename(ctx context.Context, from, to string) (string, error) {
 	return c.mutate(ctx, "bookmark", "rename", from, to)
 }
 
 // BookmarkDelete deletes name and propagates the deletion to its remotes on the next push.
-func (c *Client) BookmarkDelete(ctx context.Context, name string) error {
+func (c *Client) BookmarkDelete(ctx context.Context, name string) (string, error) {
 	return c.mutate(ctx, "bookmark", "delete", name)
 }
 
 // BookmarkForget drops jj's record of name without marking a deletion to push.
-func (c *Client) BookmarkForget(ctx context.Context, name string) error {
+func (c *Client) BookmarkForget(ctx context.Context, name string) (string, error) {
 	return c.mutate(ctx, "bookmark", "forget", name)
 }
 
 // BookmarkTrack starts tracking a remote bookmark, named in jj's "name@remote" form.
-func (c *Client) BookmarkTrack(ctx context.Context, ref string) error {
+func (c *Client) BookmarkTrack(ctx context.Context, ref string) (string, error) {
 	return c.mutate(ctx, "bookmark", "track", ref)
 }
 
 // BookmarkUntrack stops tracking a remote bookmark, named in jj's "name@remote" form.
-func (c *Client) BookmarkUntrack(ctx context.Context, ref string) error {
+func (c *Client) BookmarkUntrack(ctx context.Context, ref string) (string, error) {
 	return c.mutate(ctx, "bookmark", "untrack", ref)
 }
 
 // BookmarkAdvance moves the bookmarks closest to rev onto it, or every eligible one when names is
 // empty.
-func (c *Client) BookmarkAdvance(ctx context.Context, names []string, rev string) error {
+func (c *Client) BookmarkAdvance(ctx context.Context, names []string, rev string) (string, error) {
 	args := append([]string{"bookmark", "advance", "--to", rev}, names...)
 
 	return c.mutate(ctx, args...)

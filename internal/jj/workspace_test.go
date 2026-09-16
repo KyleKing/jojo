@@ -44,7 +44,7 @@ func TestWorkspaceAddThenForget(t *testing.T) {
 	writeFile(t, dir, "a.txt", "a\n")
 	runJJ(t, dir, "describe", "-m", "only change")
 
-	if err := client.WorkspaceAdd(ctx, "slow-tests", filepath.Join(dir, "..", "slow-tests")); err != nil {
+	if _, err := client.WorkspaceAdd(ctx, "slow-tests", filepath.Join(dir, "..", "slow-tests")); err != nil {
 		t.Fatalf("WorkspaceAdd: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func TestWorkspaceAddThenForget(t *testing.T) {
 		t.Error("the client's own workspace lost its current marking")
 	}
 
-	if err := client.WorkspaceForget(ctx, "slow-tests"); err != nil {
+	if _, err := client.WorkspaceForget(ctx, "slow-tests"); err != nil {
 		t.Fatalf("WorkspaceForget: %v", err)
 	}
 

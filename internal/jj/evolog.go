@@ -50,6 +50,6 @@ func parseEvolog(out string) []Evolution {
 }
 
 // Restore replaces into's content with from's, leaving into's description and other metadata alone.
-func (c *Client) Restore(ctx context.Context, from, into string) error {
+func (c *Client) Restore(ctx context.Context, from, into string) (string, error) {
 	return c.mutate(ctx, "restore", "--from", from, "--into", into)
 }

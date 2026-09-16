@@ -145,7 +145,7 @@ func TestEditImmutableReturnsImmutableError(t *testing.T) {
 	client, _ := testRepo(t)
 	ctx := context.Background()
 
-	err := client.Edit(ctx, "root()")
+	_, err := client.Edit(ctx, "root()")
 	if !errors.Is(err, jj.ErrImmutable) {
 		t.Fatalf("expected ErrImmutable, got %v", err)
 	}
@@ -159,7 +159,7 @@ func TestUndoRoundTripsADescribe(t *testing.T) {
 
 	before := descriptionOf(t, dir)
 
-	if err := client.Describe(ctx, "@", "changed by test"); err != nil {
+	if _, err := client.Describe(ctx, "@", "changed by test"); err != nil {
 		t.Fatalf("Describe: %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestUndoRoundTripsADescribe(t *testing.T) {
 		t.Fatalf("Describe did not change the description")
 	}
 
-	if err := client.Undo(ctx); err != nil {
+	if _, err := client.Undo(ctx); err != nil {
 		t.Fatalf("Undo: %v", err)
 	}
 
@@ -199,11 +199,11 @@ func TestOpLogAndOpRestore(t *testing.T) {
 
 	before := descriptionOf(t, dir)
 
-	if err := client.Describe(ctx, "@", "changed by test"); err != nil {
+	if _, err := client.Describe(ctx, "@", "changed by test"); err != nil {
 		t.Fatalf("Describe: %v", err)
 	}
 
-	if err := client.OpRestore(ctx, ops[0].ID); err != nil {
+	if _, err := client.OpRestore(ctx, ops[0].ID); err != nil {
 		t.Fatalf("OpRestore: %v", err)
 	}
 
@@ -220,11 +220,11 @@ func TestRebaseRequiresExplicitScopeAndDestination(t *testing.T) {
 	ctx := context.Background()
 
 	onlyDestination := jj.RebaseOptions{Destination: jj.RebaseDestination{Revisions: []string{"@"}}}
-	if err := client.Rebase(ctx, onlyDestination); err == nil {
+	if _, err := client.Rebase(ctx, onlyDestination); err == nil {
 		t.Fatal("expected an error when no revisions are given")
 	}
 
-	if err := client.Rebase(ctx, jj.RebaseOptions{Revisions: []string{"@"}}); err == nil {
+	if _, err := client.Rebase(ctx, jj.RebaseOptions{Revisions: []string{"@"}}); err == nil {
 		t.Fatal("expected an error when no destination is given")
 	}
 }
@@ -250,7 +250,10 @@ func TestSquashBetweenTwoDescribedRevisionsDoesNotBlock(t *testing.T) {
 	source, destination := rows[0].Revision.ChangeID, rows[1].Revision.ChangeID
 
 	done := make(chan error, 1)
-	go func() { done <- client.Squash(ctx, source, destination) }()
+	go func() {
+		_, err := client.Squash(ctx, source, destination)
+		done <- err
+	}()
 
 	select {
 	case err := <-done:
@@ -299,7 +302,7 @@ func TestMutationThatMovesNothingReportsIt(t *testing.T) {
 		Scope:       jj.RebaseScopeRevisions,
 	}
 
-	if err := client.Rebase(ctx, opts); !errors.Is(err, jj.ErrNothingChanged) {
+	if _, err := client.Rebase(ctx, opts); !errors.Is(err, jj.ErrNothingChanged) {
 		t.Errorf("rebasing a revision onto its own parent returned %v, want ErrNothingChanged", err)
 	}
 }

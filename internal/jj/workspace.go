@@ -57,11 +57,11 @@ func parseWorkspaces(out, root string) []Workspace {
 }
 
 // WorkspaceAdd creates a workspace named name with its working copy at path.
-func (c *Client) WorkspaceAdd(ctx context.Context, name, path string) error {
+func (c *Client) WorkspaceAdd(ctx context.Context, name, path string) (string, error) {
 	return c.mutate(ctx, "workspace", "add", "--name", name, path)
 }
 
 // WorkspaceForget stops tracking name's working-copy commit. The directory itself is left on disk.
-func (c *Client) WorkspaceForget(ctx context.Context, name string) error {
+func (c *Client) WorkspaceForget(ctx context.Context, name string) (string, error) {
 	return c.mutate(ctx, "workspace", "forget", name)
 }

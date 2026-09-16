@@ -25,7 +25,7 @@ func TestOpRestoreToTheOperationBeforeAnUndoRedoesIt(t *testing.T) {
 
 	before := ops[0].ID
 
-	if err := client.Undo(ctx); err != nil {
+	if _, err := client.Undo(ctx); err != nil {
 		t.Fatalf("Undo: %v", err)
 	}
 
@@ -33,7 +33,7 @@ func TestOpRestoreToTheOperationBeforeAnUndoRedoesIt(t *testing.T) {
 		t.Fatal("undo left the working copy where it was")
 	}
 
-	if err := client.OpRestore(ctx, before); err != nil {
+	if _, err := client.OpRestore(ctx, before); err != nil {
 		t.Fatalf("OpRestore: %v", err)
 	}
 

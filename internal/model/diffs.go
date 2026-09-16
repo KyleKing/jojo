@@ -45,7 +45,7 @@ func (m Model) showOperation(msg oplogview.ShowMsg) (tea.Model, tea.Cmd) {
 func (m Model) revertOperation(msg oplogview.RevertMsg) (tea.Model, tea.Cmd) {
 	op := msg.Operation.ID
 
-	return m, m.run(undoable("reverted "+op), func(ctx context.Context) error {
+	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.OpRevert(ctx, op)
 	})
 }
@@ -92,6 +92,6 @@ func (m Model) parallelize() tea.Cmd {
 		return m.say("check two or more revisions with space first")
 	}
 
-	return m.act(undoable("parallelized "+joinIDs(targets)), joinIDs(targets),
-		func(ctx context.Context, c *jj.Client) error { return c.Parallelize(ctx, targets) })
+	return m.act(joinIDs(targets),
+		func(ctx context.Context, c *jj.Client) (string, error) { return c.Parallelize(ctx, targets) })
 }

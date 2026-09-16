@@ -107,22 +107,46 @@ func (c *Client) execute(ctx context.Context, args ...string) (string, string, e
 // nothing, which the caller must not report as a completed edit.
 const nothingChangedNotice = "Nothing changed."
 
-// mutate runs a jj write and reports ErrNothingChanged when jj did nothing.
-func (c *Client) mutate(ctx context.Context, args ...string) error {
+// mutate runs a jj write and returns the command line it ran, which is what the UI shows in place of
+// a description of the edit. It reports ErrNothingChanged when jj did nothing.
+func (c *Client) mutate(ctx context.Context, args ...string) (string, error) {
 	if c.ignoreImmutable {
 		args = append(args, "--ignore-immutable")
 	}
 
+	ran := CommandLine(args)
+
 	_, notice, err := c.execute(ctx, args...)
 	if err != nil {
-		return err
+		return ran, err
 	}
 
 	if strings.Contains(notice, nothingChangedNotice) {
-		return ErrNothingChanged
+		return ran, ErrNothingChanged
 	}
 
-	return nil
+	return ran, nil
+}
+
+// CommandLine renders args as the jj invocation a reader could paste into a shell, quoting only what
+// a shell would otherwise split or interpret.
+func CommandLine(args []string) string {
+	quoted := make([]string, 0, len(args)+1)
+	quoted = append(quoted, "jj")
+
+	for _, arg := range args {
+		quoted = append(quoted, shellQuote(arg))
+	}
+
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(arg string) string {
+	if arg != "" && !strings.ContainsAny(arg, " \t\n\"'\\$`*?[]()<>|&;#~!") {
+		return arg
+	}
+
+	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
 // wrapJJError classifies stderr from a failed jj invocation into the sentinel errors callers inspect

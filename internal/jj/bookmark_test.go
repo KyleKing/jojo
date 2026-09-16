@@ -28,7 +28,7 @@ func TestBookmarkLifecycle(t *testing.T) {
 	writeFile(t, dir, "b.txt", "b\n")
 	runJJ(t, dir, "describe", "-m", "second")
 
-	if err := client.BookmarkSet(ctx, "feature", "@-"); err != nil {
+	if _, err := client.BookmarkSet(ctx, "feature", "@-"); err != nil {
 		t.Fatalf("BookmarkSet: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestBookmarkLifecycle(t *testing.T) {
 		t.Errorf("bookmark reads %+v, want a local bookmark on the first change", *created)
 	}
 
-	if err := client.BookmarkSet(ctx, "feature", "@"); err != nil {
+	if _, err := client.BookmarkSet(ctx, "feature", "@"); err != nil {
 		t.Fatalf("BookmarkSet onto @: %v", err)
 	}
 
@@ -58,11 +58,11 @@ func TestBookmarkLifecycle(t *testing.T) {
 		t.Errorf("bookmark did not move onto @: %+v", moved)
 	}
 
-	if err := client.BookmarkRename(ctx, "feature", "renamed"); err != nil {
+	if _, err := client.BookmarkRename(ctx, "feature", "renamed"); err != nil {
 		t.Fatalf("BookmarkRename: %v", err)
 	}
 
-	if err := client.BookmarkDelete(ctx, "renamed"); err != nil {
+	if _, err := client.BookmarkDelete(ctx, "renamed"); err != nil {
 		t.Fatalf("BookmarkDelete: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestBookmarkAdvanceMovesTheClosestBookmark(t *testing.T) {
 	writeFile(t, dir, "b.txt", "b\n")
 	runJJ(t, dir, "describe", "-m", "second")
 
-	if err := client.BookmarkAdvance(ctx, []string{"main"}, "@"); err != nil {
+	if _, err := client.BookmarkAdvance(ctx, []string{"main"}, "@"); err != nil {
 		t.Fatalf("BookmarkAdvance: %v", err)
 	}
 

@@ -48,20 +48,20 @@ func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 
 	switch key {
 	case "n":
-		return m.act(undoable("new change on "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.New(ctx, targets) }), true
+		return m.act(rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.New(ctx, targets) }), true
 	case "e":
-		return m.act(undoable("editing "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.Edit(ctx, rev.ChangeID) }), true
+		return m.act(rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Edit(ctx, rev.ChangeID) }), true
 	case "a":
-		return m.act(undoable("abandoned "+joinIDs(targets)), joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) error { return c.Abandon(ctx, targets) }), true
+		return m.act(joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Abandon(ctx, targets) }), true
 	case "A":
-		return m.act(undoable("absorbed "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.Absorb(ctx, rev.ChangeID) }), true
+		return m.act(rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Absorb(ctx, rev.ChangeID) }), true
 	case "D":
-		return m.act(undoable("duplicated "+joinIDs(targets)), joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) error { return c.Duplicate(ctx, targets) }), true
+		return m.act(joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Duplicate(ctx, targets) }), true
 	case "|":
 		return m.parallelize(), true
 	}
@@ -91,9 +91,9 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 	case "E":
 		return m, m.loadEvolog(rev.ChangeID), true
 	case "S":
-		return m, m.exec(undoable("split"), "split", "-i", "-r", rev.ChangeID), true
+		return m, m.exec("split"+undoHint, "split", "-i", "-r", rev.ChangeID), true
 	case "i":
-		return m, m.exec(undoable("squashed interactively"), "squash", "-i", "-r", rev.ChangeID), true
+		return m, m.exec("squashed interactively"+undoHint, "squash", "-i", "-r", rev.ChangeID), true
 	case "enter":
 		return m, m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
 	case "alt+d":
@@ -151,28 +151,37 @@ func (Model) say(text string) tea.Cmd {
 	return func() tea.Msg { return messageMsg{text: text} }
 }
 
-// undoable adds the hint that replaces a confirm gate, because the operation
-// log makes every one of these reversible.
-func undoable(done string) string {
-	return done + ", press u to undo"
+// undoHint replaces a confirm gate, because the operation log makes every one of these reversible.
+const undoHint = ", press u to undo"
+
+// wrote turns the outcome of a jj write into what the status line says. A write that worked reports
+// the command rather than a description of it, and one jj refused as immutable becomes the offer of
+// the escape hatch instead of a dead end.
+//
+//nolint:ireturn // a tea.Msg is the return type the runtime takes; naming a concrete one would lie.
+func wrote(ran, hint string, err error) tea.Msg {
+	switch {
+	case errors.Is(err, jj.ErrNothingChanged):
+		return messageMsg{text: ran + ": nothing changed"}
+	case errors.Is(err, jj.ErrImmutable):
+		return refusedMsg{err: err}
+	case err != nil:
+		return messageMsg{text: err.Error()}
+	}
+
+	return messageMsg{text: ran + hint}
 }
 
-// run executes a jj write then reloads the log.
-func (m Model) run(done string, mutate func(context.Context) error) tea.Cmd {
+// run executes a jj write then reloads the log. The status line reports the command jj actually ran
+// rather than a description of it, which is how someone driving the TUI learns the CLI underneath.
+func (m Model) run(hint string, mutate func(context.Context) (string, error)) tea.Cmd {
 	revset, ctx := m.revset, m.ctx
 
 	return tea.Sequence(
 		func() tea.Msg {
-			switch err := mutate(ctx); {
-			case errors.Is(err, jj.ErrNothingChanged):
-				return messageMsg{text: "nothing changed"}
-			case errors.Is(err, jj.ErrImmutable):
-				return refusedMsg{err: err}
-			case err != nil:
-				return messageMsg{text: err.Error()}
-			}
+			ran, err := mutate(ctx)
 
-			return messageMsg{text: done}
+			return wrote(ran, hint, err)
 		},
 		m.loadLog(revset),
 	)
@@ -192,7 +201,7 @@ func (m Model) undo() tea.Cmd {
 
 			return redoPointMsg{id: ops[0].ID}
 		},
-		m.run("undone, press ctrl+r to redo", client.Undo),
+		m.run(", press ctrl+r to redo", client.Undo),
 	)
 }
 
@@ -203,7 +212,7 @@ func (m Model) redo() tea.Cmd {
 
 	op := m.redoOp
 
-	return m.run(undoable("redone"), func(ctx context.Context) error {
+	return m.run("redone"+undoHint, func(ctx context.Context) (string, error) {
 		return m.client.OpRestore(ctx, op)
 	})
 }

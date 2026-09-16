@@ -56,7 +56,7 @@ func TestRestoreBringsBackAnEarlierVersionsContent(t *testing.T) {
 		t.Fatalf("Evolog: %v", err)
 	}
 
-	if err := client.Restore(ctx, entries[0].CommitID, "@"); err != nil {
+	if _, err := client.Restore(ctx, entries[0].CommitID, "@"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestRestoreThatChangesNothingReportsIt(t *testing.T) {
 		t.Fatalf("Evolog: %v", err)
 	}
 
-	if err := client.Restore(ctx, entries[0].CommitID, "@"); !errors.Is(err, jj.ErrNothingChanged) {
+	if _, err := client.Restore(ctx, entries[0].CommitID, "@"); !errors.Is(err, jj.ErrNothingChanged) {
 		t.Errorf("restoring a revision from itself returned %v, want ErrNothingChanged", err)
 	}
 }

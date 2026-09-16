@@ -114,11 +114,48 @@ func TestJoinIDs(t *testing.T) {
 	}
 }
 
-func TestUndoableAlwaysOffersTheWayBack(t *testing.T) {
+// The status line reports the jj invocation rather than a description of the edit, which is how the
+// TUI teaches the CLI it drives, and a refusal becomes the offer of the escape hatch.
+func TestWroteReportsTheCommandAndTheWayBack(t *testing.T) {
 	t.Parallel()
 
-	if got := undoable("abandoned abc"); got != "abandoned abc, press u to undo" {
-		t.Errorf("undoable = %q", got)
+	const ran = "jj abandon abc"
+
+	cases := []struct {
+		err   error
+		name  string
+		want  string
+		offer bool
+	}{
+		{name: "success echoes the command", err: nil, want: ran + undoHint},
+		{name: "no-op says so", err: jj.ErrNothingChanged, want: ran + ": nothing changed"},
+		{name: "other failures report themselves", err: jj.ErrCommandFailed, want: jj.ErrCommandFailed.Error()},
+		{name: "immutable offers the escape", err: jj.ErrImmutable, offer: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := wrote(ran, undoHint, tc.err)
+
+			if tc.offer {
+				if _, ok := got.(refusedMsg); !ok {
+					t.Fatalf("wrote returned %T, want the escape hatch offer", got)
+				}
+
+				return
+			}
+
+			msg, ok := got.(messageMsg)
+			if !ok {
+				t.Fatalf("wrote returned %T, want a message", got)
+			}
+
+			if msg.text != tc.want {
+				t.Errorf("message = %q, want %q", msg.text, tc.want)
+			}
+		})
 	}
 }
 
