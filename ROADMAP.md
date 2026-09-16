@@ -88,7 +88,36 @@ keybinding layer the requirements describe: `b` bookmarks, `/` search, and `:` t
 command palette, plus the L3 power keys (`|` parallelize, `X` `jj arrange`, `B` the
 scripted bisect).
 
-[docs/requirements.md](docs/requirements.md) carries what else is still open: conflict
-resolution inside jj-diff's hunk engine rather than shelling out to `jj resolve`, a
-manual bisect form to sit beside the scripted one, and sharing the operation log between
-machines.
+## What daily use needed after that
+
+Written on 2026-09-16, after comparing jojo against jjui's current feature set rather
+than against the requirements. Four gaps stood between "complete by the spec" and "a tool
+someone lives in", and all four are now shipped:
+
+1. **Done.** The git loop closes inside jojo: `f` fetches every remote and `P` pushes the
+   bookmarks on a revision, so fetch, rebase onto trunk, and push no longer need a shell
+2. **Done.** `l` lists the files a revision touches, with a per-file diff, restore, and
+   conflict resolution. A merge's own diff can be empty while it is still conflicted, so
+   the conflict list is folded in or those paths would not appear at all
+3. **Done.** `c` resolves conflicts, in the whole revision or one file of it. Conflicts
+   were rendered as state and nothing acted on them
+4. **Done.** A diff opens in a pane rather than handing the terminal to jj's pager,
+   rendered by [jj-diff](https://github.com/KyleKing/jj-diff)'s `render` package (v0.3.0,
+   published for this) so both tools draw a diff the same way
+5. **Done.** `config.toml` carries the theme, key rebinds, and saved revsets. jojo had no
+   user configuration at all, which is the thing that keeps people on jjui
+
+## Still open
+
+**No release has been cut.** `.goreleaser.yml` has the homebrew cask configured against
+`kyleking/homebrew-tap` and it has never run, so nobody can install jojo.
+
+**Large repositories are untested.** The log loads 500 rows in one call with a diff stat
+per row. Nothing streams or pages.
+
+**A side-by-side diff** and file stepping (`[`/`]`) inside the pane. jj-diff's renderer
+can do side-by-side; jojo's pane only asks for unified.
+
+[docs/requirements.md](docs/requirements.md) carries the rest: conflict resolution inside
+jj-diff's hunk engine rather than shelling out to `jj resolve`, a manual bisect form to sit
+beside the scripted one, and sharing the operation log between machines.
