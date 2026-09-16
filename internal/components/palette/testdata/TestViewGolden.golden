@@ -1,0 +1,12 @@
+                                                            
+╭──────────────────────────────────────────────────────────╮
+│                                                          │
+│  command                                                 │
+│  :                                                       │
+│  o       operation log      browse jj's operation log    │
+│  R       restore workspace  restore from the operation…  │
+│  ctrl+r  refresh            reread the working copy      │
+│  [enter] run  [esc] cancel                               │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
+                                                            

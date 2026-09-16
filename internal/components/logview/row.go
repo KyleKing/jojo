@@ -188,5 +188,6 @@ func StylesFrom(s ui.Skin) Styles {
 		Working:   s.WorkingCopy,
 		Checked:   s.Accent,
 		Header:    s.Heading,
+		Match:     s.Accent.Bold(true),
 	}
 }

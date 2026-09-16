@@ -1,40 +1,40 @@
 ╭──────────────────────────────────────────────────────────╮
 │                                                          │
-│                Universal                                 │
-│       ↑ ↓ ← →  move                                      │
-│         Enter  select                                    │
-│           Esc  back                                      │
-│             q  quit                                      │
-│           Tab  switch pane                               │
-│                Vim motions                               │
-│         j / k  move a line                               │
-│             /  search                                    │
-│             ?  help                                      │
-│             :  command                                   │
-│         g / G  top / bottom                              │
-│                Mnemonics                                 │
-│             n  new                                       │
-│             e  edit                                      │
-│             d  describe                                  │
-│             s  squash                                    │
-│             S  split                                     │
-│             a  abandon                                   │
-│             A  absorb                                    │
-│             D  duplicate                                 │
-│             r  rebase the revision                       │
-│             R  rebase it and its descendants             │
-│             b  bookmarks                                 │
-│             o  op log                                    │
-│             E  evolution of the revision                 │
-│    u / Ctrl+r  undo / redo                               │
-│        Ctrl+l  reload the log                            │
-│             @  jump to working copy                      │
-│             w  workspaces                                │
-│             p  forge pane                                │
-│             L  edit the revset                           │
-│         space  check for a batch action                  │
-│                Power                                     │
-│                edit the revset aliases                   │
-│                                              1-35 of 38  │
+│             Universal                                    │
+│    ↑ ↓ ← →  move                                         │
+│      Enter  select                                       │
+│        Esc  back                                         │
+│          q  quit                                         │
+│        Tab  switch pane                                  │
+│             Vim motions                                  │
+│      j / k  move a line                                  │
+│          /  search the log                               │
+│          ?  help                                         │
+│          :  command palette                              │
+│      g / G  top / bottom                                 │
+│             Mnemonics                                    │
+│          n  new                                          │
+│          e  edit                                         │
+│          d  describe                                     │
+│          s  squash                                       │
+│          S  split                                        │
+│          a  abandon                                      │
+│          A  absorb                                       │
+│          D  duplicate                                    │
+│          r  rebase the revision                          │
+│          R  rebase it and its descendants                │
+│          b  bookmarks                                    │
+│          o  op log                                       │
+│          E  evolution of the revision                    │
+│          u  undo                                         │
+│     Ctrl+r  redo                                         │
+│     Ctrl+l  reload the log                               │
+│          @  jump to working copy                         │
+│          w  workspaces                                   │
+│          p  forge pane                                   │
+│          L  edit the revset                              │
+│      space  check for a batch action                     │
+│             Power                                        │
+│                                              1-35 of 39  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

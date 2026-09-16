@@ -16,8 +16,10 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
+	"github.com/kyleking/jojo/internal/components/palette"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
+	"github.com/kyleking/jojo/internal/components/search"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
@@ -92,6 +94,8 @@ type Model struct {
 	opLog      oplogview.Model
 	spaces     workspaceview.Model
 	evolog     evologview.Model
+	find       search.Model
+	palette    palette.Model
 	pendingOn  string
 	redoOp     string
 	revset     string
@@ -122,6 +126,8 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		opLog:      oplogview.New(skin),
 		spaces:     workspaceview.New(skin),
 		evolog:     evologview.New(skin),
+		find:       search.New(skin),
+		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
 		help:       help.New(skin),
 		revset:     revset,
@@ -148,6 +154,10 @@ func (m Model) loadLog(revset string) tea.Cmd {
 // place a new binding is added.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.handleOverlayMsg(msg); handled {
+		return next, cmd
+	}
+
+	if next, cmd, handled := m.handleFindMsg(msg); handled {
 		return next, cmd
 	}
 
@@ -314,6 +324,10 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.spaces.Update(msg), true
 	case m.evolog.IsOpen():
 		return m.evolog.Update(msg), true
+	case m.palette.IsOpen():
+		return m.palette.Update(msg), true
+	case m.find.IsOpen():
+		return m.find.Update(msg), true
 	}
 
 	return nil, false
@@ -356,6 +370,15 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadOpLog(), true
 	case "w":
 		return m, m.loadWorkspaces(), true
+	case "/":
+		cmd := m.find.Open()
+		m.resize()
+
+		return m, cmd, true
+	case ":":
+		cmd := m.palette.Open(paletteCommands())
+
+		return m, cmd, true
 	}
 
 	return m, nil, false
@@ -450,8 +473,13 @@ func (m *Model) resize() {
 		forgeHeight = forgeRows
 	}
 
+	findHeight := 0
+	if m.find.IsOpen() {
+		findHeight = findRows
+	}
+
 	m.forge.SetSize(m.width, forgeHeight)
-	m.log.SetSize(m.width, max(0, m.height-footerRows-revsetRows-forgeHeight))
+	m.log.SetSize(m.width, max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight))
 }
 
 func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -497,9 +525,15 @@ func (m Model) render() string {
 		return m.spaces.View(m.width, m.height)
 	case m.evolog.IsOpen():
 		return m.evolog.View(m.width, m.height)
+	case m.palette.IsOpen():
+		return m.palette.View(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}
+	if m.find.IsOpen() {
+		panes = append(panes, m.find.View(m.width))
+	}
+
 	if m.showForge {
 		panes = append(panes, m.forge.View())
 	}

@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/filter"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/jj"
@@ -28,6 +29,7 @@ type Styles struct {
 	Working   lipgloss.Style
 	Checked   lipgloss.Style
 	Header    lipgloss.Style
+	Match     lipgloss.Style
 }
 
 // SelectedMsg announces the row under the cursor so the forge pane and the
@@ -39,13 +41,15 @@ type SelectedMsg struct {
 // Model is the log list: rows, a cursor that skips the graph-only lines, and a
 // multi-select set for batch actions.
 type Model struct {
-	styles  Styles
-	checked map[string]bool
-	rows    []jj.LogRow
-	cursor  int
-	top     int
-	width   int
-	height  int
+	styles        Styles
+	checked       map[string]bool
+	searchPattern string
+	rows          []jj.LogRow
+	matchRows     []int
+	cursor        int
+	top           int
+	width         int
+	height        int
 }
 
 // New returns an empty log. Call SetRows once jj has answered.
@@ -78,6 +82,7 @@ func (m *Model) SetRows(rows []jj.LogRow) {
 		m.moveCursor(1)
 	}
 
+	m.recomputeMatches()
 	m.scrollIntoView()
 }
 
@@ -107,6 +112,102 @@ func (m Model) Checked() []string {
 	}
 
 	return ids
+}
+
+// SetSearch records pattern and moves the cursor to the first matching row at
+// or after its current position, wrapping to the first match when there is
+// none after it. An empty pattern clears the search. It returns the match
+// count and the cursor's 1-based position in it, or 0 when nothing matched.
+func (m *Model) SetSearch(pattern string) (int, int) {
+	m.searchPattern = pattern
+	m.recomputeMatches()
+
+	return m.landOnMatch()
+}
+
+// StepMatch moves the cursor to the next (delta 1) or previous (delta -1)
+// match, wrapping at both ends: stepping through results is the one place a
+// user expects to come back around, unlike the clamped movement elsewhere.
+// It returns the match count and the cursor's new 1-based position in it.
+func (m *Model) StepMatch(delta int) (int, int) {
+	n := len(m.matchRows)
+	if n == 0 {
+		return 0, 0
+	}
+
+	pos := m.currentMatchPos()
+	if pos < 0 {
+		pos = 0
+	} else {
+		pos = ((pos+delta)%n + n) % n
+	}
+
+	m.cursor = m.matchRows[pos]
+	m.scrollIntoView()
+
+	return n, pos + 1
+}
+
+func (m *Model) landOnMatch() (int, int) {
+	if len(m.matchRows) == 0 {
+		return 0, 0
+	}
+
+	for i, rowIdx := range m.matchRows {
+		if rowIdx >= m.cursor {
+			m.cursor = rowIdx
+			m.scrollIntoView()
+
+			return len(m.matchRows), i + 1
+		}
+	}
+
+	m.cursor = m.matchRows[0]
+	m.scrollIntoView()
+
+	return len(m.matchRows), 1
+}
+
+func (m Model) currentMatchPos() int {
+	for i, rowIdx := range m.matchRows {
+		if rowIdx == m.cursor {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (m *Model) recomputeMatches() {
+	if m.searchPattern == "" {
+		m.matchRows = nil
+
+		return
+	}
+
+	matches := make([]int, 0, len(m.rows))
+
+	for i, row := range m.rows {
+		if row.Revision != nil && matchesSearch(*row.Revision, m.searchPattern) {
+			matches = append(matches, i)
+		}
+	}
+
+	m.matchRows = matches
+}
+
+func matchesSearch(rev jj.Revision, pattern string) bool {
+	if filter.Match(pattern, rev.ChangeID) || filter.Match(pattern, rev.Description) {
+		return true
+	}
+
+	for _, bookmark := range rev.Bookmarks {
+		if filter.Match(pattern, bookmark) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Update handles the log's own navigation. The parent routes everything else.
@@ -289,11 +390,14 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 	body := m.cells(*row.Revision, layout)
 	gutter := m.gutter(*row.Revision)
 
-	if selected {
+	switch {
+	case selected:
 		return m.styles.Selected.Render(graph + gutter + body)
+	case m.searchPattern != "" && matchesSearch(*row.Revision, m.searchPattern):
+		return m.styles.Match.Render(graph + gutter + body)
+	default:
+		return graph + gutter + body
 	}
-
-	return graph + gutter + body
 }
 
 // gutter spends the space between the graph and the columns on the multi-select
