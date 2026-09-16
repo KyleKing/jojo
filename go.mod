@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/charmbracelet/x/exp/golden v0.0.0-20260913004009-c615ff2f7805
-	github.com/kyleking/aragonite v0.10.0
+	github.com/kyleking/aragonite v0.15.1
 )
 
 require (
