@@ -1,0 +1,166 @@
+package jj
+
+import (
+	"context"
+	"errors"
+)
+
+// RebaseScope picks which revisions a rebase moves, mirroring jj's -r/-s/-b flags. There is no
+// default: the caller always states the scope explicitly.
+type RebaseScope int
+
+// Scopes a rebase can target.
+const (
+	RebaseScopeRevisions RebaseScope = iota // -r
+	RebaseScopeSource                       // -s
+	RebaseScopeBranch                       // -b
+)
+
+// RebaseDestinationMode picks how a rebase's destination revisions are used, mirroring jj's
+// --onto/--insert-after/--insert-before flags.
+type RebaseDestinationMode int
+
+// Destination modes a rebase can target.
+const (
+	RebaseDestOnto         RebaseDestinationMode = iota // --onto
+	RebaseDestInsertAfter                               // --insert-after
+	RebaseDestInsertBefore                              // --insert-before
+)
+
+// RebaseDestination is where a rebase's selected revisions land.
+type RebaseDestination struct {
+	Revisions []string
+	Mode      RebaseDestinationMode
+}
+
+// RebaseOptions makes a rebase's scope and destination explicit rather than inferred from the
+// revisions passed.
+type RebaseOptions struct {
+	Revisions   []string
+	Destination RebaseDestination
+	Scope       RebaseScope
+}
+
+var (
+	errRebaseNoRevisions   = errors.New("rebase requires at least one revision")
+	errRebaseNoDestination = errors.New("rebase requires at least one destination revision")
+)
+
+func (s RebaseScope) flag() string {
+	switch s {
+	case RebaseScopeSource:
+		return "-s"
+	case RebaseScopeBranch:
+		return "-b"
+	case RebaseScopeRevisions:
+		return "-r"
+	default:
+		return "-r"
+	}
+}
+
+func (m RebaseDestinationMode) flag() string {
+	switch m {
+	case RebaseDestInsertAfter:
+		return "--insert-after"
+	case RebaseDestInsertBefore:
+		return "--insert-before"
+	case RebaseDestOnto:
+		return "--onto"
+	default:
+		return "--onto"
+	}
+}
+
+// New creates a new change on top of revs, or on top of @ when revs is empty.
+func (c *Client) New(ctx context.Context, revs []string) error {
+	args := append([]string{"new"}, revs...)
+	_, err := c.executeJJ(ctx, args...)
+
+	return err
+}
+
+// Edit makes rev the working-copy commit.
+func (c *Client) Edit(ctx context.Context, rev string) error {
+	_, err := c.executeJJ(ctx, "edit", rev)
+
+	return err
+}
+
+// Describe sets rev's change description.
+func (c *Client) Describe(ctx context.Context, rev, message string) error {
+	_, err := c.executeJJ(ctx, "describe", "-r", rev, "-m", message)
+
+	return err
+}
+
+// Squash moves from's changes into into.
+func (c *Client) Squash(ctx context.Context, from, into string) error {
+	_, err := c.executeJJ(ctx, "squash", "--from", from, "--into", into)
+
+	return err
+}
+
+// Abandon abandons revs, rebasing their descendants onto their parents.
+func (c *Client) Abandon(ctx context.Context, revs []string) error {
+	args := append([]string{"abandon"}, revs...)
+	_, err := c.executeJJ(ctx, args...)
+
+	return err
+}
+
+// Absorb moves rev's changes into the closest mutable ancestor where each line last changed.
+func (c *Client) Absorb(ctx context.Context, rev string) error {
+	_, err := c.executeJJ(ctx, "absorb", "-r", rev)
+
+	return err
+}
+
+// Duplicate creates new changes with the same content as revs.
+func (c *Client) Duplicate(ctx context.Context, revs []string) error {
+	args := append([]string{"duplicate"}, revs...)
+	_, err := c.executeJJ(ctx, args...)
+
+	return err
+}
+
+// Rebase moves opts.Revisions, scoped by opts.Scope, to opts.Destination.
+func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) error {
+	if len(opts.Revisions) == 0 {
+		return errRebaseNoRevisions
+	}
+
+	if len(opts.Destination.Revisions) == 0 {
+		return errRebaseNoDestination
+	}
+
+	args := []string{"rebase"}
+
+	scopeFlag := opts.Scope.flag()
+	for _, rev := range opts.Revisions {
+		args = append(args, scopeFlag, rev)
+	}
+
+	destFlag := opts.Destination.Mode.flag()
+	for _, rev := range opts.Destination.Revisions {
+		args = append(args, destFlag, rev)
+	}
+
+	_, err := c.executeJJ(ctx, args...)
+
+	return err
+}
+
+// Undo reverts the last jj operation in the repository.
+func (c *Client) Undo(ctx context.Context) error {
+	_, err := c.executeJJ(ctx, "undo")
+
+	return err
+}
+
+// OpRestore restores the repository to the state at opID.
+func (c *Client) OpRestore(ctx context.Context, opID string) error {
+	_, err := c.executeJJ(ctx, "op", "restore", opID)
+
+	return err
+}
