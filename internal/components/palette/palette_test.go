@@ -32,9 +32,9 @@ func drainMsg[T any](cmd tea.Cmd) (T, bool) {
 
 func testCommands() []palette.Command {
 	return []palette.Command{
-		{Key: "o", Name: "operation log", What: "browse jj's operation log"},
-		{Key: "R", Name: "restore workspace", What: "restore from the operation log"},
-		{Key: "ctrl+r", Name: "refresh", What: "reread the working copy"},
+		{ID: "o", Key: "o", Name: "operation log", What: "browse jj's operation log"},
+		{ID: "R", Key: "R", Name: "restore workspace", What: "restore from the operation log"},
+		{ID: "ctrl+r", Key: "ctrl+r", Name: "refresh", What: "reread the working copy"},
 	}
 }
 
@@ -56,8 +56,8 @@ func TestFilterByName(t *testing.T) {
 		t.Fatal("Update(enter) after filtering by name did not emit palette.RunMsg")
 	}
 
-	if run.Key != "R" {
-		t.Errorf("filter by name ran %q, want %q", run.Key, "R")
+	if run.ID != "R" {
+		t.Errorf("filter by name ran %q, want %q", run.ID, "R")
 	}
 }
 
@@ -73,8 +73,8 @@ func TestFilterByKey(t *testing.T) {
 		t.Fatal("Update(enter) after filtering by key did not emit palette.RunMsg")
 	}
 
-	if run.Key != "ctrl+r" {
-		t.Errorf("filter by key ran %q, want %q", run.Key, "ctrl+r")
+	if run.ID != "ctrl+r" {
+		t.Errorf("filter by key ran %q, want %q", run.ID, "ctrl+r")
 	}
 }
 
@@ -83,8 +83,8 @@ func TestOrderSurvivesFilter(t *testing.T) {
 
 	m := palette.New(testSkin())
 	m.Open([]palette.Command{
-		{Key: "z", Name: "zzz match", What: "one"},
-		{Key: "a", Name: "aaa match", What: "two"},
+		{ID: "z", Key: "z", Name: "zzz match", What: "one"},
+		{ID: "a", Key: "a", Name: "aaa match", What: "two"},
 	})
 	typeString(&m, "match")
 
@@ -93,8 +93,8 @@ func TestOrderSurvivesFilter(t *testing.T) {
 		t.Fatal("Update(enter) after filtering did not emit palette.RunMsg")
 	}
 
-	if run.Key != "z" {
-		t.Errorf("cursor after filtering settled on %q, want the first supplied match %q", run.Key, "z")
+	if run.ID != "z" {
+		t.Errorf("cursor after filtering settled on %q, want the first supplied match %q", run.ID, "z")
 	}
 }
 
@@ -130,7 +130,7 @@ func TestLetterTypesIntoFilterInsteadOfMoving(t *testing.T) {
 
 	run, ok := drainMsg[palette.RunMsg](m.Update(tuitest.Key("enter")))
 	if ok {
-		t.Fatalf("Update(enter) after typing %q ran %q, want no match ('j' has no key or name hit)", "j", run.Key)
+		t.Fatalf("Update(enter) after typing %q ran %q, want no match ('j' has no key or name hit)", "j", run.ID)
 	}
 }
 
@@ -147,8 +147,8 @@ func TestBackspaceDeletesARune(t *testing.T) {
 		t.Fatal("Update(enter) after backspacing to a valid filter did not emit palette.RunMsg")
 	}
 
-	if run.Key != "ctrl+r" {
-		t.Errorf("filter after backspace ran %q, want %q", run.Key, "ctrl+r")
+	if run.ID != "ctrl+r" {
+		t.Errorf("filter after backspace ran %q, want %q", run.ID, "ctrl+r")
 	}
 }
 
@@ -165,8 +165,8 @@ func TestCursorClampsAtEitherEnd(t *testing.T) {
 		t.Fatal("Update(enter) after moving up past the top did not emit palette.RunMsg")
 	}
 
-	if run.Key != "o" {
-		t.Errorf("cursor clamped past the top and ran %q, want the first command %q", run.Key, "o")
+	if run.ID != "o" {
+		t.Errorf("cursor clamped past the top and ran %q, want the first command %q", run.ID, "o")
 	}
 
 	m.Open(testCommands())
@@ -180,8 +180,8 @@ func TestCursorClampsAtEitherEnd(t *testing.T) {
 		t.Fatal("Update(enter) after moving down past the bottom did not emit palette.RunMsg")
 	}
 
-	if run.Key != "ctrl+r" {
-		t.Errorf("cursor clamped past the bottom and ran %q, want the last command %q", run.Key, "ctrl+r")
+	if run.ID != "ctrl+r" {
+		t.Errorf("cursor clamped past the bottom and ran %q, want the last command %q", run.ID, "ctrl+r")
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/jojo/internal/components/help"
+	"github.com/kyleking/jojo/internal/config"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/model"
 	"github.com/kyleking/jojo/internal/ui"
@@ -61,6 +63,27 @@ func probe(ctx context.Context, client *jj.Client, wantRevset bool) (string, str
 	return root, revset, nil
 }
 
+// configure reads config.toml and turns it into the three things the app is built from. A setting
+// jojo cannot honor stops startup, since a TUI has nowhere to report it afterwards.
+func configure() (config.Config, ui.Skin, help.Keymap, error) {
+	settings, err := config.Load()
+	if err != nil {
+		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("loading the config: %w", err)
+	}
+
+	skin, err := ui.Flavor(settings.Theme)
+	if err != nil {
+		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("reading theme: %w", err)
+	}
+
+	keys, err := help.NewKeymap(settings.Keys)
+	if err != nil {
+		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("reading keys: %w", err)
+	}
+
+	return settings, skin, keys, nil
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -80,6 +103,11 @@ func run() error {
 		return nil
 	}
 
+	settings, skin, keys, err := configure()
+	if err != nil {
+		return err
+	}
+
 	ctx := context.Background()
 
 	client := jj.NewClient(*repo)
@@ -96,7 +124,8 @@ func run() error {
 		*revset = configured
 	}
 
-	app := model.New(ctx, client, ui.Detected(), root, *revset)
+	app := model.New(ctx, client, skin, root, *revset,
+		model.Options{Keys: keys, Revsets: settings.Revsets})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}

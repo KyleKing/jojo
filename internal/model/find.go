@@ -1,9 +1,12 @@
 package model
 
 import (
+	"maps"
+	"slices"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/palette"
 	"github.com/kyleking/jojo/internal/components/search"
 )
@@ -32,7 +35,7 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, nil, true
 	case palette.RunMsg:
-		next, cmd := m.dispatch(msg.Key)
+		next, cmd := m.dispatch(msg.ID)
 
 		return next, cmd, true
 	case palette.CancelledMsg:
@@ -44,28 +47,45 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// dispatch runs a key the palette picked through the same handlers the keypress itself reaches, so
+// revsetPrefix marks a palette entry that names a revset rather than a key. No key contains a
+// space, so the two families cannot collide.
+const revsetPrefix = "revset "
+
+// dispatch runs what the palette picked through the same handlers the keypress itself reaches, so
 // the palette can never do something a key cannot.
-func (m Model) dispatch(key string) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.handleRootKey(key); handled {
+func (m Model) dispatch(id string) (tea.Model, tea.Cmd) {
+	if expr, ok := strings.CutPrefix(id, revsetPrefix); ok {
+		// The box is the one place the active revset is editable, so it has to show what just ran.
+		m.revsetBox.SetValue(expr)
+
+		return m, m.loadLog(expr)
+	}
+
+	if next, cmd, handled := m.handleRootKey(id); handled {
 		return next, cmd
 	}
 
-	if next, cmd, handled := m.handleActionKey(key); handled {
+	if next, cmd, handled := m.handleActionKey(id); handled {
 		return next, cmd
 	}
 
-	return m, m.say(key + " does nothing here")
+	return m, m.say(id + " does nothing here")
 }
 
 // paletteCommands is the keymap itself, filtered to what a single key runs, so an entry cannot drift
-// from the binding it names.
-func paletteCommands() []palette.Command {
-	bindings := help.Runnable()
-	commands := make([]palette.Command, 0, len(bindings))
+// from the binding it names, followed by the revsets the user saved.
+func (m Model) paletteCommands() []palette.Command {
+	bindings := m.keys.Runnable()
+	commands := make([]palette.Command, 0, len(bindings)+len(m.saved))
 
 	for _, b := range bindings {
-		commands = append(commands, palette.Command{Key: b.Run, Name: b.What, What: b.Cmd})
+		commands = append(commands, palette.Command{ID: b.Run, Key: b.Run, Name: b.What, What: b.Cmd})
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(m.saved)) {
+		expr := m.saved[name]
+		commands = append(commands,
+			palette.Command{ID: revsetPrefix + expr, Name: "revset: " + name, What: expr})
 	}
 
 	return commands

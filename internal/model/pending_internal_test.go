@@ -7,14 +7,26 @@ import (
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/ui"
 )
 
+func testOptions(t *testing.T) Options {
+	t.Helper()
+
+	keys, err := help.NewKeymap(nil)
+	if err != nil {
+		t.Fatalf("NewKeymap: %v", err)
+	}
+
+	return Options{Keys: keys}
+}
+
 func testModel(t *testing.T, rows []jj.LogRow) Model {
 	t.Helper()
 
-	m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@")
+	m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@", testOptions(t))
 	m, _ = m.applyLog(logLoadedMsg{revset: "@", rows: rows})
 
 	return m

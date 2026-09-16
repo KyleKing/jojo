@@ -67,7 +67,9 @@ about it second.
 
 Hunk-level and line-level diff work is not rebuilt here.
 [jj-diff](https://github.com/KyleKing/jj-diff) already does it, so jojo runs it as jj's
-configured diff editor the same way `jj split -i` does.
+configured diff editor the same way `jj split -i` does. Reading a diff happens inside
+jojo, drawn by jj-diff's own `render` package, so a diff looks the same in both tools and
+neither one has its own idea of what a diff looks like.
 
 Shared plumbing comes from [aragonite](https://github.com/KyleKing/aragonite), which
 already ships `vcs`, `forge/github`, `cache`, `transport`, `ratelimit`, and the `tui/`
@@ -87,7 +89,7 @@ the handlers read. The ones worth knowing before you start:
 | `:` | the command palette, listing every action and the jj command it runs |
 | `L` | edit the revset, which re-filters the log as you type |
 | `Tab` | cycle the log, the revset box, and the forge pane |
-| `Enter` / `Alt+d` | diff the revision, or diff any two revisions |
+| `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions |
 | `v` / `l` | details of the revision, or the files it touches |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
@@ -109,6 +111,29 @@ moved away from.
 Two things ask first, because `jj undo` cannot take them back: a push, which has left the
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj
 refuses, jojo says why, and `y` runs the same edit again with `--ignore-immutable`.
+
+## Configuration
+
+Everything is optional and jojo runs with no config file at all. It reads
+`$XDG_CONFIG_HOME/jojo/config.toml`, or `~/.config/jojo/config.toml`:
+
+```toml
+# latte or light, macchiato or dark. Omit it to read the terminal's background.
+theme = "macchiato"
+
+# Move an action to another key, naming it the way `?` names it.
+[keys]
+describe = "M"
+
+# Expressions worth keeping, listed in the `:` palette by name.
+[revsets]
+mine = "author_email(exact:'you@example.com') ~ ::trunk()"
+review = "trunk()..@"
+```
+
+A rebind moves a key rather than adding one, and jojo refuses to start on a setting it
+cannot honor (an action it does not have, two actions on one key, a theme it does not
+know), because a preference that silently does nothing is worse than one that says so.
 
 The status line reports the jj command that ran (`jj rebase -r xyz --onto abc`) rather
 than a description of it, and `:` lists every action beside the command it runs. Driving

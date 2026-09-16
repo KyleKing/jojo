@@ -31,15 +31,58 @@ func (m *Model) pickDiffTo(from string) tea.Cmd {
 	return m.destPicker.Open("diff "+from+" to", m.rows, from, destpicker.AllowImmutable())
 }
 
-// showDiff hands the terminal to jj so the diff reaches jj's own pager and whatever diff formatter
-// the repository configures.
+// diffLoadedMsg carries a diff read in the background, along with what to call it.
+type diffLoadedMsg struct {
+	err   error
+	title string
+	text  string
+}
+
+// showDiff reads the diff and opens it in a pane. An operation is the exception: `jj op show`
+// prints its own header above the diff, which no diff parser reads, so it keeps the pager.
 func (m Model) showDiff(target jj.DiffTarget) tea.Cmd {
-	cmd, err := m.client.DiffCommand(m.ctx, target)
-	if err != nil {
-		return m.say(err.Error())
+	if target.Operation != "" {
+		cmd, err := m.client.DiffCommand(m.ctx, target)
+		if err != nil {
+			return m.say(err.Error())
+		}
+
+		return m.execCommand("", cmd)
 	}
 
-	return m.execCommand("", cmd)
+	client, ctx, title := m.client, m.ctx, diffTitle(target)
+
+	return func() tea.Msg {
+		text, err := client.GitDiff(ctx, target)
+
+		return diffLoadedMsg{title: title, text: text, err: err}
+	}
+}
+
+func diffTitle(t jj.DiffTarget) string {
+	name := t.Revision
+	if name == "" {
+		name = t.From + " to " + t.To
+	}
+
+	if len(t.Paths) == 1 {
+		return "diff " + t.Paths[0] + " in " + name
+	}
+
+	return "diff " + name
+}
+
+func (m Model) openDiff(msg diffLoadedMsg) tea.Model {
+	switch {
+	case msg.err != nil:
+		m.message = msg.err.Error()
+	case msg.text == "":
+		m.message = msg.title + ": nothing changed"
+	default:
+		m.diff.Open(msg.title, msg.text, m.width)
+	}
+
+	return m
 }
 
 func (m Model) showOperation(msg oplogview.ShowMsg) (tea.Model, tea.Cmd) {

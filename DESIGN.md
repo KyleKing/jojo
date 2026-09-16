@@ -57,16 +57,26 @@ was at and `Ctrl+r` restores it.
 the invocation it ran, quoted so it can be pasted into a shell. A description would be a
 second thing to keep true as the flags change, and it would teach nothing.
 
-**The keymap is data.** `internal/components/help.Bindings` is the whole table: the footer,
-the help overlay, the command palette, and the root model's dispatch all read it, so a
-binding cannot drift between them. The palette shows each action beside the jj command it
-runs, which is why the shapes live in that table too.
+**The keymap is data.** `internal/components/help` holds the whole table: the footer, the
+help overlay, the command palette, and the root model's dispatch all read one `Keymap`, so
+a binding cannot drift between them. The palette shows each action beside the jj command it
+runs, which is why the shapes live in that table too. A rebind from `config.toml` rewrites
+that table once at startup and leaves a translation from the pressed key to the key the
+handlers switch on, so the handlers never learn that rebinding exists. A key whose action
+moved away translates to nothing rather than staying live, or the legend would be a lie.
 
-**One list, six views.** The operation log, workspaces, bookmarks, the evolution timeline,
-the destination picker, and the command palette are all `internal/components/listview`
-with their own rows, keys, and messages. Scrolling, clamping, truncation, the warning line,
-the minimum frame, and hint degradation are written once, so a rendering fix lands in all
-six.
+**One list, every view.** The operation log, workspaces, bookmarks, the evolution timeline,
+the file list, the diff pane, the destination picker, and the command palette are all
+`internal/components/listview` with their own rows, keys, and messages. Scrolling, clamping,
+truncation, the warning line, the minimum frame, and hint degradation are written once, so a
+rendering fix lands in all of them.
+
+**The diff is rendered by jj-diff, not by jojo.** `jj-diff/render` turns git-format diff
+text into styled lines, and jojo scrolls them. The parser, the word-level intra-line
+highlighting, and the syntax highlighting are the ones the diff editor uses, so the two
+tools cannot grow separate ideas of what a diff looks like. jojo passes its own palette in
+rather than inheriting jj-diff's theme. The one diff that still reaches jj's pager is an
+operation's, because `jj op show` prints a header no diff parser reads.
 
 **Whoever is open owns the keys.** An open overlay takes every key before the log sees it,
 since they share `j` and `k`. Below that, Tab cycles the log, the revset box, and the forge

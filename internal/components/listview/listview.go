@@ -44,6 +44,12 @@ func (m *Model[T]) Open(title string, items []T, cursor int) {
 	m.cursor = clamp(cursor, 0, len(items)-1)
 }
 
+// InnerWidth is how many cells a row has at this frame width, which a caller preparing its own rows
+// needs before it has them.
+func (m Model[T]) InnerWidth(width int) int {
+	return overlay.ContentWidth(width, m.skin.OverlayStyles())
+}
+
 // Close hides the list.
 func (m *Model[T]) Close() { m.open = false }
 

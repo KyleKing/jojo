@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/confirm"
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
+	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/forgepane"
@@ -84,12 +85,15 @@ type Model struct {
 	bookmarks  bookmarkview.Model
 	detail     detailview.Model
 	files      fileview.Model
+	diff       diffpane.Model
 	confirm    confirm.Model
 	forcible   forcible
 	pushing    pendingPush
 	onSubmit   submitted
 	onPick     picked
+	keys       help.Keymap
 	redoOp     string
+	saved      map[string]string
 	revset     string
 	message    string
 	lastOp     string
@@ -103,8 +107,16 @@ type Model struct {
 	quitting   bool
 }
 
+// Options are the settings a user states in config.toml, which New folds into the model rather than
+// reading itself, so a test can pass its own without a file on disk.
+type Options struct {
+	// Revsets are named expressions the command palette offers, on top of the actions.
+	Revsets map[string]string
+	Keys    help.Keymap
+}
+
 // New builds the root model against a repository jj already recognizes.
-func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset string) Model {
+func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset string, opts Options) Model {
 	return Model{
 		ctx:        ctx,
 		client:     client,
@@ -122,10 +134,13 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		bookmarks:  bookmarkview.New(skin),
 		detail:     detailview.New(skin),
 		files:      fileview.New(skin),
+		diff:       diffpane.New(skin),
 		confirm:    confirm.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
-		help:       help.New(skin),
+		help:       help.New(skin, opts.Keys),
+		keys:       opts.Keys,
+		saved:      opts.Revsets,
 		revset:     revset,
 	}
 }
@@ -162,6 +177,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.diff.SetWidth(m.width)
 		m.resize()
 
 		return m, nil
@@ -267,7 +283,8 @@ func (m Model) View() tea.View {
 }
 
 // overlay is the frame drawn in place of the log, or nil when none is open. One table rather than a
-// chain of branches, so an overlay added here cannot be drawn in the wrong order.
+// chain of branches, so an overlay added here cannot be drawn in the wrong order. The order is the
+// stacking order: a diff opened from the file list draws over it and closing the diff uncovers it.
 func (m Model) overlay() func(width, height int) string {
 	frames := []struct {
 		view func(width, height int) string
@@ -277,6 +294,7 @@ func (m Model) overlay() func(width, height int) string {
 		{m.confirm.View, m.confirm.IsOpen()},
 		{m.bookmarks.View, m.bookmarks.IsOpen()},
 		{m.detail.View, m.detail.IsOpen()},
+		{m.diff.View, m.diff.IsOpen()},
 		{m.files.View, m.files.IsOpen()},
 		{m.prompt.View, m.prompt.IsOpen()},
 		{m.destPicker.View, m.destPicker.IsOpen()},

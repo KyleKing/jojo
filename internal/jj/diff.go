@@ -61,12 +61,13 @@ func (c *Client) DiffCommand(ctx context.Context, t DiffTarget) (*exec.Cmd, erro
 	return cmd, nil
 }
 
-// DiffText returns t's diff as plain text, with jj's pager and color disabled.
-func (c *Client) DiffText(ctx context.Context, t DiffTarget) (string, error) {
+// GitDiff returns t's diff as git-format text, with jj's pager and color disabled. The format is
+// git's rather than jj's own because that is the one a renderer parses.
+func (c *Client) GitDiff(ctx context.Context, t DiffTarget) (string, error) {
 	args, err := t.args()
 	if err != nil {
 		return "", err
 	}
 
-	return c.executeJJ(ctx, append(args, "--no-pager", "--color=never")...)
+	return c.executeJJ(ctx, append(args, "--git", "--no-pager", "--color=never")...)
 }

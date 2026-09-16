@@ -7,6 +7,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/confirm"
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
+	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
@@ -41,6 +42,13 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg,
 		fileview.CancelledMsg:
 		return m.cancelModals(), nil, true
+	case diffpane.CancelledMsg:
+		// Only the diff closes, since it may be drawn over the file list that opened it.
+		m.diff.Close()
+
+		return m, nil, true
+	case diffLoadedMsg:
+		return m.openDiff(msg), nil, true
 	}
 
 	if next, cmd, handled := m.handleFileMsg(msg); handled {

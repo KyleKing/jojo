@@ -180,7 +180,8 @@ func TestCycleFocusSkipsTheClosedForgePane(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@")
+			m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()),
+				t.TempDir(), "@", testOptions(t))
 			m.focus, m.showForge = tc.start, tc.open
 
 			next, _ := m.cycleFocus()

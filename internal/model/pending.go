@@ -173,6 +173,7 @@ func (m Model) cancelModals() Model {
 	m.bookmarks.Close()
 	m.detail.Close()
 	m.files.Close()
+	m.diff.Close()
 	m.onSubmit, m.onPick = nil, nil
 
 	return m

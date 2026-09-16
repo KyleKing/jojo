@@ -17,15 +17,17 @@ import (
 const footerRows = 1
 
 // Model is the `?` overlay: a scroll position over the legend, rendered fresh
-// from Bindings on every View.
+// from the keymap on every View.
 type Model struct {
 	skin   ui.Skin
+	keys   Keymap
 	offset int
 }
 
-// New returns a help overlay scrolled to the top.
-func New(skin ui.Skin) Model {
-	return Model{skin: skin}
+// New returns a help overlay scrolled to the top, showing the keys in keys rather than the defaults,
+// so a rebind reaches the legend too.
+func New(skin ui.Skin, keys Keymap) Model {
+	return Model{skin: skin, keys: keys}
 }
 
 // ScrollBy moves the offset by n lines, clamped at zero. View clamps the
@@ -63,7 +65,7 @@ func (m Model) View(width, height int) string {
 	contentWidth := overlay.ContentWidth(width, styles)
 	contentHeight := overlay.ContentHeight(height, styles)
 
-	lines := keyhint.Help(m.skin.KeyHintStyles(), allHints(), contentWidth)
+	lines := keyhint.Help(m.skin.KeyHintStyles(), m.keys.AllHints(), contentWidth)
 
 	body := contentHeight
 	clipped := len(lines) > contentHeight

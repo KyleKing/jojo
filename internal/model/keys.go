@@ -21,11 +21,12 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case focusLog:
 	}
 
-	if next, cmd, handled := m.handleRootKey(msg.String()); handled {
+	key := m.keys.Resolve(msg.String())
+	if next, cmd, handled := m.handleRootKey(key); handled {
 		return next, cmd
 	}
 
-	if next, cmd, handled := m.handleActionKey(msg.String()); handled {
+	if next, cmd, handled := m.handleActionKey(key); handled {
 		return next, cmd
 	}
 
@@ -44,6 +45,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.bookmarks.Update(msg), true
 	case m.detail.IsOpen():
 		return m.detail.Update(msg), true
+	case m.diff.IsOpen():
+		return m.diff.Update(msg), true
 	case m.files.IsOpen():
 		return m.files.Update(msg), true
 	case m.prompt.IsOpen():
@@ -112,7 +115,7 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 
 		return m, cmd, true
 	case ":":
-		cmd := m.palette.Open(paletteCommands())
+		cmd := m.palette.Open(m.paletteCommands())
 
 		return m, cmd, true
 	}

@@ -11,8 +11,15 @@ import (
 	"github.com/kyleking/jojo/internal/ui"
 )
 
-func testModel() help.Model {
-	return help.New(ui.New(theme.Macchiato()))
+func testModel(t *testing.T) help.Model {
+	t.Helper()
+
+	keys, err := help.NewKeymap(nil)
+	if err != nil {
+		t.Fatalf("NewKeymap: %v", err)
+	}
+
+	return help.New(ui.New(theme.Macchiato()), keys)
 }
 
 // A legend too tall for its frame has to say where the reader is in it,
@@ -25,9 +32,9 @@ func TestView_ReportsScrollPositionWhenClipped(t *testing.T) {
 		name  string
 		model help.Model
 	}{
-		{"top", testModel()},
-		{"scrolled", testModel().ScrollBy(3)},
-		{"end", testModel().ScrollToEnd()},
+		{"top", testModel(t)},
+		{"scrolled", testModel(t).ScrollBy(3)},
+		{"end", testModel(t).ScrollToEnd()},
 	}
 
 	for _, tt := range tests {
@@ -44,7 +51,7 @@ func TestView_ReportsScrollPositionWhenClipped(t *testing.T) {
 func TestView_FitsWithoutAScrollFooterWhenTall(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(testModel().View(60, 40))
+	got := ansi.Strip(testModel(t).View(60, 40))
 	if got == "" {
 		t.Fatal("View rendered nothing")
 	}
@@ -57,12 +64,12 @@ func TestView_FitsWithoutAScrollFooterWhenTall(t *testing.T) {
 func TestScroll_ClampsAtBothEnds(t *testing.T) {
 	t.Parallel()
 
-	top := ansi.Strip(testModel().ScrollBy(-5).View(50, 10))
-	if top != ansi.Strip(testModel().View(50, 10)) {
+	top := ansi.Strip(testModel(t).ScrollBy(-5).View(50, 10))
+	if top != ansi.Strip(testModel(t).View(50, 10)) {
 		t.Errorf("scrolling above the top changed the view:\n%s", top)
 	}
 
-	end := testModel().ScrollToEnd()
+	end := testModel(t).ScrollToEnd()
 	if got, want := ansi.Strip(end.View(50, 10)), ansi.Strip(end.ScrollBy(100).View(50, 10)); got != want {
 		t.Errorf("scrolling past the end changed the view:\n%s\nvs\n%s", got, want)
 	}

@@ -5,7 +5,10 @@
 package ui
 
 import (
+	"errors"
+	"fmt"
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
@@ -34,6 +37,9 @@ type Skin struct {
 	Removed        lipgloss.Style
 	// Selected marks the row under the cursor.
 	Selected lipgloss.Style
+	// Palette is the flavor this skin was built from, for the few callers that need a raw color
+	// rather than a face: a diff needs more of them than a skin has roles for.
+	Palette theme.Palette
 }
 
 // accent returns the color that tells jojo apart from aragonite's other
@@ -58,6 +64,7 @@ func New(p theme.Palette) Skin {
 		Added:          base.Foreground(p.Green),
 		Removed:        base.Foreground(p.Red),
 		Selected:       base.Reverse(true),
+		Palette:        p,
 	}
 }
 
@@ -65,6 +72,25 @@ func New(p theme.Palette) Skin {
 // for, which is what main starts with.
 func Detected() Skin {
 	return New(theme.Detect())
+}
+
+// ErrUnknownFlavor marks a theme name no flavor answers to.
+var ErrUnknownFlavor = errors.New("unknown theme")
+
+// Flavor builds a skin for a named flavor, or reads the terminal when the name is empty. A name
+// jojo does not know is an error rather than a silent fallback, since a typo would otherwise look
+// like the setting having no effect.
+func Flavor(name string) (Skin, error) {
+	switch strings.ToLower(name) {
+	case "":
+		return Detected(), nil
+	case "latte", "light":
+		return New(theme.Latte()), nil
+	case "macchiato", "dark":
+		return New(theme.Macchiato()), nil
+	}
+
+	return Skin{}, fmt.Errorf("%w: %q, want latte or macchiato", ErrUnknownFlavor, name)
 }
 
 // KeyHintStyles is the face keyhint renders every binding hint and legend

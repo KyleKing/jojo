@@ -135,9 +135,9 @@ func baseRepo(t *testing.T) (*jj.Client, string) {
 func workingCopyDiff(t *testing.T, client *jj.Client) string {
 	t.Helper()
 
-	text, err := client.DiffText(context.Background(), jj.DiffTarget{Revision: "@"})
+	text, err := client.GitDiff(context.Background(), jj.DiffTarget{Revision: "@"})
 	if err != nil {
-		t.Fatalf("DiffText: %v", err)
+		t.Fatalf("GitDiff: %v", err)
 	}
 
 	return text
@@ -162,7 +162,7 @@ func diffStressCases() []diffStressCase {
 					t.Fatalf("write bin.dat: %v", err)
 				}
 			},
-			want: []string{"(binary)"},
+			want: []string{"Binary files", "bin.dat"},
 		},
 		{
 			name: "CRLF line endings",
@@ -197,7 +197,7 @@ func diffStressCases() []diffStressCase {
 					t.Fatalf("symlink: %v", err)
 				}
 			},
-			want: []string{"Added symlink link.txt"},
+			want: []string{"new file mode 120000", "link.txt"},
 		},
 		{
 			name: "empty file added",
@@ -205,7 +205,7 @@ func diffStressCases() []diffStressCase {
 				t.Helper()
 				writeFile(t, dir, "empty_add.txt", "")
 			},
-			want: []string{"Added regular file empty_add.txt", "(empty)"},
+			want: []string{"new file mode 100644", "empty_add.txt"},
 		},
 		{
 			name: "no trailing newline",
@@ -218,7 +218,7 @@ func diffStressCases() []diffStressCase {
 	}
 }
 
-func TestDiffTextStressShapes(t *testing.T) {
+func TestGitDiffStressShapes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range diffStressCases() {
@@ -238,7 +238,7 @@ func TestDiffTextStressShapes(t *testing.T) {
 	}
 }
 
-func TestDiffTextRename(t *testing.T) {
+func TestGitDiffRename(t *testing.T) {
 	t.Parallel()
 
 	client, dir := baseRepo(t)
@@ -250,12 +250,12 @@ func TestDiffTextRename(t *testing.T) {
 	}
 
 	text := workingCopyDiff(t, client)
-	if !strings.Contains(text, "renameme.txt => renamed.txt") {
+	if !strings.Contains(text, "rename from renameme.txt") || !strings.Contains(text, "rename to renamed.txt") {
 		t.Errorf("diff missing the rename marker, got:\n%s", text)
 	}
 }
 
-func TestDiffTextEmptyFileDeleted(t *testing.T) {
+func TestGitDiffEmptyFileDeleted(t *testing.T) {
 	t.Parallel()
 
 	client, dir := baseRepo(t)
@@ -267,7 +267,7 @@ func TestDiffTextEmptyFileDeleted(t *testing.T) {
 	}
 
 	text := workingCopyDiff(t, client)
-	if !strings.Contains(text, "Removed regular file empty_del.txt") || !strings.Contains(text, "(empty)") {
+	if !strings.Contains(text, "deleted file") || !strings.Contains(text, "empty_del.txt") {
 		t.Errorf("diff missing the empty-file removal, got:\n%s", text)
 	}
 }
@@ -279,7 +279,7 @@ const (
 
 // TestDiffTextLargeSingleLineFile guards against a diff path that is quadratic in line length: jj
 // itself has to snapshot and diff a file with no internal line breaks at all.
-func TestDiffTextLargeSingleLineFile(t *testing.T) {
+func TestGitDiffLargeSingleLineFile(t *testing.T) {
 	if testing.Short() {
 		t.Skip("large-file diff is slow; skip with -short")
 	}
@@ -297,16 +297,16 @@ func TestDiffTextLargeSingleLineFile(t *testing.T) {
 		t.Errorf("diffing a %d-byte single-line file took %s, want under %s", largeFileBytes, elapsed, largeFileBudget)
 	}
 
-	if !strings.Contains(text, "Added regular file large.txt") {
+	if !strings.Contains(text, "large.txt") {
 		t.Errorf("diff missing the large file entry (%d bytes returned)", len(text))
 	}
 }
 
 const manyFilesCount = 300
 
-// TestDiffTextManyChangedFiles guards the argument list and captured output against a revision wide
-// enough to matter, since DiffText builds one flag set for the whole diff rather than per file.
-func TestDiffTextManyChangedFiles(t *testing.T) {
+// TestGitDiffManyChangedFiles guards the argument list and captured output against a revision wide
+// enough to matter, since GitDiff builds one flag set for the whole diff rather than per file.
+func TestGitDiffManyChangedFiles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("many-file diff is slow; skip with -short")
 	}
@@ -319,21 +319,21 @@ func TestDiffTextManyChangedFiles(t *testing.T) {
 	}
 
 	text := workingCopyDiff(t, client)
-	if got := strings.Count(text, "Added regular file"); got != manyFilesCount {
+	if got := strings.Count(text, "new file mode"); got != manyFilesCount {
 		t.Errorf("diff reports %d added files, want %d", got, manyFilesCount)
 	}
 }
 
-// TestDiffTextConflictedRevision covers seedRepo's merge-conflict revision. Jj resolves it as an
+// TestGitDiffConflictedRevision covers seedRepo's merge-conflict revision. Jj resolves it as an
 // automatic merge of its two parents with no changes of its own, so its own diff is empty; the
 // from/to form is what actually surfaces the conflicting content on each side.
-func TestDiffTextConflictedRevision(t *testing.T) {
+func TestGitDiffConflictedRevision(t *testing.T) {
 	t.Parallel()
 
 	client, _ := seedRepo(t)
 	ctx := context.Background()
 
-	own, err := client.DiffText(ctx, jj.DiffTarget{Revision: "@"})
+	own, err := client.GitDiff(ctx, jj.DiffTarget{Revision: "@"})
 	if err != nil {
 		t.Fatalf("DiffText on the conflict revision: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestDiffTextConflictedRevision(t *testing.T) {
 		t.Errorf("diff of the unmodified merge-conflict revision = %q, want empty", own)
 	}
 
-	sides, err := client.DiffText(ctx, jj.DiffTarget{From: "side-a", To: "side-b"})
+	sides, err := client.GitDiff(ctx, jj.DiffTarget{From: "side-a", To: "side-b"})
 	if err != nil {
 		t.Fatalf("DiffText from side-a to side-b: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestDiffTextConflictedRevision(t *testing.T) {
 
 // TestDiffTextMergeRevision builds a merge with a real content-bearing parent on each side and a
 // further edit made in the merge commit itself, since diff -r on a merge has to combine both parents.
-func TestDiffTextMergeRevision(t *testing.T) {
+func TestGitDiffMergeRevision(t *testing.T) {
 	t.Parallel()
 
 	client, dir := baseRepo(t)
@@ -372,12 +372,12 @@ func TestDiffTextMergeRevision(t *testing.T) {
 	writeFile(t, dir, "extra.txt", "extra\n")
 
 	text := workingCopyDiff(t, client)
-	if !strings.Contains(text, "Added regular file extra.txt") {
+	if !strings.Contains(text, "new file mode") || !strings.Contains(text, "extra.txt") {
 		t.Errorf("diff of the merge revision missing its own added file, got:\n%s", text)
 	}
 }
 
-func TestDiffTextOperation(t *testing.T) {
+func TestGitDiffOperation(t *testing.T) {
 	t.Parallel()
 
 	client, dir := testRepo(t)
@@ -395,9 +395,9 @@ func TestDiffTextOperation(t *testing.T) {
 		t.Fatal("expected at least one operation")
 	}
 
-	text, err := client.DiffText(ctx, jj.DiffTarget{Operation: ops[0].ID})
+	text, err := client.GitDiff(ctx, jj.DiffTarget{Operation: ops[0].ID})
 	if err != nil {
-		t.Fatalf("DiffText operation form: %v", err)
+		t.Fatalf("GitDiff operation form: %v", err)
 	}
 
 	if !strings.Contains(text, "Changed commits") {
