@@ -14,15 +14,19 @@ import (
 // openDiffRange starts the two-step pick for a diff between any two revisions, which is the one
 // comparison jj's own log view cannot show.
 func (m *Model) openDiffRange() tea.Cmd {
-	m.pending = pendingDiffFrom
-	m.pendingOn = ""
+	m.onPick = func(m Model, from destpicker.PickedMsg) (Model, tea.Cmd) {
+		cmd := m.pickDiffTo(from.Revision.ChangeID)
+
+		return m, cmd
+	}
 
 	return m.destPicker.Open("diff from", m.rows, "", destpicker.AllowImmutable())
 }
 
 func (m *Model) pickDiffTo(from string) tea.Cmd {
-	m.pending = pendingDiffTo
-	m.pendingOn = from
+	m.onPick = func(m Model, to destpicker.PickedMsg) (Model, tea.Cmd) {
+		return m, m.showDiff(jj.DiffTarget{From: from, To: to.Revision.ChangeID})
+	}
 
 	return m.destPicker.Open("diff "+from+" to", m.rows, from, destpicker.AllowImmutable())
 }
@@ -68,8 +72,9 @@ func (m Model) openBisect() (tea.Model, tea.Cmd) {
 		return m, m.say("check the known-good and the known-bad revision with space first")
 	}
 
-	m.pending = pendingBisect
-	m.pendingOn = rangeSet
+	m.onSubmit = func(m Model, command string) (Model, tea.Cmd) {
+		return m, m.bisect(rangeSet, command)
+	}
 
 	cmd := m.prompt.Open("test command for "+rangeSet, "")
 

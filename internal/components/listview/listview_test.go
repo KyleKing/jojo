@@ -21,6 +21,7 @@ func skin() ui.Skin { return ui.New(theme.Macchiato()) }
 func items() []string {
 	return []string{
 		"kxryrzwz main fix the parser so the separator can appear inside a description without splitting it",
+		//nolint:gosmopolitan // the point of this row is that its cells are twice as wide as its runes.
 		"mursrsmx 変更をまとめる、日本語の説明はセル幅が二倍になる",
 		"ovrvxwyt 🎉 released",
 		"zrosnlqn short",

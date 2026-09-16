@@ -27,52 +27,36 @@ func twoRows() []jj.LogRow {
 	}
 }
 
-// The picker collects an argument for an action chosen earlier, so the action
-// has to survive every message between the keypress and the pick.
+// The picker collects an argument for an action chosen earlier, so the action has to survive every
+// message between the keypress and the pick.
 func TestPickerRunsTheActionThatOpenedIt(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		key  string
-		want pending
-	}{
-		{name: "squash", key: "s", want: pendingSquash},
-		{name: "rebase revision", key: "r", want: pendingRebaseRevisions},
-		{name: "rebase subtree", key: "R", want: pendingRebaseSource},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, key := range []string{"s", "r", "R"} {
+		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			next, _, handled := testModel(t, twoRows()).handleActionKey(tc.key)
+			next, _, handled := testModel(t, twoRows()).handleActionKey(key)
 			if !handled {
-				t.Fatalf("%q was not handled", tc.key)
+				t.Fatalf("%q was not handled", key)
 			}
 
-			opened, ok := next.(Model)
-			if !ok {
-				t.Fatalf("handleActionKey returned %T", next)
-			}
-
-			if opened.pending != tc.want {
-				t.Fatalf("pending = %v, want %v", opened.pending, tc.want)
+			opened := asModel(t, next)
+			if opened.onPick == nil {
+				t.Fatal("the picker opened with no action to run")
 			}
 
 			if !opened.destPicker.IsOpen() {
 				t.Fatal("picker did not open")
 			}
 
-			picked := destpicker.PickedMsg{Revision: jj.Revision{ChangeID: "bbbb"}}
-
-			done, cmd := opened.handlePicked(picked)
+			done, cmd := opened.handlePicked(destpicker.PickedMsg{Revision: jj.Revision{ChangeID: "bbbb"}})
 			if cmd == nil {
 				t.Error("picking a destination ran nothing")
 			}
 
-			if got := done.(Model).pending; got != pendingNone { //nolint:errcheck,forcetypeassert // asserted above.
-				t.Errorf("pending = %v after the pick, want cleared", got)
+			if asModel(t, done).onPick != nil {
+				t.Error("the action survived the pick, so the next one would run it again")
 			}
 		})
 	}
@@ -93,8 +77,8 @@ func TestPickerSurvivesTheUpdateLoop(t *testing.T) {
 		t.Fatalf("Update returned %T", model)
 	}
 
-	if opened.pending != pendingSquash {
-		t.Fatalf("pending = %v after typing into the filter, want pendingSquash", opened.pending)
+	if opened.onPick == nil {
+		t.Fatal("typing into the filter lost the action the picker was collecting for")
 	}
 
 	_, cmd := model.Update(destpicker.PickedMsg{Revision: jj.Revision{ChangeID: "bbbb"}})

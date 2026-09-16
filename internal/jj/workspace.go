@@ -10,11 +10,10 @@ import (
 // created before 0.38 or one whose directory has moved.
 const workspaceTemplate = `self.name() ++ "` + fieldSep + `" ++ ` +
 	`self.target().change_id().shortest(8) ++ "` + fieldSep + `" ++ ` +
-	`self.target().commit_id().short(8) ++ "` + fieldSep + `" ++ ` +
 	`self.target().description().first_line() ++ "` + fieldSep + `" ++ ` +
 	`self.root() ++ "\n"`
 
-const workspaceFieldCount = 5
+const workspaceFieldCount = 4
 
 // Workspaces lists every working copy attached to this repository. The one the client runs in is
 // marked Current, since `jj workspace list` does not say which that is.
@@ -46,10 +45,9 @@ func parseWorkspaces(out, root string) []Workspace {
 		spaces = append(spaces, Workspace{
 			Name:        fields[0],
 			ChangeID:    fields[1],
-			CommitID:    fields[2],
-			Description: fields[3],
-			Root:        fields[4],
-			Current:     fields[4] != "" && fields[4] == root,
+			Description: fields[2],
+			Root:        fields[3],
+			Current:     fields[3] != "" && fields[3] == root,
 		})
 	}
 

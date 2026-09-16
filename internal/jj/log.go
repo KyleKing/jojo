@@ -15,7 +15,6 @@ const fieldSep = "\x1f"
 // author email, age, added and removed line counts, file count, and the description's first line,
 // leaving the graph itself to jj since this runs without --no-graph.
 const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
-	`commit_id.short(8) ++ "` + fieldSep + `" ++ ` +
 	`bookmarks.join(",") ++ "` + fieldSep + `" ++ ` +
 	`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`remote_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
@@ -32,7 +31,7 @@ const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 // change ID alphabet (lowercase k-z) never overlaps with the symbols and spaces that make up a graph.
 var changeIDSuffix = regexp.MustCompile(`[a-z]+$`)
 
-const logFieldCount = 12
+const logFieldCount = 11
 
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
@@ -91,21 +90,20 @@ func parseRevisionLine(line string) *Revision {
 	}
 
 	graph, changeID := fields[0][:loc[0]], fields[0][loc[0]:]
-	flags := fields[5]
+	flags := fields[4]
 
 	return &Revision{
 		ChangeID:        changeID,
-		CommitID:        fields[1],
-		Description:     fields[11],
-		AuthorEmail:     fields[6],
-		Age:             fields[7],
+		Description:     fields[10],
+		AuthorEmail:     fields[5],
+		Age:             fields[6],
 		Graph:           graph,
-		Bookmarks:       splitList(fields[2]),
-		LocalBookmarks:  splitList(fields[3]),
-		RemoteBookmarks: dedupe(splitList(fields[4])),
-		Added:           atoiOrZero(fields[8]),
-		Removed:         atoiOrZero(fields[9]),
-		Files:           atoiOrZero(fields[10]),
+		Bookmarks:       splitList(fields[1]),
+		LocalBookmarks:  splitList(fields[2]),
+		RemoteBookmarks: dedupe(splitList(fields[3])),
+		Added:           atoiOrZero(fields[7]),
+		Removed:         atoiOrZero(fields[8]),
+		Files:           atoiOrZero(fields[9]),
 		Immutable:       strings.Contains(flags, "I"),
 		Conflict:        strings.Contains(flags, "C"),
 		Empty:           strings.Contains(flags, "E"),

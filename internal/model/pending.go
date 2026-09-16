@@ -14,130 +14,97 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// pending names the action a modal is collecting an argument for, so the
-// result is dispatched on what was asked rather than on the modal's title.
-type pending int
-
-const (
-	pendingNone pending = iota
-	pendingDescribe
-	pendingSquash
-	pendingRebaseRevisions
-	pendingRebaseSource
-	pendingWorkspaceAdd
-	pendingBookmarkCreate
-	pendingBookmarkRename
-	pendingDiffFrom
-	pendingDiffTo
-	pendingBisect
+// The modals collect one argument for an action chosen earlier, so the action travels with them as a
+// closure. A state enum would have to be read the same way in three places to stay right.
+type (
+	submitted func(Model, string) (Model, tea.Cmd)
+	picked    func(Model, destpicker.PickedMsg) (Model, tea.Cmd)
 )
 
-// openDescribe seeds the prompt with the current description, because an edit
-// is far more common than writing one from nothing.
+// openDescribe seeds the prompt with the current description, because an edit is far more common
+// than writing one from nothing.
 func (m *Model) openDescribe(rev jj.Revision) tea.Cmd {
-	m.pending = pendingDescribe
-	m.pendingOn = rev.ChangeID
+	id := rev.ChangeID
+	m.onSubmit = func(m Model, text string) (Model, tea.Cmd) {
+		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.Describe(ctx, id, text)
+		})
 
-	return m.prompt.Open("describe "+rev.ChangeID, rev.Description)
+		return m, cmd
+	}
+
+	return m.prompt.Open("describe "+id, rev.Description)
 }
 
 func (m *Model) openSquash(rev jj.Revision) tea.Cmd {
-	m.pending = pendingSquash
-	m.pendingOn = rev.ChangeID
+	id := rev.ChangeID
+	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
+		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.Squash(ctx, id, dest.Revision.ChangeID)
+		})
 
-	return m.destPicker.Open("squash "+rev.ChangeID+" into", m.rows, rev.ChangeID)
+		return m, cmd
+	}
+
+	return m.destPicker.Open("squash "+id+" into", m.rows, id)
 }
 
-// openRebase asks for the destination. Scope is already decided by which key
-// was pressed, because jj's -r and -s move different things and guessing
-// between them silently rewrites the wrong revisions.
-func (m *Model) openRebase(rev jj.Revision, scope pending) tea.Cmd {
-	m.pending = scope
-	m.pendingOn = rev.ChangeID
+// openRebase asks for the destination. Scope is decided by the key that was pressed, because jj's -r
+// and -s move different things and guessing between them rewrites the wrong revisions.
+func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {
+	id := rev.ChangeID
+	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
+		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.Rebase(ctx, jj.RebaseOptions{
+				Revisions:   []string{id},
+				Destination: []string{dest.Revision.ChangeID},
+				Mode:        rebaseMode(dest.Placement),
+				Scope:       scope,
+			})
+		})
 
-	what := "rebase " + rev.ChangeID
-	if scope == pendingRebaseSource {
+		return m, cmd
+	}
+
+	what := "rebase " + id
+	if scope == jj.RebaseScopeSource {
 		what += " and its descendants"
 	}
 
-	return m.destPicker.Open(what+" onto", m.rows, rev.ChangeID)
+	return m.destPicker.Open(what+" onto", m.rows, id, destpicker.WithPlacement())
 }
 
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
-	source, action := m.pendingOn, m.pending
-
+	run := m.onSubmit
 	m.prompt.Close()
-	m.pending, m.pendingOn = pendingNone, ""
+	m.onSubmit = nil
 
-	switch action {
-	case pendingDescribe:
-		cmd := m.act(source,
-			func(ctx context.Context, c *jj.Client) (string, error) { return c.Describe(ctx, source, msg.Value) })
-
-		return m, cmd
-	case pendingWorkspaceAdd:
-		return m, m.addWorkspace(msg.Value)
-	case pendingBisect:
-		return m, m.bisect(source, msg.Value)
-	case pendingBookmarkCreate:
-		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
-			return m.client.BookmarkSet(ctx, msg.Value, source)
-		})
-	case pendingBookmarkRename:
-		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
-			return m.client.BookmarkRename(ctx, source, msg.Value)
-		})
-	case pendingNone, pendingSquash, pendingRebaseRevisions, pendingRebaseSource,
-		pendingDiffFrom, pendingDiffTo:
+	if run == nil {
 		return m, nil
 	}
 
-	return m, nil
+	return run(m, msg.Value)
 }
 
 func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
-	source, action, dest := m.pendingOn, m.pending, msg.Revision.ChangeID
-
+	run := m.onPick
 	m.destPicker.Close()
-	m.pending, m.pendingOn = pendingNone, ""
+	m.onPick = nil
 
-	switch action {
-	case pendingDiffFrom:
-		cmd := m.pickDiffTo(dest)
-
-		return m, cmd
-	case pendingDiffTo:
-		return m, m.showDiff(jj.DiffTarget{From: source, To: dest})
-	case pendingWorkspaceAdd, pendingBookmarkCreate, pendingBookmarkRename, pendingBisect,
-		pendingNone, pendingDescribe:
+	if run == nil {
 		return m, nil
-	case pendingSquash:
-		cmd := m.act(source,
-			func(ctx context.Context, c *jj.Client) (string, error) { return c.Squash(ctx, source, dest) })
-
-		return m, cmd
-	case pendingRebaseRevisions, pendingRebaseSource:
-		cmd := m.rebase(source, dest, action)
-
-		return m, cmd
 	}
 
-	return m, nil
+	return run(m, msg)
 }
 
-func (m *Model) rebase(source, dest string, action pending) tea.Cmd {
-	scope := jj.RebaseScopeRevisions
-	if action == pendingRebaseSource {
-		scope = jj.RebaseScopeSource
-	}
+var rebaseModes = map[destpicker.Placement]jj.RebaseDestinationMode{
+	destpicker.PlaceAfter:  jj.RebaseDestInsertAfter,
+	destpicker.PlaceBefore: jj.RebaseDestInsertBefore,
+}
 
-	return m.act(source, func(ctx context.Context, c *jj.Client) (string, error) {
-		return c.Rebase(ctx, jj.RebaseOptions{
-			Revisions:   []string{source},
-			Destination: []string{dest},
-			Scope:       scope,
-		})
-	})
+func rebaseMode(where destpicker.Placement) jj.RebaseDestinationMode {
+	return rebaseModes[where]
 }
 
 func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
@@ -161,7 +128,7 @@ func (m Model) restoreVersion(msg evologview.RestoreMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) openWorkspaceAdd() (tea.Model, tea.Cmd) {
 	m.spaces.Close()
-	m.pending = pendingWorkspaceAdd
+	m.onSubmit = func(m Model, name string) (Model, tea.Cmd) { return m, m.addWorkspace(name) }
 
 	cmd := m.prompt.Open("new workspace, created beside "+filepath.Base(m.repoPath), "")
 
@@ -205,7 +172,7 @@ func (m Model) cancelModals() Model {
 	m.evolog.Close()
 	m.bookmarks.Close()
 	m.detail.Close()
-	m.pending, m.pendingOn = pendingNone, ""
+	m.onSubmit, m.onPick = nil, nil
 
 	return m
 }

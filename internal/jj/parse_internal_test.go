@@ -32,25 +32,23 @@ func TestParseLog(t *testing.T) {
 		},
 		{
 			name: "empty description and no bookmarks",
-			out: "◉ zzzzzzzz" + fieldSep + "00000000" + fieldSep + fieldSep + fieldSep + fieldSep +
+			out: "◉ zzzzzzzz" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "0" + fieldSep + "0" +
 				fieldSep + "0" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				Graph:       "◉ ",
 				ChangeID:    "zzzzzzzz",
-				CommitID:    "00000000",
 				AuthorEmail: "a@b.com",
 				Age:         "1 hour ago",
 			}}},
 		},
 		{
 			name: "flags combine immutable, conflict, empty, and working copy",
-			out: "abcdefgh" + fieldSep + "12345678" + fieldSep + fieldSep + fieldSep + fieldSep +
+			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "1" + fieldSep + "2" +
 				fieldSep + "3" + fieldSep + "a change\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:    "abcdefgh",
-				CommitID:    "12345678",
 				AuthorEmail: "a@b.com",
 				Age:         "now",
 				Added:       1,
@@ -65,12 +63,11 @@ func TestParseLog(t *testing.T) {
 		},
 		{
 			name: "bookmarks split on comma and the same name tracked at two remotes collapses to one",
-			out: "abcdefgh" + fieldSep + "12345678" + fieldSep + "main,feat" + fieldSep + "main,feat" +
+			out: "abcdefgh" + fieldSep + "main,feat" + fieldSep + "main,feat" +
 				fieldSep + "main,main" + fieldSep + "" + fieldSep + "a@b.com" + fieldSep +
 				"now" + fieldSep + "0" + fieldSep + "0" + fieldSep + "0" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:        "abcdefgh",
-				CommitID:        "12345678",
 				AuthorEmail:     "a@b.com",
 				Age:             "now",
 				Bookmarks:       []string{"main", "feat"},
@@ -80,12 +77,11 @@ func TestParseLog(t *testing.T) {
 		},
 		{
 			name: "a field adjacent to the separator byte in the ASCII table is not mistaken for it",
-			out: "abcdefgh" + fieldSep + "12345678" + fieldSep + fieldSep + fieldSep + fieldSep +
+			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "0" + fieldSep + "0" +
 				fieldSep + "0" + fieldSep + "desc with \x1e and \x20 bytes\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:    "abcdefgh",
-				CommitID:    "12345678",
 				AuthorEmail: "a@b.com",
 				Age:         "now",
 				Description: "desc with \x1e and \x20 bytes",
@@ -204,18 +200,18 @@ func TestParseWorkspaces(t *testing.T) {
 	}{
 		{
 			name: "root matches the client's own workspace",
-			out:  "default" + fieldSep + "abcd1234" + fieldSep + "12345678" + fieldSep + "desc" + fieldSep + "/repo\n",
+			out:  "default" + fieldSep + "abcd1234" + fieldSep + "desc" + fieldSep + "/repo\n",
 			root: "/repo",
 			want: []Workspace{{
-				Name: "default", ChangeID: "abcd1234", CommitID: "12345678",
+				Name: "default", ChangeID: "abcd1234",
 				Description: "desc", Root: "/repo", Current: true,
 			}},
 		},
 		{
 			name: "a moved workspace renders an empty root and is never current",
-			out:  "old" + fieldSep + "abcd1234" + fieldSep + "12345678" + fieldSep + "desc" + fieldSep + "\n",
+			out:  "old" + fieldSep + "abcd1234" + fieldSep + "desc" + fieldSep + "\n",
 			root: "",
-			want: []Workspace{{Name: "old", ChangeID: "abcd1234", CommitID: "12345678", Description: "desc"}},
+			want: []Workspace{{Name: "old", ChangeID: "abcd1234", Description: "desc"}},
 		},
 		{
 			name: "truncated line is dropped",

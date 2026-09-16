@@ -3,9 +3,10 @@
 package prompt
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 
@@ -106,20 +107,25 @@ const cursorCellWidth = 1
 func (m Model) View(width, height int) string {
 	styles := m.skin.OverlayStyles()
 	contentWidth := overlay.ContentWidth(width, styles)
+	contentHeight := overlay.ContentHeight(height, styles)
+
+	if contentWidth < 1 || contentHeight < 1 {
+		return ui.TooSmall(width, height)
+	}
 
 	input := m.input
 	input.SetWidth(max(contentWidth-len([]rune(input.Prompt))-cursorCellWidth, minFieldWidth))
 
-	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{
+	hint := ui.FitHints(m.skin.KeyHintStyles(), []keyhint.Hint{
 		{Key: "enter", What: "submit"},
 		{Key: "esc", What: "cancel"},
-	})
+	}, contentWidth)
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
+	body := strings.Join([]string{
 		m.skin.Title.Render(m.title),
 		input.View(),
 		hint,
-	)
+	}, "\n")
 
 	return overlay.Center(body, width, height, styles)
 }

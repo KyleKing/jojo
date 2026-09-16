@@ -26,8 +26,9 @@ func detail() jj.Detail {
 		AuthorEmail: "test@example.com",
 		Authored:    "2026-09-16 08:33",
 		Committed:   "2026-09-16 09:10",
-		Description: "fix the parser\n\nThe separator can appear inside a description, so the\nsplit has to be bounded.",
-		Parents:     []string{"mursrsmx", "ovrvxwyt"},
+		Description: "fix the parser\n\nThe separator can appear inside a description, so the\n" +
+			"split has to be bounded.",
+		Parents: []string{"mursrsmx", "ovrvxwyt"},
 	}
 }
 
@@ -40,7 +41,9 @@ func TestViewKeepsTheWholeDescription(t *testing.T) {
 
 	view := tuitest.StripANSI(m.View(testWidth, testHeight))
 
-	for _, want := range []string{"fix the parser", "split has to be bounded", "mursrsmx ovrvxwyt", "test@example.com"} {
+	wants := []string{"fix the parser", "split has to be bounded", "mursrsmx ovrvxwyt", "test@example.com"}
+
+	for _, want := range wants {
 		if !strings.Contains(view, want) {
 			t.Errorf("View() is missing %q:\n%s", want, view)
 		}

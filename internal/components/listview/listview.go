@@ -19,8 +19,8 @@ import (
 // it takes. The list owns the truncation, because cutting a string that is already styled can land
 // inside an escape sequence.
 type Row struct {
-	Text  string
 	Style lipgloss.Style
+	Text  string
 }
 
 // Model is a list of T. The zero cursor is the first item.
@@ -60,6 +60,8 @@ func (m Model[T]) Items() []T { return m.items }
 func (m Model[T]) Cursor() int { return m.cursor }
 
 // Selected reports the item under the cursor, false when the list is empty.
+//
+//nolint:ireturn // T is the list's own item type, concrete at every call site.
 func (m Model[T]) Selected() (T, bool) {
 	if m.cursor < 0 || m.cursor >= len(m.items) {
 		var zero T
@@ -118,11 +120,10 @@ func clamp(n, lo, hi int) int {
 }
 
 // A frame smaller than this has no room for a title, a row, and the hints, so the overlay says so
-// on one line instead of drawing a box with nothing in it.
+// instead of drawing a box with nothing in it.
 const (
 	minWidth = 12
 	minRows  = 3
-	tooSmall = "terminal too small"
 )
 
 // scrollCenterDivisor centers the cursor in the visible window rather than pinning it to an edge.
@@ -140,7 +141,7 @@ func (m Model[T]) View(width, height int, row func(item T, selected bool) Row, h
 	rows := overlay.ContentHeight(height, styles)
 
 	if inner < minWidth || rows < minRows {
-		return m.skin.Error.Render(table.Truncate(tooSmall, width))
+		return ui.TooSmall(width, height)
 	}
 
 	head := []string{m.skin.Title.Render(table.Truncate(m.title, inner))}

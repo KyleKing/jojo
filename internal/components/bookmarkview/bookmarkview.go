@@ -6,13 +6,12 @@ package bookmarkview
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
 
+	"github.com/kyleking/jojo/internal/components/listview"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -79,17 +78,14 @@ const remoteOnlyWarning = "that is a remote bookmark, act on the local one"
 // Model is the panel's state: the bookmarks it lists, the change id the log's
 // cursor is on, and the cursor into the bookmarks.
 type Model struct {
-	skin    ui.Skin
-	warning string
-	target  string
-	marks   []jj.Bookmark
-	cursor  int
-	open    bool
+	skin   ui.Skin
+	target string
+	list   listview.Model[jj.Bookmark]
 }
 
 // New returns a closed panel drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin}
+	return Model{skin: skin, list: listview.New[jj.Bookmark](skin)}
 }
 
 // Open shows the panel over marks, with the cursor on the first entry. Target
@@ -98,29 +94,22 @@ func New(skin ui.Skin) Model {
 //
 //nolint:unparam // matches destpicker.Model.Open's signature; nothing here needs a command yet.
 func (m *Model) Open(marks []jj.Bookmark, target string) tea.Cmd {
-	m.marks = marks
 	m.target = target
-	m.warning = ""
-	m.cursor = 0
-	m.open = true
+	m.list.Open(titleText(target), marks, 0)
 
 	return nil
 }
 
 // Close hides the panel.
-func (m *Model) Close() {
-	m.open = false
-}
+func (m *Model) Close() { m.list.Close() }
 
 // IsOpen reports whether the panel is taking keys.
-func (m Model) IsOpen() bool {
-	return m.open
-}
+func (m Model) IsOpen() bool { return m.list.IsOpen() }
 
 // Update handles one message. Key handling only runs while the panel is open.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyPressMsg)
-	if !ok || !m.open {
+	if !ok || !m.list.IsOpen() {
 		return nil
 	}
 
@@ -128,15 +117,12 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
-	switch key.String() {
-	case "up", "k":
-		m.moveCursor(-1)
-	case "down", "j":
-		m.moveCursor(1)
-	case "g", "home":
-		m.jumpTo(0)
-	case "G", "end":
-		m.jumpTo(len(m.marks) - 1)
+	name := key.String()
+	if m.list.MoveKey(name) {
+		return nil
+	}
+
+	switch name {
 	case "s":
 		return m.set()
 	case "a":
@@ -163,19 +149,19 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *Model) set() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
 
 	if mark.Remote != "" {
-		m.warning = remoteOnlyWarning
+		m.list.Warn(remoteOnlyWarning)
 
 		return nil
 	}
 
 	if m.target == "" {
-		m.warning = "no revision selected"
+		m.list.Warn("no revision selected")
 
 		return nil
 	}
@@ -186,13 +172,13 @@ func (m *Model) set() tea.Cmd {
 }
 
 func (m *Model) advance() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
 
 	if m.target == "" {
-		m.warning = "no revision selected"
+		m.list.Warn("no revision selected")
 
 		return nil
 	}
@@ -209,13 +195,13 @@ func (m *Model) createRequested() tea.Cmd {
 }
 
 func (m *Model) renameRequested() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
 
 	if mark.Remote != "" {
-		m.warning = remoteOnlyWarning
+		m.list.Warn(remoteOnlyWarning)
 
 		return nil
 	}
@@ -226,13 +212,13 @@ func (m *Model) renameRequested() tea.Cmd {
 }
 
 func (m *Model) delete() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
 
 	if mark.Remote != "" {
-		m.warning = remoteOnlyWarning
+		m.list.Warn(remoteOnlyWarning)
 
 		return nil
 	}
@@ -243,7 +229,7 @@ func (m *Model) delete() tea.Cmd {
 }
 
 func (m *Model) forget() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
@@ -254,13 +240,13 @@ func (m *Model) forget() tea.Cmd {
 }
 
 func (m *Model) toggleTrack() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
 
 	if mark.Remote == "" {
-		m.warning = "tracking only applies to a remote bookmark"
+		m.list.Warn("tracking only applies to a remote bookmark")
 
 		return nil
 	}
@@ -275,7 +261,7 @@ func (m *Model) toggleTrack() tea.Cmd {
 }
 
 func (m *Model) push() tea.Cmd {
-	mark, ok := m.selected()
+	mark, ok := m.list.Selected()
 	if !ok {
 		return nil
 	}
@@ -285,70 +271,11 @@ func (m *Model) push() tea.Cmd {
 	return func() tea.Msg { return PushMsg{Name: mark.Name} }
 }
 
-func (m Model) selected() (jj.Bookmark, bool) {
-	if m.cursor < 0 || m.cursor >= len(m.marks) {
-		return jj.Bookmark{}, false
-	}
-
-	return m.marks[m.cursor], true
-}
-
-func (m *Model) moveCursor(delta int) {
-	if len(m.marks) == 0 {
-		return
-	}
-
-	m.jumpTo(clamp(m.cursor+delta, 0, len(m.marks)-1))
-}
-
-func (m *Model) jumpTo(cursor int) {
-	if len(m.marks) == 0 {
-		return
-	}
-
-	m.cursor = clamp(cursor, 0, len(m.marks)-1)
-	m.warning = ""
-}
-
-func clamp(n, lo, hi int) int {
-	return min(max(n, lo), hi)
-}
-
-// scrollCenterDivisor centers the cursor in the visible window rather than
-// pinning it to an edge.
-const scrollCenterDivisor = 2
-
-// scrollWindow returns the half-open range of bookmarks to render, keeping
-// cursor inside it, when body rows are available for total items.
-func scrollWindow(cursor, total, body int) (int, int) {
-	if body <= 0 || total <= body {
-		return 0, total
-	}
-
-	start := clamp(cursor-body/scrollCenterDivisor, 0, total-body)
-
-	return start, start + body
-}
-
-// footerRows is how much of the frame a clipped list gives up to the
-// scroll-position line.
-const footerRows = 1
-
 // View renders the title (with the target change id), a warning line when
 // set, one row per bookmark, a scroll-position footer when clipped, and a key
 // hint line, centered in a width by height frame.
 func (m Model) View(width, height int) string {
-	styles := m.skin.OverlayStyles()
-	contentWidth := overlay.ContentWidth(width, styles)
-	contentHeight := overlay.ContentHeight(height, styles)
-
-	lines := []string{m.skin.Title.Render(m.titleText())}
-
-	if m.warning != "" {
-		lines = append(lines, m.skin.Error.Render(m.warning))
-	}
-
-	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{
+	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "s", What: "set"},
 		{Key: "a", What: "advance"},
 		{Key: "c", What: "create"},
@@ -359,48 +286,28 @@ func (m Model) View(width, height int) string {
 		{Key: "p", What: "push"},
 		{Key: "esc", What: "close"},
 	})
-
-	body := max(1, contentHeight-len(lines)-1)
-	clipped := len(m.marks) > body
-
-	if clipped {
-		body = max(1, body-footerRows)
-	}
-
-	start, end := scrollWindow(m.cursor, len(m.marks), body)
-	for i := start; i < end; i++ {
-		lines = append(lines, m.renderRow(m.marks[i], i == m.cursor, contentWidth))
-	}
-
-	if clipped {
-		lines = append(lines, m.scrollFooter(start, end, len(m.marks), contentWidth))
-	}
-
-	lines = append(lines, hint)
-
-	return overlay.Center(strings.Join(lines, "\n"), width, height, styles)
 }
 
-func (m Model) titleText() string {
-	if m.target == "" {
+func titleText(target string) string {
+	if target == "" {
 		return "bookmarks"
 	}
 
-	return "bookmarks @ " + m.target
+	return "bookmarks @ " + target
 }
 
-func (m Model) renderRow(mark jj.Bookmark, selected bool, width int) string {
-	text := table.Truncate(rowText(mark), width)
-
-	if selected {
-		return m.skin.Selected.Render(text)
-	}
+func (m Model) row(mark jj.Bookmark, selected bool) listview.Row {
+	style := m.skin.Body
 
 	if mark.Conflict {
-		return m.skin.Error.Render(text)
+		style = m.skin.Error
 	}
 
-	return m.skin.Body.Render(text)
+	if selected {
+		style = m.skin.Selected
+	}
+
+	return listview.Row{Text: rowText(mark), Style: style}
 }
 
 // refWidth, changeIDWidth, and stateWidth keep the descriptions in a column, since bookmark refs
@@ -434,10 +341,4 @@ func trackState(mark jj.Bookmark) string {
 	}
 
 	return ""
-}
-
-func (m Model) scrollFooter(start, end, total, width int) string {
-	text := fmt.Sprintf("%d-%d of %d", start+1, end, total)
-
-	return m.skin.Subtitle.Render(table.Pad(text, width, table.AlignRight))
 }

@@ -32,9 +32,21 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m.client.BookmarkAdvance(ctx, []string{msg.Name}, msg.Target)
 		}), true
 	case bookmarkview.CreateRequestedMsg:
-		return m.openBookmarkName(pendingBookmarkCreate, "new bookmark on "+msg.Target, msg.Target), nil, true
+		target := msg.Target
+
+		return m.askBookmarkName("new bookmark on "+target, func(m Model, name string) (Model, tea.Cmd) {
+			return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
+				return m.client.BookmarkSet(ctx, name, target)
+			})
+		}), nil, true
 	case bookmarkview.RenameRequestedMsg:
-		return m.openBookmarkName(pendingBookmarkRename, "rename "+msg.Name+" to", msg.Name), nil, true
+		from := msg.Name
+
+		return m.askBookmarkName("rename "+from+" to", func(m Model, name string) (Model, tea.Cmd) {
+			return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
+				return m.client.BookmarkRename(ctx, from, name)
+			})
+		}), nil, true
 	case bookmarkview.DeleteMsg:
 		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkDelete(ctx, msg.Name)
@@ -60,11 +72,10 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// openBookmarkName collects a name for a bookmark verb the panel cannot supply one for.
-func (m Model) openBookmarkName(what pending, title, seed string) Model {
+// askBookmarkName collects a name for a bookmark verb the panel cannot supply one for.
+func (m Model) askBookmarkName(title string, then submitted) Model {
 	m.bookmarks.Close()
-	m.pending = what
-	m.pendingOn = seed
+	m.onSubmit = then
 	m.prompt.Open(title, "")
 
 	return m

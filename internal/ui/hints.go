@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/table"
 )
 
 // ellipsis marks a dropped hint, the same glyph keyhint uses for a truncated word.
@@ -44,4 +45,16 @@ func fitOrBlank(line string, width int) string {
 	}
 
 	return ""
+}
+
+// TooSmallMessage replaces an overlay's frame once the terminal cannot fit its border and padding
+// around anything.
+const TooSmallMessage = "too small"
+
+// TooSmall renders TooSmallMessage centered in width by height cells. Below this size aragonite's
+// overlay.Center stops clipping, so a component that keeps reaching for it hands back a frame wider
+// than the terminal.
+func TooSmall(width, height int) string {
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
+		table.Truncate(TooSmallMessage, width))
 }

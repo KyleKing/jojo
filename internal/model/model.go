@@ -85,7 +85,8 @@ type Model struct {
 	confirm    confirm.Model
 	forcible   forcible
 	pushing    jj.PushOptions
-	pendingOn  string
+	onSubmit   submitted
+	onPick     picked
 	redoOp     string
 	revset     string
 	message    string
@@ -93,7 +94,6 @@ type Model struct {
 	rows       []jj.LogRow
 	log        logview.Model
 	focus      focus
-	pending    pending
 	width      int
 	height     int
 	showForge  bool

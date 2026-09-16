@@ -69,17 +69,18 @@ const noDescription = "(no description set)"
 // View renders the metadata above the full description, centered in a width by height frame.
 func (m Model) View(width, height int) string {
 	styles := m.skin.OverlayStyles()
-	contentWidth := overlay.ContentWidth(width, styles)
-	contentHeight := overlay.ContentHeight(height, styles)
+	inner := overlay.ContentWidth(width, styles)
+	rows := overlay.ContentHeight(height, styles)
 
-	lines := []string{m.skin.Title.Render(m.detail.ChangeID)}
-	lines = append(lines, m.fields(contentWidth)...)
+	if inner < 1 || rows < 1 {
+		return ui.TooSmall(width, height)
+	}
 
-	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{{Key: "any key", What: "close"}})
-
-	body := max(0, contentHeight-len(lines)-1)
-	lines = append(lines, m.description(contentWidth, body)...)
-	lines = append(lines, hint)
+	lines := append([]string{m.skin.Title.Render(table.Truncate(m.detail.ChangeID, inner))},
+		m.fields(inner)...)
+	lines = append(lines, m.description(inner, max(0, rows-len(lines)-1))...)
+	lines = append(lines, ui.FitHints(m.skin.KeyHintStyles(),
+		[]keyhint.Hint{{Key: "any key", What: "close"}}, inner))
 
 	return overlay.Center(strings.Join(lines, "\n"), width, height, styles)
 }
@@ -120,8 +121,7 @@ func (m Model) description(width, body int) []string {
 		lines = lines[:body]
 	}
 
-	out := make([]string, 0, len(lines)+1)
-	out = append(out, "")
+	out := make([]string, 1, len(lines)+1)
 
 	for _, line := range lines {
 		out = append(out, m.skin.Body.Render(table.Truncate(line, width)))

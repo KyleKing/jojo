@@ -4,8 +4,9 @@
 package confirm
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 
@@ -88,6 +89,12 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 // line, centered in a width by height frame.
 func (m Model) View(width, height int) string {
 	styles := m.skin.OverlayStyles()
+	contentWidth := overlay.ContentWidth(width, styles)
+	contentHeight := overlay.ContentHeight(height, styles)
+
+	if contentWidth < 1 || contentHeight < 1 {
+		return ui.TooSmall(width, height)
+	}
 
 	lines := []string{m.skin.Title.Render(m.req.Title)}
 
@@ -99,12 +106,12 @@ func (m Model) View(width, height int) string {
 		lines = append(lines, m.skin.Error.Render(m.req.Danger))
 	}
 
-	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{
+	hint := ui.FitHints(m.skin.KeyHintStyles(), []keyhint.Hint{
 		{Key: "y", What: "yes"},
 		{Key: "n", What: "no"},
-	})
+	}, contentWidth)
 
 	lines = append(lines, hint)
 
-	return overlay.Center(lipgloss.JoinVertical(lipgloss.Left, lines...), width, height, styles)
+	return overlay.Center(strings.Join(lines, "\n"), width, height, styles)
 }

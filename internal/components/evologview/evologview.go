@@ -5,13 +5,11 @@ package evologview
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
-	"github.com/kyleking/aragonite/tui/table"
 
+	"github.com/kyleking/jojo/internal/components/listview"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -47,17 +45,14 @@ type CancelledMsg struct{}
 type Model struct {
 	skin     ui.Skin
 	changeID string
-	warning  string
-	entries  []jj.Evolution
-	cursor   int
+	list     listview.Model[jj.Evolution]
 	markIdx  int
 	markSet  bool
-	open     bool
 }
 
 // New returns a closed view drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin}
+	return Model{skin: skin, list: listview.New[jj.Evolution](skin)}
 }
 
 // Open shows the timeline for changeID from entries, newest first as
@@ -66,11 +61,8 @@ func New(skin ui.Skin) Model {
 //nolint:unparam // matches destpicker.Model.Open's signature; nothing here needs a command yet.
 func (m *Model) Open(changeID string, entries []jj.Evolution) tea.Cmd {
 	m.changeID = changeID
-	m.warning = ""
 	m.markSet = false
-	m.open = true
-	m.entries = entries
-	m.cursor = 0
+	m.list.Open("evolution of "+changeID, entries, 0)
 
 	return nil
 }
@@ -81,45 +73,26 @@ func (m Model) ChangeID() string {
 }
 
 // Close hides the view.
-func (m *Model) Close() {
-	m.open = false
-}
+func (m *Model) Close() { m.list.Close() }
 
 // IsOpen reports whether the view is taking keys.
-func (m Model) IsOpen() bool {
-	return m.open
-}
+func (m Model) IsOpen() bool { return m.list.IsOpen() }
 
 // Update handles one message. Key handling only runs while the view is open.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyPressMsg)
-	if !ok || !m.open {
+	if !ok || !m.list.IsOpen() {
 		return nil
 	}
 
-	return m.handleKey(key)
-}
-
-func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
-	switch key.String() {
-	case "up", "k":
-		m.moveCursor(-1)
-
+	name := key.String()
+	if m.list.MoveKey(name) {
 		return nil
-	case "down", "j":
-		m.moveCursor(1)
+	}
 
-		return nil
-	case "g", "home":
-		m.jumpTo(0)
-
-		return nil
-	case "G", "end":
-		m.jumpTo(len(m.entries) - 1)
-
-		return nil
+	switch name {
 	case "enter":
-		return m.show()
+		return m.emit(func(e jj.Evolution) tea.Msg { return ShowMsg{CommitID: e.CommitID} })
 	case "space":
 		m.toggleMark()
 
@@ -127,7 +100,7 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 	case "d":
 		return m.interdiff()
 	case "r":
-		return m.restore()
+		return m.emit(func(e jj.Evolution) tea.Msg { return RestoreMsg{CommitID: e.CommitID} })
 	case "esc", "q":
 		m.Close()
 
@@ -137,136 +110,81 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) moveCursor(delta int) {
-	m.jumpTo(m.cursor + delta)
-}
-
-func (m *Model) jumpTo(idx int) {
-	if len(m.entries) == 0 {
-		return
+func (m *Model) emit(build func(jj.Evolution) tea.Msg) tea.Cmd {
+	e, ok := m.list.Selected()
+	if !ok {
+		return nil
 	}
 
-	m.cursor = clamp(idx, 0, len(m.entries)-1)
-	m.warning = ""
+	return func() tea.Msg { return build(e) }
 }
 
 func (m *Model) toggleMark() {
-	if m.markSet && m.markIdx == m.cursor {
+	cursor := m.list.Cursor()
+	if m.markSet && m.markIdx == cursor {
 		m.markSet = false
 
 		return
 	}
 
 	m.markSet = true
-	m.markIdx = m.cursor
-}
-
-func (m *Model) show() tea.Cmd {
-	id := m.entries[m.cursor].CommitID
-
-	return func() tea.Msg { return ShowMsg{CommitID: id} }
-}
-
-func (m *Model) restore() tea.Cmd {
-	id := m.entries[m.cursor].CommitID
-
-	return func() tea.Msg { return RestoreMsg{CommitID: id} }
+	m.markIdx = cursor
 }
 
 func (m *Model) interdiff() tea.Cmd {
-	if !m.markSet || m.markIdx == m.cursor {
-		m.warning = markMsg
+	cursor := m.list.Cursor()
+	if !m.markSet || m.markIdx == cursor {
+		m.list.Warn(markMsg)
 
 		return nil
 	}
 
 	// The entries run newest first, so the larger index is the older version and has to be From.
-	from, to := max(m.markIdx, m.cursor), min(m.markIdx, m.cursor)
-
-	fromID, toID := m.entries[from].CommitID, m.entries[to].CommitID
+	items := m.list.Items()
+	from, to := max(m.markIdx, cursor), min(m.markIdx, cursor)
+	fromID, toID := items[from].CommitID, items[to].CommitID
 
 	return func() tea.Msg { return InterdiffMsg{From: fromID, To: toID} }
 }
-
-func clamp(n, lo, hi int) int {
-	return min(max(n, lo), hi)
-}
-
-// scrollCenterDivisor centers the cursor in the visible window rather than
-// pinning it to an edge.
-const scrollCenterDivisor = 2
-
-// scrollWindow returns the half-open range of entries to render, keeping
-// cursor inside it, when body rows are available for total items.
-func scrollWindow(cursor, total, body int) (int, int) {
-	if body <= 0 || total <= body {
-		return 0, total
-	}
-
-	start := clamp(cursor-body/scrollCenterDivisor, 0, total-body)
-
-	return start, start + body
-}
-
-// footerRows is how much of the frame a clipped list gives up to the
-// scroll-position line.
-const footerRows = 1
 
 // View renders the title, an optional warning, one line per entry, a
 // scroll-position footer when clipped, and a key hint line, centered in a
 // width by height frame.
 func (m Model) View(width, height int) string {
-	styles := m.skin.OverlayStyles()
-	contentWidth := overlay.ContentWidth(width, styles)
-	contentHeight := overlay.ContentHeight(height, styles)
-
-	lines := []string{m.skin.Title.Render("evolution of " + m.changeID)}
-	if m.warning != "" {
-		lines = append(lines, m.skin.Error.Render(m.warning))
-	}
-
-	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{
+	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "enter", What: "view diff"},
 		{Key: "space", What: "mark"},
 		{Key: "d", What: "interdiff"},
 		{Key: "r", What: "restore"},
 		{Key: "esc", What: "cancel"},
 	})
-
-	body := max(1, contentHeight-len(lines)-1)
-	clipped := len(m.entries) > body
-
-	if clipped {
-		body = max(1, body-footerRows)
-	}
-
-	start, end := scrollWindow(m.cursor, len(m.entries), body)
-	for i := start; i < end; i++ {
-		lines = append(lines, m.renderRow(i, contentWidth))
-	}
-
-	if clipped {
-		lines = append(lines, m.scrollFooter(start, end, len(m.entries), contentWidth))
-	}
-
-	lines = append(lines, hint)
-
-	return overlay.Center(strings.Join(lines, "\n"), width, height, styles)
 }
 
-func (m Model) renderRow(i, width int) string {
-	text := table.Truncate(rowText(len(m.entries)-i, m.entries[i]), width)
-	if m.markSet && m.markIdx == i {
-		text = "* " + text
-	} else {
-		text = "  " + text
+func (m Model) row(e jj.Evolution, selected bool) listview.Row {
+	items := m.list.Items()
+	idx := indexOf(items, e)
+
+	marker := "  "
+	if m.markSet && idx == m.markIdx {
+		marker = "* "
 	}
 
-	if i == m.cursor {
-		return m.skin.Selected.Render(text)
+	style := m.skin.Body
+	if selected {
+		style = m.skin.Selected
 	}
 
-	return m.skin.Body.Render(text)
+	return listview.Row{Text: marker + rowText(len(items)-idx, e), Style: style}
+}
+
+func indexOf(items []jj.Evolution, e jj.Evolution) int {
+	for i, it := range items {
+		if it.CommitID == e.CommitID {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // rowText numbers from the oldest version, so a version keeps its number as newer ones arrive.
@@ -277,10 +195,4 @@ func rowText(number int, e jj.Evolution) string {
 	}
 
 	return fmt.Sprintf("[%d] %s  %s  %s", number, e.Age, e.Operation, description)
-}
-
-func (m Model) scrollFooter(start, end, total, width int) string {
-	text := fmt.Sprintf("%d-%d of %d", start+1, end, total)
-
-	return m.skin.Subtitle.Render(table.Pad(text, width, table.AlignRight))
 }

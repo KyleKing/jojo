@@ -8,7 +8,6 @@ import "errors"
 // decide whether an action is allowed on it.
 type Revision struct {
 	ChangeID    string
-	CommitID    string
 	Description string
 	AuthorEmail string
 	Age         string
@@ -85,7 +84,6 @@ type Evolution struct {
 type Workspace struct {
 	Name        string
 	ChangeID    string
-	CommitID    string
 	Description string
 	Root        string
 	Current     bool

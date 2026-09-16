@@ -80,11 +80,11 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 
 		return m, cmd, true
 	case "r":
-		cmd := m.openRebase(rev, pendingRebaseRevisions)
+		cmd := m.openRebase(rev, jj.RebaseScopeRevisions)
 
 		return m, cmd, true
 	case "R":
-		cmd := m.openRebase(rev, pendingRebaseSource)
+		cmd := m.openRebase(rev, jj.RebaseScopeSource)
 
 		return m, cmd, true
 	case "E":

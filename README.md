@@ -3,9 +3,8 @@
 A terminal UI for [Jujutsu](https://github.com/jj-vcs/jj), meant as a replacement for
 lazygit rather than as another jj log browser.
 
-The log view, the revset box, and the forge pane work. See
-[ROADMAP.md](ROADMAP.md) for what is done and what is next, and
-[docs/dogfooding.md](docs/dogfooding.md) for how to drive it.
+Everything in [ROADMAP.md](ROADMAP.md) is shipped;
+[docs/dogfooding.md](docs/dogfooding.md) is how to drive it.
 
 ```sh
 mise run build
@@ -91,7 +90,7 @@ the handlers read. The ones worth knowing before you start:
 | `Enter` / `Alt+d` | diff the revision, or diff any two revisions |
 | `v` | details: the full description, the author, and the timestamps |
 | `n` `e` `d` `s` `S` `i` `a` `A` `D` | new, edit, describe, squash, split, squash interactively, abandon, absorb, duplicate |
-| `r` / `R` | rebase the revision, or rebase it and its descendants |
+| `r` / `R` | rebase the revision, or it and its descendants; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
 | `o` | the operation log, with restore, revert, and per-operation diff |
 | `E` | the evolution of the revision, with interdiff and restore |
