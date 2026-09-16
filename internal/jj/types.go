@@ -88,3 +88,16 @@ type Workspace struct {
 	Root        string
 	Current     bool
 }
+
+// Bookmark is one entry of `jj bookmark list`: the local bookmark when Remote is empty, and one of
+// its remote counterparts otherwise.
+type Bookmark struct {
+	Name        string
+	Remote      string
+	ChangeID    string
+	Description string
+	Ahead       int
+	Behind      int
+	Tracked     bool
+	Conflict    bool
+}

@@ -140,6 +140,13 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) error {
 	return c.mutate(ctx, args...)
 }
 
+// Parallelize turns a chain of revisions into siblings of one another.
+func (c *Client) Parallelize(ctx context.Context, revs []string) error {
+	args := append([]string{"parallelize"}, revs...)
+
+	return c.mutate(ctx, args...)
+}
+
 // Undo reverts the last jj operation in the repository.
 func (c *Client) Undo(ctx context.Context) error {
 	return c.mutate(ctx, "undo")

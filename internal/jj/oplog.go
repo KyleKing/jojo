@@ -55,3 +55,9 @@ func parseOpLog(out string) []Operation {
 
 	return ops
 }
+
+// OpRevert applies the inverse of one operation, leaving everything done after it in place. That is
+// what separates it from OpRestore, which throws away every later operation.
+func (c *Client) OpRevert(ctx context.Context, opID string) error {
+	return c.mutate(ctx, "op", "revert", opID)
+}

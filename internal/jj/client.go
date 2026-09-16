@@ -17,6 +17,18 @@ const defaultRevsetFallback = "builtin_log()"
 // tea.Cmd.
 type Client struct {
 	baseDir string
+	// ignoreImmutable adds --ignore-immutable to every write. jj refuses to rewrite immutable
+	// revisions for a reason, so only a client built by IgnoringImmutable sets it.
+	ignoreImmutable bool
+}
+
+// IgnoringImmutable returns a client whose writes rewrite revisions jj protects. Callers gate it
+// behind a confirmation, because no other action here can change published history.
+func (c *Client) IgnoringImmutable() *Client {
+	forcing := *c
+	forcing.ignoreImmutable = true
+
+	return &forcing
 }
 
 // NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
@@ -97,6 +109,10 @@ const nothingChangedNotice = "Nothing changed."
 
 // mutate runs a jj write and reports ErrNothingChanged when jj did nothing.
 func (c *Client) mutate(ctx context.Context, args ...string) error {
+	if c.ignoreImmutable {
+		args = append(args, "--ignore-immutable")
+	}
+
 	_, notice, err := c.execute(ctx, args...)
 	if err != nil {
 		return err
