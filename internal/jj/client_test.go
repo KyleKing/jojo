@@ -15,7 +15,7 @@ func TestCheckInstalledAndRoot(t *testing.T) {
 	client, _ := testRepo(t)
 	ctx := context.Background()
 
-	if err := client.CheckInstalled(ctx); err != nil {
+	if err := client.CheckInstalled(); err != nil {
 		t.Fatalf("CheckInstalled: %v", err)
 	}
 
@@ -41,6 +41,26 @@ func TestDefaultRevset(t *testing.T) {
 
 	if revset == "" {
 		t.Fatal("DefaultRevset returned an empty revset")
+	}
+}
+
+func TestRevsetAliasesIncludesTheBuiltins(t *testing.T) {
+	t.Parallel()
+
+	client, _ := testRepo(t)
+
+	names, err := client.RevsetAliases(context.Background())
+	if err != nil {
+		t.Fatalf("RevsetAliases: %v", err)
+	}
+
+	want := map[string]bool{"trunk": true, "immutable_heads": true, "mutable": true}
+	for _, name := range names {
+		delete(want, name)
+	}
+
+	if len(want) != 0 {
+		t.Errorf("RevsetAliases = %v, missing built-ins %v", names, want)
 	}
 }
 
@@ -219,7 +239,7 @@ func TestRebaseRequiresExplicitScopeAndDestination(t *testing.T) {
 	client, _ := testRepo(t)
 	ctx := context.Background()
 
-	onlyDestination := jj.RebaseOptions{Destination: jj.RebaseDestination{Revisions: []string{"@"}}}
+	onlyDestination := jj.RebaseOptions{Destination: []string{"@"}}
 	if _, err := client.Rebase(ctx, onlyDestination); err == nil {
 		t.Fatal("expected an error when no revisions are given")
 	}
@@ -298,11 +318,88 @@ func TestMutationThatMovesNothingReportsIt(t *testing.T) {
 
 	opts := jj.RebaseOptions{
 		Revisions:   []string{child},
-		Destination: jj.RebaseDestination{Revisions: []string{base}, Mode: jj.RebaseDestOnto},
+		Destination: []string{base},
 		Scope:       jj.RebaseScopeRevisions,
 	}
 
 	if _, err := client.Rebase(ctx, opts); !errors.Is(err, jj.ErrNothingChanged) {
 		t.Errorf("rebasing a revision onto its own parent returned %v, want ErrNothingChanged", err)
 	}
+}
+
+func TestNewDuplicateAndAbandon(t *testing.T) {
+	t.Parallel()
+
+	client, _ := testRepo(t)
+	ctx := context.Background()
+
+	if _, err := client.Describe(ctx, "@", "first"); err != nil {
+		t.Fatalf("Describe: %v", err)
+	}
+
+	if _, err := client.New(ctx, []string{"@"}); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	parent, err := client.Log(ctx, "@-", 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	if rev := onlyRevision(t, parent); rev.Description != "first" {
+		t.Fatalf("New did not land on top of @: parent describes %q, want %q", rev.Description, "first")
+	}
+
+	if _, err := client.Duplicate(ctx, []string{"@-"}); err != nil {
+		t.Fatalf("Duplicate: %v", err)
+	}
+
+	all, err := client.Log(ctx, "all()", 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	if got := countRevisionsDescribing(all, "first"); got != 2 {
+		t.Fatalf("Duplicate left %d revisions describing %q, want 2", got, "first")
+	}
+
+	if _, err := client.Abandon(ctx, []string{"@-"}); err != nil {
+		t.Fatalf("Abandon: %v", err)
+	}
+
+	rebasedParent, err := client.Log(ctx, "@-", 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	if rev := onlyRevision(t, rebasedParent); rev.Description != "" {
+		t.Fatalf("Abandon did not rebase @ onto the abandoned revision's parent: parent describes %q, want empty",
+			rev.Description)
+	}
+}
+
+func countRevisionsDescribing(rows []jj.LogRow, description string) int {
+	n := 0
+
+	for _, row := range rows {
+		if row.Revision != nil && row.Revision.Description == description {
+			n++
+		}
+	}
+
+	return n
+}
+
+func onlyRevision(t *testing.T, rows []jj.LogRow) *jj.Revision {
+	t.Helper()
+
+	for _, row := range rows {
+		if row.Revision != nil {
+			return row.Revision
+		}
+	}
+
+	t.Fatalf("no revision row among %d rows", len(rows))
+
+	return nil
 }

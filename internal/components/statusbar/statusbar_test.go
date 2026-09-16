@@ -107,3 +107,28 @@ func TestView_ShowsTheTransientMessageInPlaceOfBookmarksAndRevset(t *testing.T) 
 		t.Errorf("bookmarks or revset leaked through the transient message: %q", got)
 	}
 }
+
+// A footer wider than the terminal wraps onto a second row and costs a line of the log, so the
+// prefix goes before the last hint does, and the hint itself is trimmed before anything overflows.
+func TestViewNeverOverflowsANarrowTerminal(t *testing.T) {
+	t.Parallel()
+
+	ctx := statusbar.Context{
+		Bookmarks: []statusbar.Bookmark{{Name: "main"}, {Name: "wip"}},
+		Revset:    "builtin_log()",
+		Undo:      "describe commit abc12345",
+		Hints: []keyhint.Hint{
+			{Key: "j", What: "down"},
+			{Key: "k", What: "up"},
+			{Key: "?", What: "help"},
+		},
+	}
+
+	bar := statusbar.New(ui.New(theme.Macchiato()))
+
+	for _, width := range []int{120, 80, 60, 40, 30, 20, 10, 5, 1} {
+		if got := lipgloss.Width(bar.View(width, ctx)); got != width {
+			t.Errorf("View(%d) rendered %d cells, want exactly %d", width, got, width)
+		}
+	}
+}

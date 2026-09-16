@@ -49,7 +49,6 @@ type LogRow struct {
 type Operation struct {
 	ID          string
 	Description string
-	Tags        string
 	Age         string
 	Current     bool
 }

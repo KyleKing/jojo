@@ -18,13 +18,37 @@ func TestDiffArgsRevision(t *testing.T) {
 
 	client := jj.NewClient(t.TempDir())
 
-	args, err := client.DiffArgs(jj.DiffTarget{Revision: "abc"})
+	args, err := diffArgs(t, client, jj.DiffTarget{Revision: "abc"})
 	if err != nil {
-		t.Fatalf("DiffArgs: %v", err)
+		t.Fatalf("diff args: %v", err)
 	}
 
 	if want := []string{"diff", "-r", "abc"}; !equalArgs(args, want) {
-		t.Errorf("DiffArgs = %v, want %v", args, want)
+		t.Errorf("diff args = %v, want %v", args, want)
+	}
+}
+
+func TestDiffCommandUsesTheClientsDirAndArgs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	client := jj.NewClient(dir)
+
+	cmd, err := client.DiffCommand(context.Background(), jj.DiffTarget{Revision: "abc"})
+	if err != nil {
+		t.Fatalf("DiffCommand: %v", err)
+	}
+
+	if cmd.Dir != dir {
+		t.Errorf("DiffCommand cmd.Dir = %q, want %q", cmd.Dir, dir)
+	}
+
+	if want := []string{"jj", "diff", "-r", "abc"}; !equalArgs(cmd.Args, want) {
+		t.Errorf("DiffCommand cmd.Args = %v, want %v", cmd.Args, want)
+	}
+
+	if _, err := client.DiffCommand(context.Background(), jj.DiffTarget{}); !errors.Is(err, jj.ErrInvalidDiffTarget) {
+		t.Errorf("DiffCommand with an empty target returned %v, want ErrInvalidDiffTarget", err)
 	}
 }
 
@@ -33,13 +57,13 @@ func TestDiffArgsFromTo(t *testing.T) {
 
 	client := jj.NewClient(t.TempDir())
 
-	args, err := client.DiffArgs(jj.DiffTarget{From: "a", To: "b"})
+	args, err := diffArgs(t, client, jj.DiffTarget{From: "a", To: "b"})
 	if err != nil {
-		t.Fatalf("DiffArgs: %v", err)
+		t.Fatalf("diff args: %v", err)
 	}
 
 	if want := []string{"diff", "--from", "a", "--to", "b"}; !equalArgs(args, want) {
-		t.Errorf("DiffArgs = %v, want %v", args, want)
+		t.Errorf("diff args = %v, want %v", args, want)
 	}
 }
 
@@ -48,13 +72,13 @@ func TestDiffArgsOperation(t *testing.T) {
 
 	client := jj.NewClient(t.TempDir())
 
-	args, err := client.DiffArgs(jj.DiffTarget{Operation: "op123"})
+	args, err := diffArgs(t, client, jj.DiffTarget{Operation: "op123"})
 	if err != nil {
-		t.Fatalf("DiffArgs: %v", err)
+		t.Fatalf("diff args: %v", err)
 	}
 
 	if want := []string{"op", "show", "op123"}; !equalArgs(args, want) {
-		t.Errorf("DiffArgs = %v, want %v", args, want)
+		t.Errorf("diff args = %v, want %v", args, want)
 	}
 }
 
@@ -75,7 +99,7 @@ func TestDiffArgsRejectsInvalidTargets(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := client.DiffArgs(target); !errors.Is(err, jj.ErrInvalidDiffTarget) {
+			if _, err := diffArgs(t, client, target); !errors.Is(err, jj.ErrInvalidDiffTarget) {
 				t.Errorf("DiffArgs(%+v) = %v, want ErrInvalidDiffTarget", target, err)
 			}
 		})
@@ -379,4 +403,17 @@ func TestDiffTextOperation(t *testing.T) {
 	if !strings.Contains(text, "Changed commits") {
 		t.Errorf("operation diff missing its summary, got:\n%s", text)
 	}
+}
+
+// diffArgs reads the arguments off the command a target builds, which is the only thing a caller
+// ever hands to jj.
+func diffArgs(t *testing.T, client *jj.Client, target jj.DiffTarget) ([]string, error) {
+	t.Helper()
+
+	cmd, err := client.DiffCommand(context.Background(), target)
+	if err != nil {
+		return nil, fmt.Errorf("diff command: %w", err)
+	}
+
+	return cmd.Args[1:], nil
 }

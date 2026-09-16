@@ -134,35 +134,10 @@ func (m *Model) rebase(source, dest string, action pending) tea.Cmd {
 	return m.act(source, func(ctx context.Context, c *jj.Client) (string, error) {
 		return c.Rebase(ctx, jj.RebaseOptions{
 			Revisions:   []string{source},
-			Destination: jj.RebaseDestination{Revisions: []string{dest}, Mode: jj.RebaseDestOnto},
+			Destination: []string{dest},
 			Scope:       scope,
 		})
 	})
-}
-
-// opLogLimit caps the operation log, which grows without bound in an active repository.
-const opLogLimit = 200
-
-func (m Model) loadOpLog() tea.Cmd {
-	client, ctx := m.client, m.ctx
-
-	return func() tea.Msg {
-		ops, err := client.OpLog(ctx, opLogLimit)
-
-		return opLogLoadedMsg{ops: ops, err: err}
-	}
-}
-
-func (m Model) applyOpLog(msg opLogLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.message = msg.err.Error()
-
-		return m, nil
-	}
-
-	cmd := m.opLog.Open(msg.ops)
-
-	return m, cmd
 }
 
 func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
@@ -171,28 +146,6 @@ func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
 	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.OpRestore(ctx, op)
 	})
-}
-
-func (m Model) loadEvolog(changeID string) tea.Cmd {
-	client, ctx := m.client, m.ctx
-
-	return func() tea.Msg {
-		entries, err := client.Evolog(ctx, changeID)
-
-		return evologLoadedMsg{changeID: changeID, entries: entries, err: err}
-	}
-}
-
-func (m Model) applyEvolog(msg evologLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.message = msg.err.Error()
-
-		return m, nil
-	}
-
-	cmd := m.evolog.Open(msg.changeID, msg.entries)
-
-	return m, cmd
 }
 
 // restoreVersion puts an earlier version's content back into the change it belongs to, which leaves
@@ -204,28 +157,6 @@ func (m Model) restoreVersion(msg evologview.RestoreMsg) (tea.Model, tea.Cmd) {
 	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.Restore(ctx, from, into)
 	})
-}
-
-func (m Model) loadWorkspaces() tea.Cmd {
-	client, ctx := m.client, m.ctx
-
-	return func() tea.Msg {
-		spaces, err := client.Workspaces(ctx)
-
-		return workspacesLoadedMsg{spaces: spaces, err: err}
-	}
-}
-
-func (m Model) applyWorkspaces(msg workspacesLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.message = msg.err.Error()
-
-		return m, nil
-	}
-
-	cmd := m.spaces.Open(msg.spaces)
-
-	return m, cmd
 }
 
 func (m Model) openWorkspaceAdd() (tea.Model, tea.Cmd) {
@@ -273,6 +204,7 @@ func (m Model) cancelModals() Model {
 	m.spaces.Close()
 	m.evolog.Close()
 	m.bookmarks.Close()
+	m.detail.Close()
 	m.pending, m.pendingOn = pendingNone, ""
 
 	return m

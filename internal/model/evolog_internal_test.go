@@ -12,12 +12,10 @@ import (
 func openEvolog(t *testing.T) Model {
 	t.Helper()
 
-	opened, _ := testModel(t, twoRows()).applyEvolog(evologLoadedMsg{
-		changeID: "aaaa",
-		entries:  []jj.Evolution{{CommitID: "c0"}, {CommitID: "c1"}},
-	})
+	model, _ := deliver(testModel(t, twoRows()),
+		[]jj.Evolution{{CommitID: "c0"}, {CommitID: "c1"}}, nil, showEvolog("aaaa"))
 
-	return asModel(t, opened)
+	return model
 }
 
 // Enter asks for a version's diff rather than acting on the log underneath, which still has its own
@@ -70,9 +68,8 @@ func TestRestoreTargetsTheTimelinesChange(t *testing.T) {
 func TestTimelineFailureReportsRatherThanOpening(t *testing.T) {
 	t.Parallel()
 
-	next, _ := testModel(t, twoRows()).applyEvolog(evologLoadedMsg{err: jj.ErrCommandFailed})
+	failed, _ := deliver(testModel(t, twoRows()), []jj.Evolution(nil), jj.ErrCommandFailed, showEvolog("aaaa"))
 
-	failed := asModel(t, next)
 	if failed.evolog.IsOpen() {
 		t.Error("a failed evolog still opened the timeline")
 	}

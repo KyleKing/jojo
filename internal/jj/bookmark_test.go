@@ -75,6 +75,35 @@ func TestBookmarkLifecycle(t *testing.T) {
 	}
 }
 
+// Forget drops jj's record of a bookmark outright, unlike Delete, which keeps a tombstone to
+// propagate on the next push.
+func TestBookmarkForgetDropsItWithNoTombstone(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	writeFile(t, dir, "a.txt", "a\n")
+	runJJ(t, dir, "commit", "-m", "first")
+
+	if _, err := client.BookmarkSet(ctx, "temp", "@"); err != nil {
+		t.Fatalf("BookmarkSet: %v", err)
+	}
+
+	if _, err := client.BookmarkForget(ctx, "temp"); err != nil {
+		t.Fatalf("BookmarkForget: %v", err)
+	}
+
+	marks, err := client.Bookmarks(ctx)
+	if err != nil {
+		t.Fatalf("Bookmarks: %v", err)
+	}
+
+	if findBookmark(marks, "temp") != nil {
+		t.Error("the forgotten bookmark is still listed")
+	}
+}
+
 // A colocated repository reports its own git refs as a "git" remote, which cannot be pushed to or
 // tracked, so the panel must never offer it as a target.
 func TestBookmarksDropsTheColocatedGitRemote(t *testing.T) {

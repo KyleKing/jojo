@@ -27,17 +27,12 @@ const (
 	RebaseDestInsertBefore                              // --insert-before
 )
 
-// RebaseDestination is where a rebase's selected revisions land.
-type RebaseDestination struct {
-	Revisions []string
-	Mode      RebaseDestinationMode
-}
-
 // RebaseOptions makes a rebase's scope and destination explicit rather than inferred from the
 // revisions passed.
 type RebaseOptions struct {
 	Revisions   []string
-	Destination RebaseDestination
+	Destination []string
+	Mode        RebaseDestinationMode
 	Scope       RebaseScope
 }
 
@@ -46,30 +41,33 @@ var (
 	errRebaseNoDestination = errors.New("rebase requires at least one destination revision")
 )
 
-func (s RebaseScope) flag() string {
-	switch s {
-	case RebaseScopeSource:
-		return "-s"
-	case RebaseScopeBranch:
-		return "-b"
-	case RebaseScopeRevisions:
-		return "-r"
-	default:
-		return "-r"
+// ontoFlag lands the revisions on the destination rather than beside it, which is what a rebase
+// means unless the caller says otherwise.
+const ontoFlag = "--onto"
+
+var (
+	scopeFlags = map[RebaseScope]string{RebaseScopeSource: "-s", RebaseScopeBranch: "-b"}
+	modeFlags  = map[RebaseDestinationMode]string{
+		RebaseDestInsertAfter:  "--insert-after",
+		RebaseDestInsertBefore: "--insert-before",
 	}
+)
+
+// flag falls back to -r, which moves the revisions named and nothing else.
+func (s RebaseScope) flag() string {
+	if f, ok := scopeFlags[s]; ok {
+		return f
+	}
+
+	return "-r"
 }
 
 func (m RebaseDestinationMode) flag() string {
-	switch m {
-	case RebaseDestInsertAfter:
-		return "--insert-after"
-	case RebaseDestInsertBefore:
-		return "--insert-before"
-	case RebaseDestOnto:
-		return "--onto"
-	default:
-		return "--onto"
+	if f, ok := modeFlags[m]; ok {
+		return f
 	}
+
+	return ontoFlag
 }
 
 // New creates a new change on top of revs, or on top of @ when revs is empty.
@@ -121,7 +119,7 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) (string, error)
 		return "", errRebaseNoRevisions
 	}
 
-	if len(opts.Destination.Revisions) == 0 {
+	if len(opts.Destination) == 0 {
 		return "", errRebaseNoDestination
 	}
 
@@ -132,8 +130,8 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) (string, error)
 		args = append(args, scopeFlag, rev)
 	}
 
-	destFlag := opts.Destination.Mode.flag()
-	for _, rev := range opts.Destination.Revisions {
+	destFlag := opts.Mode.flag()
+	for _, rev := range opts.Destination {
 		args = append(args, destFlag, rev)
 	}
 

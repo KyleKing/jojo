@@ -6,6 +6,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
@@ -36,7 +37,7 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case confirm.CancelledMsg:
 		return m.cancelConfirm(), nil, true
 	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg,
-		evologview.CancelledMsg, bookmarkview.CancelledMsg:
+		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg:
 		return m.cancelModals(), nil, true
 	}
 
@@ -47,10 +48,10 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 // action the user picked from it.
 func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case opLogLoadedMsg:
-		next, cmd := m.applyOpLog(msg)
+	case panelMsg:
+		cmd := msg.open(&m)
 
-		return next, cmd, true
+		return m, cmd, true
 	case oplogview.RestoreMsg:
 		next, cmd := m.restoreOperation(msg)
 
@@ -63,20 +64,12 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.revertOperation(msg)
 
 		return next, cmd, true
-	case workspacesLoadedMsg:
-		next, cmd := m.applyWorkspaces(msg)
-
-		return next, cmd, true
 	case workspaceview.AddRequestedMsg:
 		next, cmd := m.openWorkspaceAdd()
 
 		return next, cmd, true
 	case workspaceview.ForgetMsg:
 		next, cmd := m.forgetWorkspace(msg)
-
-		return next, cmd, true
-	case evologLoadedMsg:
-		next, cmd := m.applyEvolog(msg)
 
 		return next, cmd, true
 	case evologview.ShowMsg:

@@ -2,6 +2,7 @@ package jj
 
 import (
 	"context"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -30,6 +31,19 @@ func (c *Client) OpLog(ctx context.Context, limit int) ([]Operation, error) {
 	return parseOpLog(out), nil
 }
 
+// longHex matches the full commit and change ids jj writes into its operation descriptions. A row is
+// scanned, and forty characters of hex is the part of it nobody reads.
+var longHex = regexp.MustCompile(`\b[0-9a-f]{12,}\b`)
+
+// shortIDLen matches the length the log rows use, so the same revision reads the same in both views.
+const shortIDLen = 8
+
+func shortenIDs(description string) string {
+	return longHex.ReplaceAllStringFunc(description, func(id string) string {
+		return id[:shortIDLen]
+	})
+}
+
 func parseOpLog(out string) []Operation {
 	lines := strings.Split(out, "\n")
 
@@ -47,7 +61,7 @@ func parseOpLog(out string) []Operation {
 
 		ops = append(ops, Operation{
 			ID:          fields[0],
-			Description: fields[1],
+			Description: shortenIDs(fields[1]),
 			Current:     fields[2] == "@",
 			Age:         fields[3],
 		})

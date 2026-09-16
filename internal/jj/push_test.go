@@ -80,6 +80,46 @@ func TestPushSendsOneBookmarkAndReportsTracking(t *testing.T) {
 	}
 }
 
+func TestBookmarkUntrackThenTrackRoundTrips(t *testing.T) {
+	t.Parallel()
+
+	client, dir := repoWithRemote(t)
+	ctx := context.Background()
+
+	writeFile(t, dir, "a.txt", "a\n")
+	runJJ(t, dir, "commit", "-m", "first")
+	runJJ(t, dir, "bookmark", "create", "-r", "@-", "feature")
+
+	if _, err := client.Push(ctx, jj.PushOptions{Bookmarks: []string{"feature"}}); err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+
+	if _, err := client.BookmarkUntrack(ctx, "feature@origin"); err != nil {
+		t.Fatalf("BookmarkUntrack: %v", err)
+	}
+
+	marks, err := client.Bookmarks(ctx)
+	if err != nil {
+		t.Fatalf("Bookmarks: %v", err)
+	}
+
+	if untracked := findBookmark(marks, "feature@origin"); untracked == nil || untracked.Tracked {
+		t.Errorf("remote bookmark reads %+v, want untracked", untracked)
+	}
+
+	if _, err := client.BookmarkTrack(ctx, "feature@origin"); err != nil {
+		t.Fatalf("BookmarkTrack: %v", err)
+	}
+
+	if marks, err = client.Bookmarks(ctx); err != nil {
+		t.Fatalf("Bookmarks: %v", err)
+	}
+
+	if retracked := findBookmark(marks, "feature@origin"); retracked == nil || !retracked.Tracked {
+		t.Errorf("remote bookmark reads %+v, want tracked again", retracked)
+	}
+}
+
 // A dry run is what the confirmation dialog shows before the real push, so it must not move the
 // remote.
 func TestPushDryRunLeavesTheRemoteAlone(t *testing.T) {

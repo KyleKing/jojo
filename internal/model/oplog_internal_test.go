@@ -21,23 +21,13 @@ func TestOpLogTakesKeysWhileOpen(t *testing.T) {
 
 	model := testModel(t, twoRows())
 
-	opened, _ := model.applyOpLog(opLogLoadedMsg{ops: operations()})
-
-	model, ok := opened.(Model)
-	if !ok {
-		t.Fatalf("applyOpLog returned %T", opened)
-	}
+	model, _ = deliver(model, operations(), nil, showOpLog)
 
 	if !model.opLog.IsOpen() {
 		t.Fatal("the operation log did not open")
 	}
 
-	moved, _ := model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-
-	model, ok = moved.(Model)
-	if !ok {
-		t.Fatalf("Update returned %T", moved)
-	}
+	model = asModel(t, update(model, tea.KeyPressMsg{Code: 'j', Text: "j"}))
 
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
@@ -54,12 +44,7 @@ func TestOpLogFailureReportsRatherThanOpening(t *testing.T) {
 
 	model := testModel(t, twoRows())
 
-	next, _ := model.applyOpLog(opLogLoadedMsg{err: jj.ErrCommandFailed})
-
-	failed, ok := next.(Model)
-	if !ok {
-		t.Fatalf("applyOpLog returned %T", next)
-	}
+	failed, _ := deliver(model, []jj.Operation(nil), jj.ErrCommandFailed, showOpLog)
 
 	if failed.opLog.IsOpen() {
 		t.Error("a failed operation log still opened the view")

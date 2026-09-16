@@ -42,6 +42,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.confirm.Update(msg), true
 	case m.bookmarks.IsOpen():
 		return m.bookmarks.Update(msg), true
+	case m.detail.IsOpen():
+		return m.detail.Update(msg), true
 	case m.prompt.IsOpen():
 		return m.prompt.Update(msg), true
 	case m.destPicker.IsOpen():

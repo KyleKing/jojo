@@ -37,11 +37,15 @@ func NewClient(baseDir string) *Client {
 	return &Client{baseDir: baseDir}
 }
 
-// CheckInstalled reports whether a jj binary is on PATH and runs.
-func (c *Client) CheckInstalled(ctx context.Context) error {
-	_, err := c.executeJJ(ctx, "--version")
+// CheckInstalled reports whether a jj binary is on PATH. It deliberately does not run jj: every
+// invocation costs about as long as the first frame takes to paint, and the caller's next call
+// proves the binary works anyway.
+func (*Client) CheckInstalled() error {
+	if _, err := exec.LookPath("jj"); err != nil {
+		return fmt.Errorf("%w: jj is not on PATH", ErrCommandFailed)
+	}
 
-	return err
+	return nil
 }
 
 // Root returns the repository root for the client's base directory.

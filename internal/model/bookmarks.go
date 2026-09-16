@@ -12,12 +12,6 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-type bookmarksLoadedMsg struct {
-	err    error
-	target string
-	marks  []jj.Bookmark
-}
-
 // pushPreviewMsg carries what a dry run says a push would do, which is what the confirmation shows.
 type pushPreviewMsg struct {
 	err    error
@@ -25,41 +19,10 @@ type pushPreviewMsg struct {
 	notice string
 }
 
-func (m Model) loadBookmarks() tea.Cmd {
-	client, ctx := m.client, m.ctx
-	target := ""
-
-	if rev := m.log.Selected(); rev != nil {
-		target = rev.ChangeID
-	}
-
-	return func() tea.Msg {
-		marks, err := client.Bookmarks(ctx)
-
-		return bookmarksLoadedMsg{marks: marks, target: target, err: err}
-	}
-}
-
-func (m Model) applyBookmarks(msg bookmarksLoadedMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.message = msg.err.Error()
-
-		return m, nil
-	}
-
-	cmd := m.bookmarks.Open(msg.marks, msg.target)
-
-	return m, cmd
-}
-
-// handleBookmarkMsg runs what the panel asked for. Every one of these is an operation jj can undo,
-// so only the push goes through a confirmation.
+// handleBookmarkMsg runs what the panel asked for. Only the push is gated, since jj can undo the
+// rest.
 func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case bookmarksLoadedMsg:
-		next, cmd := m.applyBookmarks(msg)
-
-		return next, cmd, true
 	case bookmarkview.SetMsg:
 		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
 			return m.client.BookmarkSet(ctx, msg.Name, msg.Target)
@@ -107,12 +70,10 @@ func (m Model) openBookmarkName(what pending, title, seed string) Model {
 	return m
 }
 
-// dryRunNotice is the line jj adds to say it stopped short. The dialog is the thing about to not
-// stop short, so the line would only confuse what is being agreed to.
+// dryRunNotice is jj saying it stopped short, which would only confuse what the dialog agrees to.
 const dryRunNotice = "Dry-run requested, not pushing."
 
-// noticeLines turns jj's dry-run notice into the detail block, dropping blanks so it stays one
-// screen.
+// noticeLines turns jj's dry-run notice into the detail block.
 func noticeLines(notice string) []string {
 	var out []string
 
@@ -132,8 +93,7 @@ func (m Model) bookmarkWrite(write func(context.Context) (string, error)) tea.Cm
 	return m.run(undoHint, write)
 }
 
-// previewPush asks jj what the push would do before anything leaves the machine, so the confirmation
-// shows the real answer rather than a description of it.
+// previewPush asks jj what the push would do, so the dialog shows jj's answer rather than ours.
 func (m Model) previewPush(name string) tea.Cmd {
 	client, ctx := m.client, m.ctx
 
@@ -163,8 +123,7 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 	return m, cmd, true
 }
 
-// pushProblem turns jj's refusal into the line that gets the user out of it, because a push is
-// refused for reasons that each have one obvious fix.
+// pushProblem turns jj's refusal into the line that gets the user out of it.
 func pushProblem(err error) string {
 	text := strings.TrimPrefix(err.Error(), jj.ErrPushRefused.Error()+": ")
 
@@ -172,8 +131,7 @@ func pushProblem(err error) string {
 		return text
 	}
 
-	// jj's own hint names the rejected commit, which the row under the cursor already shows, so the
-	// advice takes its place rather than sharing the one status line with it.
+	// jj's hint names the commit the row already shows, so the advice takes its place.
 	headline, _, _ := strings.Cut(text, " (")
 
 	switch {

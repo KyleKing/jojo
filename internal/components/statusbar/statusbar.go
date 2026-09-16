@@ -8,13 +8,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/ui"
 )
-
-// ellipsis marks a hint dropped for width, same glyph keyhint uses for a
-// truncated word.
-const ellipsis = "…"
 
 // Bookmark is one bookmark near @, shown because jj has no single "current
 // branch" for the footer to pick instead.
@@ -32,6 +29,9 @@ type Context struct {
 	// Message is a transient status line ("abandoned mkyzvz, press u to undo")
 	// shown in place of the bookmarks and revset while it is set.
 	Message string
+	// Undo names the operation u would reverse, kept visible rather than shown
+	// only in the moments after an edit, so the way back is never a guess.
+	Undo string
 	// Hints are shown most important first; the last one is never dropped, so
 	// callers put the route to the full legend (typically "?" help) there.
 	Hints []keyhint.Hint
@@ -51,13 +51,52 @@ func New(skin ui.Skin) Model {
 // View renders the footer to exactly width display cells, measured so a wide
 // glyph cannot push it onto a second row, dropping hints from the right and keeping the last.
 func (m Model) View(width int, ctx Context) string {
-	prefix := m.prefix(ctx)
-	line := fitHints(prefix, ctx.Hints, m.skin.KeyHintStyles(), width)
+	prefix := m.prefix(ctx, width)
+	hints := ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width-lipgloss.Width(prefix)-len(partGap))
 
-	return padTo(line, width)
+	// The prefix is dropped last: a footer that overflows wraps onto a second row and costs a line
+	// of the log, which is worse than losing the revset from view.
+	if hints == "" {
+		return padTo(ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width), width)
+	}
+
+	return padTo(prefix+partGap+hints, width)
 }
 
-func (m Model) prefix(ctx Context) string {
+// prefixBudget is the fraction of the line the left side may take before the undo segment is
+// dropped, so the hint list always has room for more than its last entry.
+const prefixBudget = 2
+
+func (m Model) prefix(ctx Context, width int) string {
+	main := m.state(ctx)
+	if ctx.Undo == "" {
+		return main
+	}
+
+	// jj writes long descriptions into its operation log, so the segment is trimmed to what is left
+	// of the budget rather than dropped whole, which is what always happened before.
+	room := width/prefixBudget - lipgloss.Width(main) - len(partGap) - len(undoLabel)
+	if room < minUndoWidth {
+		return main
+	}
+
+	undo := m.skin.Muted.Render(undoLabel + table.Truncate(ctx.Undo, room))
+
+	if main == "" {
+		return undo
+	}
+
+	return main + partGap + undo
+}
+
+const (
+	partGap   = "  "
+	undoLabel = "u undoes "
+	// Below this the segment costs the hints their room and says nothing.
+	minUndoWidth = 12
+)
+
+func (m Model) state(ctx Context) string {
 	if ctx.Message != "" {
 		return m.skin.Subtitle.Render(ctx.Message)
 	}
@@ -72,7 +111,7 @@ func (m Model) prefix(ctx Context) string {
 		parts = append(parts, m.skin.Muted.Render(ctx.Revset))
 	}
 
-	return strings.Join(parts, "  ")
+	return strings.Join(parts, partGap)
 }
 
 func (m Model) bookmarks(bookmarks []Bookmark) string {
@@ -92,47 +131,6 @@ func (m Model) bookmarks(bookmarks []Bookmark) string {
 	}
 
 	return strings.Join(rendered, " ")
-}
-
-// fitHints joins prefix and the rendered hints, dropping whole hints from the
-// right until the result fits width, never cutting a hint's own escapes.
-func fitHints(prefix string, hints []keyhint.Hint, styles keyhint.Styles, width int) string {
-	rendered := make([]string, len(hints))
-	for i, h := range hints {
-		rendered[i] = keyhint.One(styles, h)
-	}
-
-	join := func(parts []string) string {
-		line := strings.Join(parts, keyhint.Gap)
-
-		switch {
-		case prefix == "":
-			return line
-		case line == "":
-			return prefix
-		default:
-			return prefix + "  " + line
-		}
-	}
-
-	full := join(rendered)
-	if lipgloss.Width(full) <= width || len(rendered) < 2 {
-		return full
-	}
-
-	lead, last := rendered[:len(rendered)-1], rendered[len(rendered)-1]
-
-	for n := len(lead) - 1; n >= 0; n-- {
-		kept := make([]string, 0, n+2)
-		kept = append(kept, lead[:n]...)
-		kept = append(kept, ellipsis, last)
-
-		if candidate := join(kept); lipgloss.Width(candidate) <= width {
-			return candidate
-		}
-	}
-
-	return join([]string{last})
 }
 
 // padTo pads s to exactly width cells and never truncates, since cutting an

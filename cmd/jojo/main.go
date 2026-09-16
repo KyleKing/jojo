@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -19,6 +20,46 @@ var (
 	commit  = "none"
 	date    = "unknown"
 )
+
+// probe runs the two startup queries at once. Each jj invocation costs roughly what the first frame
+// costs to paint, so running them in series is the whole of a visible delay before anything appears.
+func probe(ctx context.Context, client *jj.Client, wantRevset bool) (string, string, error) {
+	var (
+		wait          sync.WaitGroup
+		root, revset  string
+		rootErr, rErr error
+	)
+
+	wait.Add(1)
+
+	go func() {
+		defer wait.Done()
+
+		root, rootErr = client.Root(ctx)
+	}()
+
+	if wantRevset {
+		wait.Add(1)
+
+		go func() {
+			defer wait.Done()
+
+			revset, rErr = client.DefaultRevset(ctx)
+		}()
+	}
+
+	wait.Wait()
+
+	if rootErr != nil {
+		return "", "", fmt.Errorf("not a jj repository: %w", rootErr)
+	}
+
+	if rErr != nil {
+		return "", "", fmt.Errorf("reading revsets.log: %w", rErr)
+	}
+
+	return root, revset, nil
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -42,24 +83,20 @@ func run() error {
 	ctx := context.Background()
 
 	client := jj.NewClient(*repo)
-	if err := client.CheckInstalled(ctx); err != nil {
+	if err := client.CheckInstalled(); err != nil {
 		return fmt.Errorf("jj is not usable: %w", err)
 	}
 
-	if _, err := client.Root(ctx); err != nil {
-		return fmt.Errorf("%s is not a jj repository: %w", *repo, err)
+	root, configured, err := probe(ctx, client, *revset == "")
+	if err != nil {
+		return err
 	}
 
 	if *revset == "" {
-		configured, err := client.DefaultRevset(ctx)
-		if err != nil {
-			return fmt.Errorf("reading revsets.log: %w", err)
-		}
-
 		*revset = configured
 	}
 
-	app := model.New(ctx, client, ui.Detected(), *repo, *revset)
+	app := model.New(ctx, client, ui.Detected(), root, *revset)
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}

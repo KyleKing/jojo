@@ -44,12 +44,7 @@ func TestForgetTargetsTheCursorRowAndClosesThePanel(t *testing.T) {
 
 	model := testModel(t, twoRows())
 
-	opened, _ := model.applyWorkspaces(workspacesLoadedMsg{spaces: []jj.Workspace{
-		{Name: "default", Current: true},
-		{Name: "slow"},
-	}})
-
-	model = asModel(t, opened)
+	model, _ = deliver(model, []jj.Workspace{{Name: "default", Current: true}, {Name: "slow"}}, nil, showWorkspaces)
 	model = asModel(t, update(model, tea.KeyPressMsg{Code: 'j', Text: "j"}))
 
 	next, cmd := model.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})

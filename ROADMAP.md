@@ -83,7 +83,12 @@ Anything that reads across many repositories at once belongs to
 [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) or
 [gh-sweep](https://github.com/KyleKing/gh-sweep).
 
-Everything in the order above except the repo health surface is shipped.
+Everything in the order above except the repo health surface is shipped, and so is every
+keybinding layer the requirements describe: `b` bookmarks, `/` search, and `:` the
+command palette, plus the L3 power keys (`|` parallelize, `X` `jj arrange`, `B` the
+scripted bisect).
+
 [docs/requirements.md](docs/requirements.md) carries what else is still open: conflict
-resolution in jj-diff's hunk engine, bisect, `jj arrange`, and sharing the operation log
-between machines.
+resolution inside jj-diff's hunk engine rather than shelling out to `jj resolve`, a
+manual bisect form to sit beside the scripted one, and sharing the operation log between
+machines.

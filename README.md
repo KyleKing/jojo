@@ -84,19 +84,34 @@ the handlers read. The ones worth knowing before you start:
 | `j` / `k` | move a revision, skipping the graph connectors |
 | `space` | check a revision, so the next action runs over all the checked ones |
 | `@` | jump to the working copy |
+| `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
+| `:` | the command palette, listing every action and the jj command it runs |
 | `L` | edit the revset, which re-filters the log as you type |
-| `p` | open the forge pane |
 | `Tab` | cycle the log, the revset box, and the forge pane |
-| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
+| `Enter` / `Alt+d` | diff the revision, or diff any two revisions |
+| `v` | details: the full description, the author, and the timestamps |
+| `n` `e` `d` `s` `S` `i` `a` `A` `D` | new, edit, describe, squash, split, squash interactively, abandon, absorb, duplicate |
 | `r` / `R` | rebase the revision, or rebase it and its descendants |
-| `o` | browse the operation log and restore to one |
+| `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
+| `o` | the operation log, with restore, revert, and per-operation diff |
 | `E` | the evolution of the revision, with interdiff and restore |
 | `w` | the workspace panel, with add and forget |
+| `p` | the forge pane |
+| <code>&#124;</code> `X` `B` | parallelize the checked revisions, `jj arrange`, bisect between two checked revisions |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 
 Every action runs immediately and tells you to press `u`, because jj's operation log
-makes all of them reversible. jj has no redo, so `Ctrl+r` restores the operation the undo
+makes all of them reversible. The footer keeps naming the operation `u` would reverse, so
+the way back is never a guess. jj has no redo, so `Ctrl+r` restores the operation the undo
 moved away from.
+
+Two things ask first, because `jj undo` cannot take them back: a push, which has left the
+machine, and an edit to a revision jj marks immutable. The second is not a wall. jj
+refuses, jojo says why, and `y` runs the same edit again with `--ignore-immutable`.
+
+The status line reports the jj command that ran (`jj rebase -r xyz --onto abc`) rather
+than a description of it, and `:` lists every action beside the command it runs. Driving
+the TUI should teach the CLI, not hide it.
 
 ## Docs
 

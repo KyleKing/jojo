@@ -12,9 +12,8 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// targets is what an action acts on: the checked revisions when any are
-// checked, otherwise the one under the cursor. Batch and single are the same
-// code path, so a multi-select cannot silently act on one revision.
+// targets is the checked revisions, or the one under the cursor. Batch and single share this path,
+// so a multi-select cannot silently act on one revision.
 func (m Model) targets() []string {
 	if checked := m.log.Checked(); len(checked) > 0 {
 		return checked
@@ -27,8 +26,8 @@ func (m Model) targets() []string {
 	return nil
 }
 
-// handleActionKey runs the per-commit verbs. Every one of them is reversible through the operation
-// log, so each executes immediately and reports an undo hint rather than opening a confirm gate.
+// handleActionKey runs the per-commit verbs. Each executes immediately and offers undo rather than
+// opening a confirm gate, because the operation log already covers them.
 func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 	rev := m.log.Selected()
 	if rev == nil {
@@ -42,7 +41,7 @@ func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 	return m.openKey(key, *rev)
 }
 
-// writeKey covers the verbs that need no further argument, so they run as soon as the key lands.
+// writeKey covers the verbs that need no argument, so they run as the key lands.
 func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	targets := m.targets()
 
@@ -90,6 +89,8 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 		return m, cmd, true
 	case "E":
 		return m, m.loadEvolog(rev.ChangeID), true
+	case "v":
+		return m, m.loadDetail(rev.ChangeID), true
 	case "S":
 		return m, m.exec("split"+undoHint, "split", "-i", "-r", rev.ChangeID), true
 	case "i":
@@ -119,8 +120,7 @@ func joinIDs(ids []string) string {
 	return ids[0] + " and " + strconv.Itoa(len(ids)-1) + " more"
 }
 
-// exec suspends the TUI and hands the terminal to jj, which is how the
-// interactive verbs reach jj's configured diff editor.
+// exec hands the terminal to jj, which is how the interactive verbs reach jj's own diff editor.
 func (m Model) exec(done string, args ...string) tea.Cmd {
 	//nolint:gosec // G204: the binary is a literal and args are built here, never from user input.
 	cmd := exec.CommandContext(m.ctx, "jj", args...)
@@ -131,8 +131,7 @@ func (m Model) exec(done string, args ...string) tea.Cmd {
 
 func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 	revset := m.revset
-	// jj wrote its own diagnosis to the terminal it was handed and the repaint covered it, so the
-	// message has to say which command failed or there is nothing left to go on.
+	// The repaint covers whatever jj printed, so the message has to name the command that failed.
 	what := strings.Join(cmd.Args, " ")
 
 	return tea.Sequence(
@@ -154,9 +153,8 @@ func (Model) say(text string) tea.Cmd {
 // undoHint replaces a confirm gate, because the operation log makes every one of these reversible.
 const undoHint = ", press u to undo"
 
-// wrote turns the outcome of a jj write into what the status line says. A write that worked reports
-// the command rather than a description of it, and one jj refused as immutable becomes the offer of
-// the escape hatch instead of a dead end.
+// wrote turns a write's outcome into the status line: the command that ran, or the offer of the
+// escape hatch when jj refused it as immutable.
 //
 //nolint:ireturn // a tea.Msg is the return type the runtime takes; naming a concrete one would lie.
 func wrote(ran, hint string, err error) tea.Msg {
@@ -172,8 +170,7 @@ func wrote(ran, hint string, err error) tea.Msg {
 	return messageMsg{text: ran + hint}
 }
 
-// run executes a jj write then reloads the log. The status line reports the command jj actually ran
-// rather than a description of it, which is how someone driving the TUI learns the CLI underneath.
+// run executes a jj write then reloads the log.
 func (m Model) run(hint string, mutate func(context.Context) (string, error)) tea.Cmd {
 	revset, ctx := m.revset, m.ctx
 
@@ -187,8 +184,8 @@ func (m Model) run(hint string, mutate func(context.Context) (string, error)) te
 	)
 }
 
-// undo records where the repository was before undoing, because jj has no redo
-// command: the way forward again is restoring to the operation undo left.
+// undo records where the repository was first, because jj has no redo: going forward again means
+// restoring the operation the undo left.
 func (m Model) undo() tea.Cmd {
 	client, ctx := m.client, m.ctx
 

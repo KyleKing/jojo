@@ -44,11 +44,6 @@ func (t DiffTarget) args() ([]string, error) {
 	}
 }
 
-// DiffArgs returns the jj argument list t renders as, not including the jj binary itself.
-func (*Client) DiffArgs(t DiffTarget) ([]string, error) {
-	return t.args()
-}
-
 // DiffCommand returns t ready for tea.ExecProcess. It skips jjCommand's editor-disabling
 // environment because this command is handed the real terminal on purpose, and jj's pager needs it.
 func (c *Client) DiffCommand(ctx context.Context, t DiffTarget) (*exec.Cmd, error) {

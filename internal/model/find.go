@@ -11,8 +11,7 @@ import (
 // findRows is the height the search bar takes out of the log while it is open.
 const findRows = 1
 
-// handleFindMsg covers the search bar and the command palette, which both act on the log rather than
-// reporting a jj action of their own.
+// handleFindMsg covers the search bar and the command palette, which act on the log rather than jj.
 func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case search.ChangedMsg:

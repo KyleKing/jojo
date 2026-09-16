@@ -1,0 +1,16 @@
+     ╭─────────────────────────────────────────────────────────╮      
+     │                                                         │      
+     │  kxryrzwz                                               │      
+     │  commit    d11fcf8e9a1b                                 │      
+     │  author    Test User <test@example.com>                 │      
+     │  authored  2026-09-16 08:33                             │      
+     │  committed 2026-09-16 09:10                             │      
+     │  parents   mursrsmx ovrvxwyt                            │      
+     │                                                         │      
+     │  fix the parser                                         │      
+     │                                                         │      
+     │  The separator can appear inside a description, so the  │      
+     │  split has to be bounded.                               │      
+     │  [any key] close                                        │      
+     │                                                         │      
+     ╰─────────────────────────────────────────────────────────╯      

@@ -28,13 +28,13 @@
 │          R  rebase it and its descendants                │
 │          b  bookmarks                                    │
 │          o  op log                                       │
+│          v  details of the revision                      │
+│          v  details of the revision                      │
 │          E  evolution of the revision                    │
 │          u  undo                                         │
 │     Ctrl+r  redo                                         │
 │     Ctrl+l  reload the log                               │
 │          @  jump to working copy                         │
-│          w  workspaces                                   │
-│          p  forge pane                                   │
-│                                              1-35 of 42  │
+│                                              1-35 of 44  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

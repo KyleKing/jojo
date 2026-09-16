@@ -44,27 +44,38 @@ markers (`main*` for a local bookmark ahead of its remote). `LocalBookmarks` and
 `RemoteBookmarks` are stripped names, which is what a forge can be asked about. Handing
 `main*` to `gh` would ask about a branch that does not exist.
 
-**A reversible action executes, it does not ask.** Every routine jj edit is an operation
-the log can undo, so describe, squash, abandon, rebase, and the rest run immediately and
-report "done, press u to undo". Confirmation is reserved for what `jj undo` cannot reverse
-cleanly: a push, a force-push, and anything run with `--ignore-immutable`.
+**Undo is the confirmation.** Every routine jj edit is an operation the log can reverse,
+so describe, squash, abandon, rebase, and the rest run as the key lands and report the
+command they ran. Two things ask instead, because `jj undo` cannot reach them: a push,
+which has left the machine, and a write jj refused as immutable, where the escape rewrites
+history other people may already have. The push dialog shows a real `--dry-run`, so what is
+being agreed to is jj's own answer, and the immutable dialog says what the rule is rather
+than only that it was broken. jj has no redo, so `u` records the operation the repository
+was at and `Ctrl+r` restores it.
 
-**The keymap is data.** `internal/components/help.Bindings` is the whole table, and the
-footer, the overlay, and the root model all read it. A binding cannot drift between the
-three places it has to agree.
+**The status line reports the command, not a description of it.** Every jj write returns
+the invocation it ran, quoted so it can be pasted into a shell. A description would be a
+second thing to keep true as the flags change, and it would teach nothing.
 
-**A focused pane owns its keys.** Tab cycles the log, the revset box, and the forge pane,
-and each handles its own bindings while focused. That is what lets `r` mean rebase in the
-log and refresh in the forge pane.
+**The keymap is data.** `internal/components/help.Bindings` is the whole table: the footer,
+the help overlay, the command palette, and the root model's dispatch all read it, so a
+binding cannot drift between them. The palette shows each action beside the jj command it
+runs, which is why the shapes live in that table too.
 
-**An open overlay owns every key.** The operation log, the evolution timeline, the
-workspace panel, the describe prompt, and the destination picker all share `j` and `k`
-with the log underneath them, so the root routes keys to whichever one is open before
-anything else looks at them.
+**One list, six views.** The operation log, workspaces, bookmarks, the evolution timeline,
+the destination picker, and the command palette are all `internal/components/listview`
+with their own rows, keys, and messages. Scrolling, clamping, truncation, the warning line,
+the minimum frame, and hint degradation are written once, so a rendering fix lands in all
+six.
 
-**Redo is an operation id, not a command.** jj has no redo. `u` records the operation the
-repository was at and `Ctrl+r` restores it, which is exact rather than a guess at which
-operation to return to.
+**Whoever is open owns the keys.** An open overlay takes every key before the log sees it,
+since they share `j` and `k`. Below that, Tab cycles the log, the revset box, and the forge
+pane, and each handles its own bindings while focused. That is what lets `r` mean rebase in
+the log and refresh in the forge pane.
+
+**Search moves the cursor, the revset changes the list.** `/` finds a revision among the
+ones already listed and steps between matches inside its own bar, because `n` is taken by
+"new" in the always-active layer. `L` changes which revisions are listed at all.
 
 **Unrecognized messages fan out to every sub-model.** A component's debounce and poll ticks
 are its own unexported types, so the root model cannot switch on them. Anything it does

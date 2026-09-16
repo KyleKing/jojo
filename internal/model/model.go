@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
@@ -29,8 +30,7 @@ import (
 	"github.com/kyleking/jojo/internal/ui"
 )
 
-// logLimit caps a single log query, because a revset matching the whole
-// repository costs jj a diff stat per revision.
+// logLimit caps one query, because a revset over the whole repository costs a diff stat per row.
 const logLimit = 500
 
 // messageLife is how long a "done, press u to undo" line stays up.
@@ -57,32 +57,14 @@ type messageMsg struct {
 
 type clearMessageMsg struct{}
 
-// redoPointMsg carries the operation the repository sat at before an undo,
-// which is the only thing that makes the redo key meaningful.
+// redoPointMsg carries the operation the repository sat at before an undo.
 type redoPointMsg struct {
 	id string
 }
 
-type opLogLoadedMsg struct {
-	err error
-	ops []jj.Operation
-}
-
-type evologLoadedMsg struct {
-	err      error
-	changeID string
-	entries  []jj.Evolution
-}
-
-type workspacesLoadedMsg struct {
-	err    error
-	spaces []jj.Workspace
-}
-
 // Model is the application.
 type Model struct {
-	// ctx is the program lifetime, so quitting cancels a jj call already
-	// running rather than leaving it to finish into a dead model.
+	// ctx is the program lifetime, so quitting cancels a jj call already running.
 	ctx        context.Context //nolint:containedctx // the model owns every jj call it starts.
 	skin       ui.Skin
 	repoPath   string
@@ -99,6 +81,7 @@ type Model struct {
 	find       search.Model
 	palette    palette.Model
 	bookmarks  bookmarkview.Model
+	detail     detailview.Model
 	confirm    confirm.Model
 	forcible   forcible
 	pushing    jj.PushOptions
@@ -106,6 +89,7 @@ type Model struct {
 	redoOp     string
 	revset     string
 	message    string
+	lastOp     string
 	rows       []jj.LogRow
 	log        logview.Model
 	focus      focus
@@ -134,6 +118,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		evolog:     evologview.New(skin),
 		find:       search.New(skin),
 		bookmarks:  bookmarkview.New(skin),
+		detail:     detailview.New(skin),
 		confirm:    confirm.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
@@ -142,10 +127,9 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	}
 }
 
-// Init loads the log, so the first frame is an empty log rather than a blocked
-// terminal.
+// Init loads the log, so the first frame is an empty log rather than a blocked terminal.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadLog(m.revset), m.forge.Init())
+	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init())
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {
@@ -158,8 +142,7 @@ func (m Model) loadLog(revset string) tea.Cmd {
 	}
 }
 
-// Update routes messages. Key handling lives in handleKeyPress so there is one
-// place a new binding is added.
+// Update routes messages. Keys go to handleKeyPress, the one place a binding is added.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.handleOverlayMsg(msg); handled {
 		return next, cmd
@@ -199,6 +182,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.redoOp = msg.id
 
 		return m, nil
+	case headOpMsg:
+		m.lastOp = msg.description
+
+		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 	}
@@ -206,17 +193,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m.routeToPanes(msg)
 }
 
-// routeToPanes hands anything the root does not own to every sub-model, because
-// their debounce and poll ticks are their own unexported types and would
-// otherwise never come back to the component that scheduled them.
+// routeToPanes fans out what the root does not own: a pane's debounce and poll ticks are its own
+// unexported types and would otherwise never come back.
 func (m Model) routeToPanes(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmd := tea.Batch(m.revsetBox.Update(msg), m.forge.Update(msg))
 
 	return m, cmd
 }
 
-// applyLog keeps the last good log on screen when a revset fails, because an
-// expression is invalid for most of the time it is being typed.
+// applyLog keeps the last good log on screen when a revset fails, since one is invalid for most of
+// the time it is being typed.
 func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		if errors.Is(msg.err, jj.ErrRevsetSyntax) {
@@ -236,14 +222,13 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.log.SetRows(msg.rows)
 	m.resize()
 
-	cmd := m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows))
+	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp())
 
 	return m, cmd
 }
 
-// followBookmark points the forge pane at the selected revision's bookmark, so
-// moving onto a revision shows that revision's pull request. A revision with no
-// bookmark of its own leaves the pane where it is.
+// followBookmark points the forge pane at the selected revision's bookmark. A revision carrying
+// none leaves the pane where it is.
 func (m Model) followBookmark(rev *jj.Revision) tea.Cmd {
 	name := branchName(rev)
 	if name == "" {
@@ -253,8 +238,8 @@ func (m Model) followBookmark(rev *jj.Revision) tea.Cmd {
 	return m.forge.SetBookmark(name)
 }
 
-// resize hands each pane its share of the terminal. The log takes whatever the
-// revset box, the forge pane, and the footer leave.
+// resize gives the log whatever the revset box, the search bar, the forge pane, and the footer
+// leave.
 func (m *Model) resize() {
 	forgeHeight := 0
 	if m.showForge {
@@ -290,6 +275,8 @@ func (m Model) render() string {
 		return m.confirm.View(m.width, m.height)
 	case m.bookmarks.IsOpen():
 		return m.bookmarks.View(m.width, m.height)
+	case m.detail.IsOpen():
+		return m.detail.View(m.width, m.height)
 	case m.prompt.IsOpen():
 		return m.prompt.View(m.width, m.height)
 	case m.destPicker.IsOpen():
