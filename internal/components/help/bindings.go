@@ -64,6 +64,7 @@ var Bindings = []Binding{
 	{Layer: L2, Hint: keyhint.Hint{Key: "b", What: "bookmarks"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "o", What: "op log"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "u / Ctrl+r", What: "undo / redo"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "Ctrl+l", What: "reload the log"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "@", What: "jump to working copy"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "w", What: "workspaces"}},
 	{Layer: L2, Hint: keyhint.Hint{Key: "p", What: "forge pane"}},

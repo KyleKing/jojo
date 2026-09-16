@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/jj"
 )
@@ -103,9 +104,43 @@ func (m Model) rebase(source, dest string, action pending) tea.Cmd {
 	})
 }
 
+// opLogLimit caps the operation log, which grows without bound in an active repository.
+const opLogLimit = 200
+
+func (m Model) loadOpLog() tea.Cmd {
+	client, ctx := m.client, m.ctx
+
+	return func() tea.Msg {
+		ops, err := client.OpLog(ctx, opLogLimit)
+
+		return opLogLoadedMsg{ops: ops, err: err}
+	}
+}
+
+func (m Model) applyOpLog(msg opLogLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = msg.err.Error()
+
+		return m, nil
+	}
+
+	cmd := m.opLog.Open(msg.ops)
+
+	return m, cmd
+}
+
+func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
+	op := msg.Operation.ID
+
+	return m, m.run(undoable("restored "+op), func(ctx context.Context) error {
+		return m.client.OpRestore(ctx, op)
+	})
+}
+
 func (m Model) cancelModals() (tea.Model, tea.Cmd) {
 	m.prompt.Close()
 	m.destPicker.Close()
+	m.opLog.Close()
 	m.pending, m.pendingOn = pendingNone, ""
 
 	return m, nil

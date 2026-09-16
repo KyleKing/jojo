@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
+	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/statusbar"
@@ -50,6 +51,17 @@ type messageMsg struct {
 
 type clearMessageMsg struct{}
 
+// redoPointMsg carries the operation the repository sat at before an undo,
+// which is the only thing that makes the redo key meaningful.
+type redoPointMsg struct {
+	id string
+}
+
+type opLogLoadedMsg struct {
+	err error
+	ops []jj.Operation
+}
+
 // Model is the application.
 type Model struct {
 	// ctx is the program lifetime, so quitting cancels a jj call already
@@ -64,7 +76,9 @@ type Model struct {
 	forge      forgepane.Model
 	prompt     prompt.Model
 	destPicker destpicker.Model
+	opLog      oplogview.Model
 	pendingOn  string
+	redoOp     string
 	revset     string
 	message    string
 	rows       []jj.LogRow
@@ -90,6 +104,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		forge:      forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
 		prompt:     prompt.New(skin),
 		destPicker: destpicker.New(skin),
+		opLog:      oplogview.New(skin),
 		status:     statusbar.New(skin),
 		help:       help.New(skin),
 		revset:     revset,
@@ -131,8 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSubmitted(msg)
 	case destpicker.PickedMsg:
 		return m.handlePicked(msg)
-	case prompt.CancelledMsg, destpicker.CancelledMsg:
+	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg:
 		return m.cancelModals()
+	case opLogLoadedMsg:
+		return m.applyOpLog(msg)
+	case oplogview.RestoreMsg:
+		return m.restoreOperation(msg)
 	case logLoadedMsg:
 		return m.applyLog(msg)
 	case messageMsg:
@@ -141,6 +160,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
 	case clearMessageMsg:
 		m.message = ""
+
+		return m, nil
+	case redoPointMsg:
+		m.redoOp = msg.id
 
 		return m, nil
 	case tea.KeyPressMsg:
@@ -190,15 +213,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	}
 
-	if m.prompt.IsOpen() {
-		cmd := m.prompt.Update(msg)
-
-		return m, cmd
-	}
-
-	if m.destPicker.IsOpen() {
-		cmd := m.destPicker.Update(msg)
-
+	if cmd, handled := m.routeToModal(msg); handled {
 		return m, cmd
 	}
 
@@ -210,30 +225,8 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case focusLog:
 	}
 
-	switch msg.String() {
-	case "L":
-		m.focus = focusRevset
-
-		cmd := m.revsetBox.Focus()
-
-		return m, cmd
-	case keyTab:
-		return m.cycleFocus()
-	case "p":
-		return m.toggleForge()
-	case "q", "ctrl+c":
-		m.quitting = true
-
-		return m, tea.Quit
-	case "?":
-		m.showHelp = true
-		m.help = m.help.ScrollToStart()
-
-		return m, nil
-	case "u":
-		return m, m.run("undone", m.client.Undo)
-	case "ctrl+r":
-		return m, m.loadLog(m.revset)
+	if next, cmd, handled := m.handleRootKey(msg.String()); handled {
+		return next, cmd
 	}
 
 	if next, cmd, handled := m.handleActionKey(msg.String()); handled {
@@ -243,6 +236,61 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	cmd := m.log.Update(msg)
 
 	return m, cmd
+}
+
+// routeToModal hands every key to whichever overlay is open, because a modal
+// sharing j and k with the log underneath would move both cursors at once.
+func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case m.prompt.IsOpen():
+		return m.prompt.Update(msg), true
+	case m.destPicker.IsOpen():
+		return m.destPicker.Update(msg), true
+	case m.opLog.IsOpen():
+		return m.opLog.Update(msg), true
+	}
+
+	return nil, false
+}
+
+// handleRootKey covers the keys that belong to the application rather than to
+// the revision under the cursor.
+func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
+	switch key {
+	case "L":
+		m.focus = focusRevset
+
+		cmd := m.revsetBox.Focus()
+
+		return m, cmd, true
+	case keyTab:
+		next, cmd := m.cycleFocus()
+
+		return next, cmd, true
+	case "p":
+		next, cmd := m.toggleForge()
+
+		return next, cmd, true
+	case "q", "ctrl+c":
+		m.quitting = true
+
+		return m, tea.Quit, true
+	case "?":
+		m.showHelp = true
+		m.help = m.help.ScrollToStart()
+
+		return m, nil, true
+	case "u":
+		return m, m.undo(), true
+	case "ctrl+r":
+		return m, m.redo(), true
+	case "ctrl+l":
+		return m, m.loadLog(m.revset), true
+	case "o":
+		return m, m.loadOpLog(), true
+	}
+
+	return m, nil, false
 }
 
 // cycleFocus walks Tab through the panes that are open, so a focused pane owns
@@ -375,6 +423,8 @@ func (m Model) render() string {
 		return m.prompt.View(m.width, m.height)
 	case m.destPicker.IsOpen():
 		return m.destPicker.View(m.width, m.height)
+	case m.opLog.IsOpen():
+		return m.opLog.View(m.width, m.height)
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.log.View()}

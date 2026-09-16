@@ -1,0 +1,12 @@
+                                                            
+    ╭─────────────────────────────────────────────────╮     
+    │                                                 │     
+    │  operation log                                  │     
+    │  @ 1m             aaa111 snapshot working copy  │     
+    │    1m             bbb222 describe commit bbb    │     
+    │    1m             ccc333 rebase                 │     
+    │  [enter] restore  [esc] cancel                  │     
+    │                                                 │     
+    ╰─────────────────────────────────────────────────╯     
+                                                            
+                                                            

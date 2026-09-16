@@ -144,3 +144,33 @@ func (m Model) run(done string, mutate func(context.Context) error) tea.Cmd {
 		m.loadLog(revset),
 	)
 }
+
+// undo records where the repository was before undoing, because jj has no redo
+// command: the way forward again is restoring to the operation undo left.
+func (m Model) undo() tea.Cmd {
+	client, ctx := m.client, m.ctx
+
+	return tea.Sequence(
+		func() tea.Msg {
+			ops, err := client.OpLog(ctx, 1)
+			if err != nil || len(ops) == 0 {
+				return nil
+			}
+
+			return redoPointMsg{id: ops[0].ID}
+		},
+		m.run("undone, press ctrl+r to redo", client.Undo),
+	)
+}
+
+func (m Model) redo() tea.Cmd {
+	if m.redoOp == "" {
+		return m.say("nothing to redo")
+	}
+
+	op := m.redoOp
+
+	return m.run(undoable("redone"), func(ctx context.Context) error {
+		return m.client.OpRestore(ctx, op)
+	})
+}
