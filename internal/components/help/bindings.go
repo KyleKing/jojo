@@ -62,6 +62,18 @@ var Bindings = []Binding{
 	{Layer: L2, Run: "d", Cmd: "jj describe -r <rev> -m", Hint: keyhint.Hint{Key: "d", What: "describe"}},
 	{Layer: L2, Run: "s", Cmd: "jj squash --from <rev> --into <dest>", Hint: keyhint.Hint{Key: "s", What: "squash"}},
 	{Layer: L2, Run: "S", Cmd: "jj split -i -r <rev>", Hint: keyhint.Hint{Key: "S", What: "split"}},
+	{
+		Layer: L2, Run: "i", Cmd: "jj squash -i -r <rev>",
+		Hint: keyhint.Hint{Key: "i", What: "squash interactively"},
+	},
+	{
+		Layer: L2, Run: "enter", Cmd: "jj diff -r <rev>",
+		Hint: keyhint.Hint{Key: "Enter", What: "diff the revision"},
+	},
+	{
+		Layer: L2, Run: "alt+d", Cmd: "jj diff --from <a> --to <b>",
+		Hint: keyhint.Hint{Key: "Alt+d", What: "diff any two revisions"},
+	},
 	{Layer: L2, Run: "a", Cmd: "jj abandon <rev>", Hint: keyhint.Hint{Key: "a", What: "abandon"}},
 	{Layer: L2, Run: "A", Cmd: "jj absorb -r <rev>", Hint: keyhint.Hint{Key: "A", What: "absorb"}},
 	{Layer: L2, Run: "D", Cmd: "jj duplicate <rev>", Hint: keyhint.Hint{Key: "D", What: "duplicate"}},
@@ -86,10 +98,16 @@ var Bindings = []Binding{
 	{Layer: L2, Run: "space", Hint: keyhint.Hint{Key: "space", What: "check for a batch action"}},
 
 	{Layer: L3, Hint: keyhint.Hint{What: "Power", Head: true}},
+	{
+		Layer: L3, Run: "|", Cmd: "jj parallelize <revs>",
+		Hint: keyhint.Hint{Key: "|", What: "parallelize the checked revisions"},
+	},
+	{Layer: L3, Run: "X", Cmd: "jj arrange", Hint: keyhint.Hint{Key: "X", What: "arrange the graph"}},
+	{
+		Layer: L3, Run: "B", Cmd: "jj bisect run --range <a>::<b>",
+		Hint: keyhint.Hint{Key: "B", What: "bisect between the two checked revisions"},
+	},
 	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
-	{Layer: L3, Hint: keyhint.Hint{What: "jj arrange"}},
-	{Layer: L3, Hint: keyhint.Hint{What: "bisect"}},
-	{Layer: L3, Hint: keyhint.Hint{What: "multi-select operators"}},
 }
 
 // Hints returns the actionable hints (headings excluded) for the given

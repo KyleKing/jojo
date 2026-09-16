@@ -27,6 +27,9 @@ const (
 	pendingWorkspaceAdd
 	pendingBookmarkCreate
 	pendingBookmarkRename
+	pendingDiffFrom
+	pendingDiffTo
+	pendingBisect
 )
 
 // openDescribe seeds the prompt with the current description, because an edit
@@ -74,6 +77,8 @@ func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case pendingWorkspaceAdd:
 		return m, m.addWorkspace(msg.Value)
+	case pendingBisect:
+		return m, m.bisect(source, msg.Value)
 	case pendingBookmarkCreate:
 		return m, m.bookmarkWrite("created "+msg.Value, func(ctx context.Context) error {
 			return m.client.BookmarkSet(ctx, msg.Value, source)
@@ -82,7 +87,8 @@ func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 		return m, m.bookmarkWrite("renamed "+source+" to "+msg.Value, func(ctx context.Context) error {
 			return m.client.BookmarkRename(ctx, source, msg.Value)
 		})
-	case pendingNone, pendingSquash, pendingRebaseRevisions, pendingRebaseSource:
+	case pendingNone, pendingSquash, pendingRebaseRevisions, pendingRebaseSource,
+		pendingDiffFrom, pendingDiffTo:
 		return m, nil
 	}
 
@@ -96,7 +102,14 @@ func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
 	m.pending, m.pendingOn = pendingNone, ""
 
 	switch action {
-	case pendingWorkspaceAdd, pendingBookmarkCreate, pendingBookmarkRename, pendingNone, pendingDescribe:
+	case pendingDiffFrom:
+		cmd := m.pickDiffTo(dest)
+
+		return m, cmd
+	case pendingDiffTo:
+		return m, m.showDiff(jj.DiffTarget{From: source, To: dest})
+	case pendingWorkspaceAdd, pendingBookmarkCreate, pendingBookmarkRename, pendingBisect,
+		pendingNone, pendingDescribe:
 		return m, nil
 	case pendingSquash:
 		cmd := m.act(undoable("squashed "+source+" into "+dest), source,

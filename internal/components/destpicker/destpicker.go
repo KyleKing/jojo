@@ -29,17 +29,27 @@ type CancelledMsg struct{}
 // Option configures a Model at construction.
 type Option func(*Model)
 
+// OpenOption configures one opening of the picker.
+type OpenOption func(*Model)
+
+// AllowImmutable lets the picker return a revision jj protects, which is right for a read such as a
+// diff and wrong for a destination the picker is choosing for a write.
+func AllowImmutable() OpenOption {
+	return func(m *Model) { m.allowImmutable = true }
+}
+
 // Model is the picker's state: the candidate revisions, the live filter over
 // them, and the cursor into the filtered list.
 type Model struct {
-	skin      ui.Skin
-	title     string
-	warning   string
-	filter    string
-	revisions []jj.Revision
-	matches   []jj.Revision
-	cursor    int
-	open      bool
+	skin           ui.Skin
+	title          string
+	warning        string
+	filter         string
+	revisions      []jj.Revision
+	matches        []jj.Revision
+	cursor         int
+	open           bool
+	allowImmutable bool
 }
 
 // New returns a closed picker drawn in skin.
@@ -56,11 +66,16 @@ func New(skin ui.Skin, opts ...Option) Model {
 // revision whose change id is exclude, with the filter cleared.
 //
 //nolint:unparam // matches prompt.Model.Open's signature; nothing here needs a command yet.
-func (m *Model) Open(title string, rows []jj.LogRow, exclude string) tea.Cmd {
+func (m *Model) Open(title string, rows []jj.LogRow, exclude string, opts ...OpenOption) tea.Cmd {
 	m.title = title
 	m.warning = ""
 	m.filter = ""
 	m.open = true
+	m.allowImmutable = false
+
+	for _, opt := range opts {
+		opt(m)
+	}
 
 	revisions := make([]jj.Revision, 0, len(rows))
 
@@ -136,7 +151,7 @@ func (m *Model) pick() tea.Cmd {
 		return nil
 	}
 
-	if rev.Immutable {
+	if rev.Immutable && !m.allowImmutable {
 		m.warning = "cannot pick an immutable revision"
 
 		return nil

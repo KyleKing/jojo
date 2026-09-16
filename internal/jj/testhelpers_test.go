@@ -11,7 +11,10 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-const fixtureFileMode = 0o600
+const (
+	fixtureFileMode = 0o600
+	fixtureDirMode  = 0o750
+)
 
 // testRepo builds a temporary jj repository, skipping the test when no jj binary is installed.
 func testRepo(t *testing.T) (*jj.Client, string) {
@@ -103,6 +106,29 @@ func seedRepo(t *testing.T) (*jj.Client, string) {
 	runJJ(t, dir, "new", "side-a", "side-b", "-m", "merge-conflict")
 
 	return client, dir
+}
+
+// allowLargeFiles raises the repo's snapshot size limit, since jj otherwise refuses to snapshot any
+// file over 1MiB and a diff test needs one well past that.
+func allowLargeFiles(t *testing.T, dir string) {
+	t.Helper()
+
+	configPath := filepath.Join(dir, ".jj", "repo", "config.toml")
+
+	//nolint:gosec // G304: fixture helper appends to a config file this test's own testRepo wrote.
+	f, err := os.OpenFile(configPath, os.O_APPEND|os.O_WRONLY, fixtureFileMode)
+	if err != nil {
+		t.Fatalf("open %s: %v", configPath, err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatalf("close %s: %v", configPath, err)
+		}
+	}()
+
+	if _, err := f.WriteString("[snapshot]\nmax-new-file-size = \"10MiB\"\n"); err != nil {
+		t.Fatalf("write snapshot config: %v", err)
+	}
 }
 
 func readFile(t *testing.T, dir, name string) string {

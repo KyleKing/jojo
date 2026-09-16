@@ -18,6 +18,9 @@
 │          d  describe                                     │
 │          s  squash                                       │
 │          S  split                                        │
+│          i  squash interactively                         │
+│      Enter  diff the revision                            │
+│      Alt+d  diff any two revisions                       │
 │          a  abandon                                      │
 │          A  absorb                                       │
 │          D  duplicate                                    │
@@ -32,9 +35,6 @@
 │          @  jump to working copy                         │
 │          w  workspaces                                   │
 │          p  forge pane                                   │
-│          L  edit the revset                              │
-│      space  check for a batch action                     │
-│             Power                                        │
-│                                              1-35 of 39  │
+│                                              1-35 of 42  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

@@ -1,0 +1,97 @@
+package model
+
+import (
+	"context"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/jojo/internal/components/destpicker"
+	"github.com/kyleking/jojo/internal/components/oplogview"
+	"github.com/kyleking/jojo/internal/jj"
+)
+
+// openDiffRange starts the two-step pick for a diff between any two revisions, which is the one
+// comparison jj's own log view cannot show.
+func (m *Model) openDiffRange() tea.Cmd {
+	m.pending = pendingDiffFrom
+	m.pendingOn = ""
+
+	return m.destPicker.Open("diff from", m.rows, "", destpicker.AllowImmutable())
+}
+
+func (m *Model) pickDiffTo(from string) tea.Cmd {
+	m.pending = pendingDiffTo
+	m.pendingOn = from
+
+	return m.destPicker.Open("diff "+from+" to", m.rows, from, destpicker.AllowImmutable())
+}
+
+// showDiff hands the terminal to jj so the diff reaches jj's own pager and whatever diff formatter
+// the repository configures.
+func (m Model) showDiff(target jj.DiffTarget) tea.Cmd {
+	cmd, err := m.client.DiffCommand(m.ctx, target)
+	if err != nil {
+		return m.say(err.Error())
+	}
+
+	return m.execCommand("", cmd)
+}
+
+func (m Model) showOperation(msg oplogview.ShowMsg) (tea.Model, tea.Cmd) {
+	return m, m.showDiff(jj.DiffTarget{Operation: msg.Operation.ID})
+}
+
+func (m Model) revertOperation(msg oplogview.RevertMsg) (tea.Model, tea.Cmd) {
+	op := msg.Operation.ID
+
+	return m, m.run(undoable("reverted "+op), func(ctx context.Context) error {
+		return m.client.OpRevert(ctx, op)
+	})
+}
+
+// bisectRange is the revset `jj bisect run` searches, built from exactly two checked revisions so
+// the known-good and known-bad ends are stated rather than guessed. The log lists newest first, so
+// the second checked revision is the older end and has to lead the range.
+func bisectRange(checked []string) (string, bool) {
+	const ends = 2
+	if len(checked) != ends {
+		return "", false
+	}
+
+	return checked[1] + "::" + checked[0], true
+}
+
+func (m Model) openBisect() (tea.Model, tea.Cmd) {
+	rangeSet, ok := bisectRange(m.log.Checked())
+	if !ok {
+		return m, m.say("check the known-good and the known-bad revision with space first")
+	}
+
+	m.pending = pendingBisect
+	m.pendingOn = rangeSet
+
+	cmd := m.prompt.Open("test command for "+rangeSet, "")
+
+	return m, cmd
+}
+
+// bisect runs jj's own scripted bisection rather than reimplementing the search, and hands over the
+// terminal because the command it runs is the user's and may print anything.
+func (m Model) bisect(rangeSet, command string) tea.Cmd {
+	if strings.TrimSpace(command) == "" {
+		return m.say("bisect needs a command that fails on a bad revision")
+	}
+
+	return m.exec("bisect finished", "bisect", "run", "--range", rangeSet, "--", "sh", "-c", command)
+}
+
+func (m Model) parallelize() tea.Cmd {
+	targets := m.targets()
+	if len(targets) < 2 { //nolint:mnd // one revision has nothing to be parallel to.
+		return m.say("check two or more revisions with space first")
+	}
+
+	return m.act(undoable("parallelized "+joinIDs(targets)), joinIDs(targets),
+		func(ctx context.Context, c *jj.Client) error { return c.Parallelize(ctx, targets) })
+}

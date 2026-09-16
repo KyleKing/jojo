@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -26,68 +27,85 @@ func (m Model) targets() []string {
 	return nil
 }
 
-// handleActionKey runs the per-commit verbs. Every one of them is reversible
-// through the operation log, so each executes immediately and reports an undo
-// hint rather than opening a confirm gate.
-
+// handleActionKey runs the per-commit verbs. Every one of them is reversible through the operation
+// log, so each executes immediately and reports an undo hint rather than opening a confirm gate.
 func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
 	rev := m.log.Selected()
 	if rev == nil {
 		return m, nil, false
 	}
 
+	if cmd, handled := m.writeKey(key, *rev); handled {
+		return m, cmd, true
+	}
+
+	return m.openKey(key, *rev)
+}
+
+// writeKey covers the verbs that need no further argument, so they run as soon as the key lands.
+func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
+	targets := m.targets()
+
 	switch key {
 	case "n":
-		targets := m.targets()
-
-		cmd := m.act(undoable("new change on "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.New(ctx, targets) })
-
-		return m, cmd, true
+		return m.act(undoable("new change on "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.New(ctx, targets) }), true
 	case "e":
-		cmd := m.act(undoable("editing "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.Edit(ctx, rev.ChangeID) })
-
-		return m, cmd, true
+		return m.act(undoable("editing "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.Edit(ctx, rev.ChangeID) }), true
 	case "a":
-		targets := m.targets()
-
-		cmd := m.act(undoable("abandoned "+joinIDs(targets)), joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) error { return c.Abandon(ctx, targets) })
-
-		return m, cmd, true
+		return m.act(undoable("abandoned "+joinIDs(targets)), joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) error { return c.Abandon(ctx, targets) }), true
 	case "A":
-		cmd := m.act(undoable("absorbed "+rev.ChangeID), rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) error { return c.Absorb(ctx, rev.ChangeID) })
-
-		return m, cmd, true
+		return m.act(undoable("absorbed "+rev.ChangeID), rev.ChangeID,
+			func(ctx context.Context, c *jj.Client) error { return c.Absorb(ctx, rev.ChangeID) }), true
 	case "D":
-		targets := m.targets()
+		return m.act(undoable("duplicated "+joinIDs(targets)), joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) error { return c.Duplicate(ctx, targets) }), true
+	case "|":
+		return m.parallelize(), true
+	}
 
-		cmd := m.act(undoable("duplicated "+joinIDs(targets)), joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) error { return c.Duplicate(ctx, targets) })
+	return nil, false
+}
 
-		return m, cmd, true
+// openKey covers the verbs that need an argument, a terminal, or a view of their own.
+func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
+	switch key {
 	case "d":
-		cmd := m.openDescribe(*rev)
+		cmd := m.openDescribe(rev)
 
 		return m, cmd, true
 	case "s":
-		cmd := m.openSquash(*rev)
+		cmd := m.openSquash(rev)
 
 		return m, cmd, true
 	case "r":
-		cmd := m.openRebase(*rev, pendingRebaseRevisions)
+		cmd := m.openRebase(rev, pendingRebaseRevisions)
 
 		return m, cmd, true
 	case "R":
-		cmd := m.openRebase(*rev, pendingRebaseSource)
+		cmd := m.openRebase(rev, pendingRebaseSource)
 
 		return m, cmd, true
 	case "E":
 		return m, m.loadEvolog(rev.ChangeID), true
 	case "S":
 		return m, m.exec(undoable("split"), "split", "-i", "-r", rev.ChangeID), true
+	case "i":
+		return m, m.exec(undoable("squashed interactively"), "squash", "-i", "-r", rev.ChangeID), true
+	case "enter":
+		return m, m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
+	case "alt+d":
+		cmd := m.openDiffRange()
+
+		return m, cmd, true
+	case "X":
+		return m, m.exec("arranged, press u to undo", "arrange"), true
+	case "B":
+		next, cmd := m.openBisect()
+
+		return next, cmd, true
 	}
 
 	return m, nil, false
@@ -107,12 +125,20 @@ func (m Model) exec(done string, args ...string) tea.Cmd {
 	//nolint:gosec // G204: the binary is a literal and args are built here, never from user input.
 	cmd := exec.CommandContext(m.ctx, "jj", args...)
 	cmd.Dir = m.repoPath
+
+	return m.execCommand(done, cmd)
+}
+
+func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 	revset := m.revset
+	// jj wrote its own diagnosis to the terminal it was handed and the repaint covered it, so the
+	// message has to say which command failed or there is nothing left to go on.
+	what := strings.Join(cmd.Args, " ")
 
 	return tea.Sequence(
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {
-				return messageMsg{text: err.Error()}
+				return messageMsg{text: what + ": " + err.Error()}
 			}
 
 			return messageMsg{text: done}

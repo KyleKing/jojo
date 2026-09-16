@@ -20,6 +20,16 @@ type RestoreMsg struct {
 	Operation jj.Operation
 }
 
+// ShowMsg is sent when d asks to see what an operation changed.
+type ShowMsg struct {
+	Operation jj.Operation
+}
+
+// RevertMsg is sent when v asks to undo one operation while keeping every later one.
+type RevertMsg struct {
+	Operation jj.Operation
+}
+
 // CancelledMsg is sent when Esc, q, or o dismisses the view without picking one.
 type CancelledMsg struct{}
 
@@ -91,6 +101,10 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 		return func() tea.Msg { return CancelledMsg{} }
 	case "enter", "r":
 		return m.restore()
+	case "d":
+		return m.emit(func(op jj.Operation) tea.Msg { return ShowMsg{Operation: op} })
+	case "v":
+		return m.revert()
 	case "up", "k":
 		m.moveCursor(-1)
 	case "down", "j":
@@ -106,6 +120,35 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 
 	return nil
+}
+
+// emit reports the operation under the cursor without closing, so several can be inspected in a row.
+func (m *Model) emit(build func(jj.Operation) tea.Msg) tea.Cmd {
+	op, ok := m.selected()
+	if !ok {
+		return nil
+	}
+
+	return func() tea.Msg { return build(op) }
+}
+
+// revert refuses the current operation, which has nothing after it to keep and would only be a
+// slower undo.
+func (m *Model) revert() tea.Cmd {
+	op, ok := m.selected()
+	if !ok {
+		return nil
+	}
+
+	if op.Current {
+		m.warning = "press u to undo the current operation"
+
+		return nil
+	}
+
+	m.Close()
+
+	return func() tea.Msg { return RevertMsg{Operation: op} }
 }
 
 func (m *Model) restore() tea.Cmd {
@@ -196,6 +239,8 @@ func (m Model) View(width, height int) string {
 
 	hint := keyhint.Line(m.skin.KeyHintStyles(), []keyhint.Hint{
 		{Key: "enter", What: "restore"},
+		{Key: "d", What: "diff"},
+		{Key: "v", What: "revert"},
 		{Key: "esc", What: "cancel"},
 	})
 

@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
+	"github.com/kyleking/jojo/internal/jj"
 )
 
 // handleOverlayMsg covers what the modals report back: an argument collected, an action confirmed,
@@ -54,6 +55,14 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.restoreOperation(msg)
 
 		return next, cmd, true
+	case oplogview.ShowMsg:
+		next, cmd := m.showOperation(msg)
+
+		return next, cmd, true
+	case oplogview.RevertMsg:
+		next, cmd := m.revertOperation(msg)
+
+		return next, cmd, true
 	case workspacesLoadedMsg:
 		next, cmd := m.applyWorkspaces(msg)
 
@@ -71,9 +80,9 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return next, cmd, true
 	case evologview.ShowMsg:
-		return m, m.exec("", "diff", "-r", msg.CommitID), true
+		return m, m.showDiff(jj.DiffTarget{Revision: msg.CommitID}), true
 	case evologview.InterdiffMsg:
-		return m, m.exec("", "diff", "--from", msg.From, "--to", msg.To), true
+		return m, m.showDiff(jj.DiffTarget{From: msg.From, To: msg.To}), true
 	case evologview.RestoreMsg:
 		next, cmd := m.restoreVersion(msg)
 
