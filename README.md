@@ -87,7 +87,8 @@ the handlers read. The ones worth knowing before you start:
 | `L` | edit the revset, which re-filters the log as you type |
 | `p` | open the forge pane |
 | `Tab` | cycle the log, the revset box, and the forge pane |
-| `n` `e` `d` `s` `S` `a` `A` `r` `D` | new, edit, describe, squash, split, abandon, absorb, rebase, duplicate |
+| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
+| `r` / `R` | rebase the revision, or rebase it and its descendants |
 | `u` | undo the last operation |
 
 Every action in that last row runs immediately and tells you to press `u`, because jj's

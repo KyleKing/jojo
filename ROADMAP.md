@@ -19,11 +19,10 @@ readable.
    completion over jj's revset functions and the repository's own aliases
 3. **Done.** Forge pane: pull request state, review decision, and CI rollup for the
    bookmark at or near `@`, with the forge detected from the git remote
-4. **In progress.** Per-commit actions bound directly (new, edit, describe, squash,
-   split, abandon, rebase, absorb), each executing immediately with an undo hint rather
-   than a confirm gate, because `jj undo` already covers them. New, edit, abandon,
-   absorb, duplicate, and split are bound; describe, squash, and rebase are waiting on
-   the prompt and destination-picker modals
+4. **Done.** Per-commit actions bound directly (new, edit, describe, squash, split,
+   abandon, rebase, absorb), each executing immediately with an undo hint rather than a
+   confirm gate, because `jj undo` already covers them. Rebase scope is picked by the
+   key rather than inferred: `r` moves the revision, `R` moves it and its descendants
 5. Operation log view
 6. Evolution timeline and interdiff
 7. Workspace panel
