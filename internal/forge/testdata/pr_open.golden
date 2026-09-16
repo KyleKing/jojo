@@ -1,0 +1,9 @@
+[[interaction]]
+args = ["api", "rate_limit"]
+exit = 0
+stdout = '{"resources":{"core":{"limit":5000,"remaining":4990,"reset":2000000000},"graphql":{"limit":5000,"remaining":4990,"reset":2000000000},"search":{"limit":30,"remaining":30,"reset":2000000000}}}'
+
+[[interaction]]
+args = ["pr", "view", "feature", "--json", "number,title,state,url,isDraft,mergeStateStatus,headRefName,baseRefName,statusCheckRollup"]
+exit = 0
+stdout = '{"number":42,"title":"Add forge pane","state":"OPEN","url":"https://github.com/kyleking/jojo/pull/42","isDraft":false,"mergeStateStatus":"BEHIND","headRefName":"feature","baseRefName":"main","statusCheckRollup":[{"conclusion":"success"},{"conclusion":"failure"}]}'
