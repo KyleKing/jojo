@@ -104,3 +104,15 @@ func seedRepo(t *testing.T) (*jj.Client, string) {
 
 	return client, dir
 }
+
+func readFile(t *testing.T, dir, name string) string {
+	t.Helper()
+
+	//nolint:gosec // G304: fixture helper reads a file this test just wrote into t.TempDir().
+	content, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+
+	return string(content)
+}

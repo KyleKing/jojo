@@ -67,3 +67,24 @@ var (
 	// a caller must not report the edit as done.
 	ErrNothingChanged = errors.New("nothing changed")
 )
+
+// Evolution is one entry of `jj evolog`: one version a change passed through,
+// and the operation that produced it.
+type Evolution struct {
+	CommitID    string
+	Description string
+	Age         string
+	Operation   string
+	Empty       bool
+}
+
+// Workspace is one entry of `jj workspace list`, a working copy attached to
+// this repository.
+type Workspace struct {
+	Name        string
+	ChangeID    string
+	CommitID    string
+	Description string
+	Root        string
+	Current     bool
+}
