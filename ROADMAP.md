@@ -104,8 +104,14 @@ someone lives in", and all four are now shipped:
 4. **Done.** A diff opens in a pane rather than handing the terminal to jj's pager,
    rendered by [jj-diff](https://github.com/KyleKing/jj-diff)'s `render` package (v0.3.0,
    published for this) so both tools draw a diff the same way
-5. **Done.** `config.toml` carries the theme, key rebinds, and saved revsets. jojo had no
-   user configuration at all, which is the thing that keeps people on jjui
+5. **Done.** `config.toml` carries a theme and key rebinds, and nothing else. Named
+   revsets were tried and dropped: jj's own `revset-aliases` already does that and the
+   revset box already completes them
+6. **Done.** `s` in the diff pane switches to side by side, drawn by the same jj-diff
+   package (v0.4.0), which now shares its two-column pairing with the diff editor
+7. **Done.** Moving part of a revision into a specific commit: `m` in the file list moves
+   one file with no editor at all, and `I` picks a destination here and hands hunk and line
+   selection to the configured diff editor
 
 ## Still open
 
@@ -115,8 +121,8 @@ someone lives in", and all four are now shipped:
 **Large repositories are untested.** The log loads 500 rows in one call with a diff stat
 per row. Nothing streams or pages.
 
-**A side-by-side diff** and file stepping (`[`/`]`) inside the pane. jj-diff's renderer
-can do side-by-side; jojo's pane only asks for unified.
+**File stepping (`[`/`]`) inside the diff pane**, so a multi-file diff can be walked by
+file rather than scrolled.
 
 [docs/requirements.md](docs/requirements.md) carries the rest: conflict resolution inside
 jj-diff's hunk engine rather than shelling out to `jj resolve`, a manual bisect form to sit
