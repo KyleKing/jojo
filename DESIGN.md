@@ -72,11 +72,23 @@ truncation, the warning line, the minimum frame, and hint degradation are writte
 rendering fix lands in all of them.
 
 **The diff is rendered by jj-diff, not by jojo.** `jj-diff/render` turns git-format diff
-text into styled lines, and jojo scrolls them. The parser, the word-level intra-line
-highlighting, and the syntax highlighting are the ones the diff editor uses, so the two
-tools cannot grow separate ideas of what a diff looks like. jojo passes its own palette in
-rather than inheriting jj-diff's theme. The one diff that still reaches jj's pager is an
-operation's, because `jj op show` prints a header no diff parser reads.
+text into styled lines, unified or side by side, and jojo scrolls them. The parser, the
+word-level intra-line highlighting, and the syntax highlighting are the ones the diff
+editor uses, so the two tools cannot grow separate ideas of what a diff looks like. jojo
+passes its own palette in rather than inheriting jj-diff's theme. The one diff that still
+reaches jj's pager is an operation's, because `jj op show` prints a header no diff parser
+reads.
+
+**Moving part of a revision is three commands, not a mode.** A whole revision moves with
+`s`, one file with `m` in the file list (`jj squash --from --into <path>`, no editor at
+all), and hunks or lines with `I`, which picks the destination here and hands the terminal
+to whichever diff editor the repository configures. jojo never reimplements hunk selection,
+and the file case never pays for an editor it does not need.
+
+**Configuration is two settings.** A theme and key rebinds, and nothing that jj already
+carries: named revsets are jj's `revset-aliases`, which the revset box completes, so jojo
+does not keep a second list of them. A setting jojo cannot honor stops startup, since a TUI
+has nowhere to report it once it is drawing.
 
 **Whoever is open owns the keys.** An open overlay takes every key before the log sees it,
 since they share `j` and `k`. Below that, Tab cycles the log, the revset box, and the forge

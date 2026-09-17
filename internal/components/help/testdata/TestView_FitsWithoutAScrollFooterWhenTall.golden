@@ -19,6 +19,7 @@
 │          s  squash                                       │
 │          S  split                                        │
 │          i  squash interactively                         │
+│          I  move hunks into any revision                 │
 │      Enter  diff the revision                            │
 │      Alt+d  diff any two revisions                       │
 │          a  abandon                                      │
@@ -34,7 +35,6 @@
 │          o  op log                                       │
 │          v  details of the revision                      │
 │          E  evolution of the revision                    │
-│          u  undo                                         │
-│                                              1-35 of 47  │
+│                                              1-35 of 48  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

@@ -42,6 +42,10 @@ func (m Model) handleFileMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		})
 
 		return m, cmd, true
+	case fileview.MoveMsg:
+		cmd := m.openMoveFile(msg.Revision, msg.Path)
+
+		return m, cmd, true
 	case fileview.ResolveMsg:
 		m.files.Close()
 

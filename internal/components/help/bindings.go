@@ -78,6 +78,10 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "i", What: "squash interactively"},
 	},
 	{
+		Layer: L2, Run: "I", Action: "move-hunks", Cmd: "jj squash -i --from <rev> --into <dest>",
+		Hint: keyhint.Hint{Key: "I", What: "move hunks into any revision"},
+	},
+	{
 		Layer: L2, Run: "enter", Action: "diff", Cmd: "jj diff -r <rev>",
 		Hint: keyhint.Hint{Key: "Enter", What: "diff the revision"},
 	},

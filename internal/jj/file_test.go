@@ -100,3 +100,40 @@ func TestFetchWithoutARemoteFails(t *testing.T) {
 		t.Fatal("Fetch() on a repository with no remote = nil, want an error naming the problem")
 	}
 }
+
+// Squashing with a path moves that file and leaves the rest of the revision where it is, which is
+// what makes the file-level move worth having beside the whole-revision one.
+func TestSquashMovesOnlyTheNamedPath(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	writeFile(t, dir, "base.txt", "base\n")
+	runJJ(t, dir, "commit", "-m", "base")
+	writeFile(t, dir, "moved.txt", "moved\n")
+	writeFile(t, dir, "stays.txt", "stays\n")
+	runJJ(t, dir, "describe", "-m", "source")
+
+	if _, err := client.Squash(ctx, "@", "@-", "moved.txt"); err != nil {
+		t.Fatalf("Squash: %v", err)
+	}
+
+	source, err := client.Files(ctx, "@")
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if paths := pathsOf(source); len(paths) != 1 || paths[0] != "stays.txt" {
+		t.Errorf("the source still holds %v, want only stays.txt", paths)
+	}
+
+	dest, err := client.Files(ctx, "@-")
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if paths := pathsOf(dest); len(paths) != 2 {
+		t.Errorf("the destination holds %v, want base.txt and moved.txt", paths)
+	}
+}

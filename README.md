@@ -89,11 +89,12 @@ the handlers read. The ones worth knowing before you start:
 | `:` | the command palette, listing every action and the jj command it runs |
 | `L` | edit the revset, which re-filters the log as you type |
 | `Tab` | cycle the log, the revset box, and the forge pane |
-| `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions |
-| `v` / `l` | details of the revision, or the files it touches |
+| `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions; `s` there switches to side by side |
+| `v` / `l` | details of the revision, or the files it touches, where `m` moves one file into another revision |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
-| `n` `e` `d` `s` `S` `i` `a` `A` `D` | new, edit, describe, squash, split, squash interactively, abandon, absorb, duplicate |
+| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
+| `i` / `I` | squash hunks into the parent, or into any revision you pick |
 | `r` / `R` | rebase the revision, or it and its descendants; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
 | `o` | the operation log, with restore, revert, and per-operation diff |
@@ -124,12 +125,10 @@ theme = "macchiato"
 # Move an action to another key, naming it the way `?` names it.
 [keys]
 describe = "M"
-
-# Expressions worth keeping, listed in the `:` palette by name.
-[revsets]
-mine = "author_email(exact:'you@example.com') ~ ::trunk()"
-review = "trunk()..@"
 ```
+
+That is the whole file. Named revsets are jj's own `revset-aliases`, which the revset box
+already completes, so jojo does not keep a second list of them.
 
 A rebind moves a key rather than adding one, and jojo refuses to start on a setting it
 cannot honor (an action it does not have, two actions on one key, a theme it does not

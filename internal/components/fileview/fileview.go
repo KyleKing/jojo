@@ -25,6 +25,12 @@ type RestoreMsg struct {
 	Path     string
 }
 
+// MoveMsg asks to move one file into another revision, leaving the rest of this one alone.
+type MoveMsg struct {
+	Revision string
+	Path     string
+}
+
 // ResolveMsg asks to run the merge tool over one conflicted file.
 type ResolveMsg struct {
 	Revision string
@@ -90,6 +96,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return m.send(func(path string) tea.Msg { return DiffMsg{Revision: m.revision, Path: path} })
 	case "r":
 		return m.send(func(path string) tea.Msg { return RestoreMsg{Revision: m.revision, Path: path} })
+	case "m":
+		return m.send(func(path string) tea.Msg { return MoveMsg{Revision: m.revision, Path: path} })
 	case "c":
 		return m.resolve()
 	case "esc", "q", "l":
@@ -134,6 +142,7 @@ func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "enter", What: "diff"},
 		{Key: "r", What: "restore"},
+		{Key: "m", What: "move"},
 		{Key: "c", What: "resolve"},
 		{Key: "esc", What: "close"},
 	})

@@ -88,10 +88,21 @@ func (c *Client) Describe(ctx context.Context, rev, message string) (string, err
 }
 
 // Squash moves from's changes into into.
-func (c *Client) Squash(ctx context.Context, from, into string) (string, error) {
-	// Without --use-destination-message jj opens $EDITOR to combine the two
-	// descriptions, which blocks a TUI that has its own describe flow.
-	return c.mutate(ctx, "squash", "--from", from, "--into", into, "--use-destination-message")
+func (c *Client) Squash(ctx context.Context, from, into string, paths ...string) (string, error) {
+	return c.mutate(ctx, SquashArgs(from, into, paths)...)
+}
+
+// SquashArgs is the invocation Squash runs, exported because moving part of a revision needs the
+// same command handed to a diff editor holding the terminal.
+func SquashArgs(from, into string, paths []string) []string {
+	// Without --use-destination-message jj opens $EDITOR to combine the two descriptions, which
+	// blocks a TUI that has its own describe flow.
+	const fixed = 6
+
+	args := make([]string, 0, fixed+len(paths))
+	args = append(args, "squash", "--from", from, "--into", into, "--use-destination-message")
+
+	return append(args, paths...)
 }
 
 // Abandon abandons revs, rebasing their descendants onto their parents.

@@ -115,6 +115,10 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 		return m, m.exec("split"+undoHint, "split", "-i", "-r", rev.ChangeID), true
 	case "i":
 		return m, m.exec("squashed interactively"+undoHint, "squash", "-i", "-r", rev.ChangeID), true
+	case "I":
+		cmd := m.openMoveHunks(rev)
+
+		return m, cmd, true
 	case "alt+d":
 		cmd := m.openDiffRange()
 
@@ -149,13 +153,15 @@ func (m Model) exec(done string, args ...string) tea.Cmd {
 
 func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 	revset := m.revset
-	// The repaint covers whatever jj printed, so the message has to name the command that failed.
+	// The repaint covers whatever the tool printed, so the message has to name the command itself.
+	// An exit status says nothing a reader who just quit the editor does not already know, so the
+	// line reports the one fact that matters: nothing was written.
 	what := strings.Join(cmd.Args, " ")
 
 	return tea.Sequence(
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {
-				return messageMsg{text: what + ": " + err.Error()}
+				return messageMsg{text: what + " did not finish"}
 			}
 
 			return messageMsg{text: done}

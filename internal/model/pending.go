@@ -49,6 +49,36 @@ func (m *Model) openSquash(rev jj.Revision) tea.Cmd {
 	return m.destPicker.Open("squash "+id+" into", m.rows, id)
 }
 
+// openMoveHunks asks for the destination, then hands the terminal to jj's configured diff editor,
+// which is where the hunks and lines actually get picked. Nothing here reimplements that selection.
+func (m *Model) openMoveHunks(rev jj.Revision) tea.Cmd {
+	id := rev.ChangeID
+	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
+		into := dest.Revision.ChangeID
+		args := append(jj.SquashArgs(id, into, nil), "--interactive")
+
+		return m, m.exec("moved part of "+id+" into "+into+undoHint, args...)
+	}
+
+	return m.destPicker.Open("move part of "+id+" into", m.rows, id)
+}
+
+// openMoveFile asks for the destination and moves one path, which needs no editor at all. It is the
+// shortest path from "this file belongs in that commit" to it being there.
+func (m *Model) openMoveFile(from, path string) tea.Cmd {
+	m.files.Close()
+	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
+		into := dest.Revision.ChangeID
+		cmd := m.act(path, func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.Squash(ctx, from, into, path)
+		})
+
+		return m, cmd
+	}
+
+	return m.destPicker.Open("move "+path+" into", m.rows, from)
+}
+
 // openRebase asks for the destination. Scope is decided by the key that was pressed, because jj's -r
 // and -s move different things and guessing between them rewrites the wrong revisions.
 func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {

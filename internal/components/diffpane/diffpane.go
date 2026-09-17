@@ -23,6 +23,8 @@ type Model struct {
 	text  string
 	list  listview.Model[string]
 	width int
+	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
+	sideBySide bool
 }
 
 // New returns a closed pane drawn in skin.
@@ -55,10 +57,11 @@ func (m *Model) SetWidth(width int) {
 
 func (m *Model) render() {
 	lines := render.Lines(m.text, render.Options{
-		Width:    m.list.InnerWidth(m.width),
-		Palette:  paletteFor(m.skin),
-		Syntax:   true,
-		WordDiff: true,
+		Width:      m.list.InnerWidth(m.width),
+		Palette:    paletteFor(m.skin),
+		Syntax:     true,
+		WordDiff:   true,
+		SideBySide: m.sideBySide,
 	})
 
 	m.list.Open(m.title, lines, 0)
@@ -82,7 +85,14 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	if name == "esc" || name == "q" {
+	switch name {
+	case "s":
+		cursor := m.list.Cursor()
+		m.sideBySide = !m.sideBySide
+
+		m.render()
+		m.list.Open(m.title, m.list.Items(), cursor)
+	case "esc", "q":
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
@@ -95,6 +105,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "j k", What: "scroll"},
+		{Key: "s", What: "side by side"},
 		{Key: "esc", What: "close"},
 	})
 }

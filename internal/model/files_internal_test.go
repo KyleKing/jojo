@@ -108,3 +108,31 @@ func TestPushSaysNothingToPushRatherThanAsking(t *testing.T) {
 		t.Error("a push that would do nothing reported nothing")
 	}
 }
+
+// Moving one file has to name that file in the squash, or it moves the whole revision.
+func TestMoveFileSquashesOnlyThatPath(t *testing.T) {
+	t.Parallel()
+
+	model := openFiles(t, []jj.FileChange{{Status: "M", Path: "a.txt"}})
+
+	next, cmd := model.Update(tea.KeyPressMsg{Code: 'm', Text: "m"})
+	if cmd == nil {
+		t.Fatal("m produced no command")
+	}
+
+	move, ok := cmd().(fileview.MoveMsg)
+	if !ok {
+		t.Fatalf("m produced %T, want a move", cmd())
+	}
+
+	picking := asModel(t, next)
+	picking = asModel(t, update(picking, move))
+
+	if !picking.destPicker.IsOpen() {
+		t.Fatal("moving a file did not ask for a destination")
+	}
+
+	if picking.files.IsOpen() {
+		t.Error("the file list stayed open under the destination picker")
+	}
+}
