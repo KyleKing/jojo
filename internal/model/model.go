@@ -93,7 +93,6 @@ type Model struct {
 	onPick     picked
 	keys       help.Keymap
 	redoOp     string
-	saved      map[string]string
 	revset     string
 	message    string
 	lastOp     string
@@ -110,9 +109,7 @@ type Model struct {
 // Options are the settings a user states in config.toml, which New folds into the model rather than
 // reading itself, so a test can pass its own without a file on disk.
 type Options struct {
-	// Revsets are named expressions the command palette offers, on top of the actions.
-	Revsets map[string]string
-	Keys    help.Keymap
+	Keys help.Keymap
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -140,7 +137,6 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		status:     statusbar.New(skin),
 		help:       help.New(skin, opts.Keys),
 		keys:       opts.Keys,
-		saved:      opts.Revsets,
 		revset:     revset,
 	}
 }

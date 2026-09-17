@@ -1,10 +1,6 @@
 package model
 
 import (
-	"maps"
-	"slices"
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/palette"
@@ -35,7 +31,7 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, nil, true
 	case palette.RunMsg:
-		next, cmd := m.dispatch(msg.ID)
+		next, cmd := m.dispatch(msg.Key)
 
 		return next, cmd, true
 	case palette.CancelledMsg:
@@ -47,20 +43,9 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// revsetPrefix marks a palette entry that names a revset rather than a key. No key contains a
-// space, so the two families cannot collide.
-const revsetPrefix = "revset "
-
-// dispatch runs what the palette picked through the same handlers the keypress itself reaches, so
-// the palette can never do something a key cannot.
+// dispatch runs the key the palette picked through the same handlers the keypress itself reaches,
+// so the palette can never do something a key cannot.
 func (m Model) dispatch(id string) (tea.Model, tea.Cmd) {
-	if expr, ok := strings.CutPrefix(id, revsetPrefix); ok {
-		// The box is the one place the active revset is editable, so it has to show what just ran.
-		m.revsetBox.SetValue(expr)
-
-		return m, m.loadLog(expr)
-	}
-
 	if next, cmd, handled := m.handleRootKey(id); handled {
 		return next, cmd
 	}
@@ -73,19 +58,13 @@ func (m Model) dispatch(id string) (tea.Model, tea.Cmd) {
 }
 
 // paletteCommands is the keymap itself, filtered to what a single key runs, so an entry cannot drift
-// from the binding it names, followed by the revsets the user saved.
+// from the binding it names.
 func (m Model) paletteCommands() []palette.Command {
 	bindings := m.keys.Runnable()
-	commands := make([]palette.Command, 0, len(bindings)+len(m.saved))
+	commands := make([]palette.Command, 0, len(bindings))
 
 	for _, b := range bindings {
-		commands = append(commands, palette.Command{ID: b.Run, Key: b.Run, Name: b.What, What: b.Cmd})
-	}
-
-	for _, name := range slices.Sorted(maps.Keys(m.saved)) {
-		expr := m.saved[name]
-		commands = append(commands,
-			palette.Command{ID: revsetPrefix + expr, Name: "revset: " + name, What: expr})
+		commands = append(commands, palette.Command{Key: b.Run, Name: b.What, What: b.Cmd})
 	}
 
 	return commands

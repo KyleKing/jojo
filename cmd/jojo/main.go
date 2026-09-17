@@ -63,25 +63,25 @@ func probe(ctx context.Context, client *jj.Client, wantRevset bool) (string, str
 	return root, revset, nil
 }
 
-// configure reads config.toml and turns it into the three things the app is built from. A setting
-// jojo cannot honor stops startup, since a TUI has nowhere to report it afterwards.
-func configure() (config.Config, ui.Skin, help.Keymap, error) {
+// configure reads config.toml and turns it into the two things the app is built from. A setting jojo
+// cannot honor stops startup, since a TUI has nowhere to report it afterwards.
+func configure() (ui.Skin, help.Keymap, error) {
 	settings, err := config.Load()
 	if err != nil {
-		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("loading the config: %w", err)
+		return ui.Skin{}, help.Keymap{}, fmt.Errorf("loading the config: %w", err)
 	}
 
 	skin, err := ui.Flavor(settings.Theme)
 	if err != nil {
-		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("reading theme: %w", err)
+		return ui.Skin{}, help.Keymap{}, fmt.Errorf("reading theme: %w", err)
 	}
 
 	keys, err := help.NewKeymap(settings.Keys)
 	if err != nil {
-		return config.Config{}, ui.Skin{}, help.Keymap{}, fmt.Errorf("reading keys: %w", err)
+		return ui.Skin{}, help.Keymap{}, fmt.Errorf("reading keys: %w", err)
 	}
 
-	return settings, skin, keys, nil
+	return skin, keys, nil
 }
 
 func main() {
@@ -103,7 +103,7 @@ func run() error {
 		return nil
 	}
 
-	settings, skin, keys, err := configure()
+	skin, keys, err := configure()
 	if err != nil {
 		return err
 	}
@@ -124,8 +124,7 @@ func run() error {
 		*revset = configured
 	}
 
-	app := model.New(ctx, client, skin, root, *revset,
-		model.Options{Keys: keys, Revsets: settings.Revsets})
+	app := model.New(ctx, client, skin, root, *revset, model.Options{Keys: keys})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}

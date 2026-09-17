@@ -44,14 +44,14 @@ func TestLoadWithoutAFileIsNotAnError(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Theme != "" || cfg.Keys != nil || cfg.Revsets != nil {
+	if cfg.Theme != "" || cfg.Keys != nil {
 		t.Errorf("Load() = %#v, want the zero config", cfg)
 	}
 }
 
 //nolint:paralleltest // t.Setenv forbids it.
 func TestLoadReadsEverySetting(t *testing.T) {
-	writeConfig(t, "theme = \"latte\"\n\n[keys]\ndescribe = \"M\"\n\n[revsets]\nmine = \"mine()\"\n")
+	writeConfig(t, "theme = \"latte\"\n\n[keys]\ndescribe = \"M\"\n")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -64,10 +64,6 @@ func TestLoadReadsEverySetting(t *testing.T) {
 
 	if cfg.Keys["describe"] != "M" {
 		t.Errorf("Keys = %v, want describe on M", cfg.Keys)
-	}
-
-	if cfg.Revsets["mine"] != "mine()" {
-		t.Errorf("Revsets = %v, want mine", cfg.Revsets)
 	}
 }
 
