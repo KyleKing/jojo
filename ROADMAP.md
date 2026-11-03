@@ -23,6 +23,11 @@ readable.
 5. Operation log view
 6. Evolution timeline and interdiff
 7. Workspace panel
+8. Repo health surface: stale-working-copy recovery, conflicted-bookmark resolution,
+   and divergent-side abandonment, built on the markers the log view already carries.
+   The stale-checkout detection has to exist from day one in practice, because any jj
+   command the app itself runs can hit or cause it — see the serialized-command-queue
+   note in requirements.md
 
 ## Operation log view
 

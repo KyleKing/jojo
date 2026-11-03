@@ -242,6 +242,40 @@ logically, not as pre-rendered text markers, until you check them out) and let t
 existing hunk-selection UI drive picking a side or hand-editing, falling back to
 `jj resolve --tool` for cases genuinely better handled by an external merge tool.
 
+## Repo health and recovery
+
+jj can leave a repository in a state where every command fails the same way until one
+specific recovery command runs, and the CLI's only answer is the hint inside the error
+text. A TUI is in a position to detect each state and offer its fix as an action, and it
+has to, because a TUI that shells out to jj can create the state itself: a mutating
+command run concurrently with a working-copy snapshot diverges the op heads (the op log
+records it as "reconcile divergent operations") and strands the checkout. Every mutating
+jj invocation the app makes therefore goes through a serialized queue — running an
+`--ignore-working-copy` push in parallel with a snapshot is the mid-push race that
+produces this.
+
+The recovery ladder is update-stale → op restore → re-clone, each rung more destructive
+than the last, so the UI offers them in that order and stops at the first that works.
+
+- **Stale working copy.** jj refuses every command until `jj workspace update-stale`.
+  Detect at startup and on the error's own stderr when a command fails; one keypress
+  runs it and repaints. update-stale also runs the git import, which is jj's answer when
+  its view of a colocated git object store drifts (checkout errors naming objects git
+  itself reads fine).
+- **Conflicted bookmarks.** `jj bookmark list` marks them `(conflicted)` and lists each
+  side with its tracking state. Give them the same first-class marker conflicted commits
+  get, and resolve with `jj bookmark set <name> -r <side>`; the remote-tracking side is
+  the right default when the divergence is a local rewrite after a push, since it's the
+  version that already exported.
+- **Divergent changes.** Rewriting a change after its commit was pushed leaves the
+  pushed version live and the rewrite unreachable, and they accumulate silently. The
+  cleanup is `jj abandon 'divergent() & ~::trunk()'` — list the set first, since each
+  abandoned row's live twin on the trunk is what stays.
+- **Undo that can't.** `jj undo` refuses when the head operation merges divergent op
+  heads. The op log view marks which operations are undoable and offers
+  `jj op restore <op>` onto a chosen earlier operation, the CLI's own next rung before
+  cloning again.
+
 ## Long-term: sharing the operation log across machines via the git remote
 
 This is an explicit workaround, not a permanent design. jj has no export/import command
