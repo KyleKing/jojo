@@ -403,3 +403,34 @@ func onlyRevision(t *testing.T, rows []jj.LogRow) *jj.Revision {
 
 	return nil
 }
+
+func TestClient_SerializesBehindTheQueueLock(t *testing.T) {
+	t.Parallel()
+
+	client, _ := testRepo(t)
+
+	client.Lock()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		if _, err := client.Root(context.Background()); err != nil {
+			t.Errorf("Root: %v", err)
+		}
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("jj ran while the queue was held; an interactive verb must block every other call")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	client.Unlock()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("jj did not run after the queue was released")
+	}
+}

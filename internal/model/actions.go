@@ -152,13 +152,14 @@ func (m Model) exec(done string, args ...string) tea.Cmd {
 }
 
 func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
-	revset := m.revset
+	revset, client := m.revset, m.client
 	// The repaint covers whatever the tool printed, so the message has to name the command itself.
 	// An exit status says nothing a reader who just quit the editor does not already know, so the
 	// line reports the one fact that matters: nothing was written.
 	what := strings.Join(cmd.Args, " ")
 
 	return tea.Sequence(
+		func() tea.Msg { client.Lock(); return nil },
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {
 				return messageMsg{text: what + " did not finish"}
@@ -166,6 +167,7 @@ func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 
 			return messageMsg{text: done}
 		}),
+		func() tea.Msg { client.Unlock(); return nil },
 		m.loadLog(revset),
 	)
 }

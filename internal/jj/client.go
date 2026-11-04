@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // defaultRevsetFallback is jj's own built-in default for revsets.log, used when the config key
@@ -20,6 +21,10 @@ type Client struct {
 	// ignoreImmutable adds --ignore-immutable to every write. jj refuses to rewrite immutable
 	// revisions for a reason, so only a client built by IgnoringImmutable sets it.
 	ignoreImmutable bool
+	// queue serializes every jj invocation, including the reads, because a snapshot taken while a
+	// write is still running diverges the op heads and strands the checkout. A pointer, so the
+	// copy IgnoringImmutable returns shares one queue with its source.
+	queue *sync.Mutex
 }
 
 // IgnoringImmutable returns a client whose writes rewrite revisions jj protects. Callers gate it
@@ -34,7 +39,7 @@ func (c *Client) IgnoringImmutable() *Client {
 // NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
 // call acts on.
 func NewClient(baseDir string) *Client {
-	return &Client{baseDir: baseDir}
+	return &Client{baseDir: baseDir, queue: &sync.Mutex{}}
 }
 
 // CheckInstalled reports whether a jj binary is on PATH. It deliberately does not run jj: every
@@ -91,9 +96,20 @@ func (c *Client) executeJJ(ctx context.Context, args ...string) (string, error) 
 	return out, err
 }
 
+// Lock takes the command queue for a jj invocation this package does not run itself, which is how
+// the interactive verbs handed the real terminal serialize against every other command. The caller
+// must Unlock, or every later jj call waits forever.
+func (c *Client) Lock() { c.queue.Lock() }
+
+// Unlock releases the queue Lock took.
+func (c *Client) Unlock() { c.queue.Unlock() }
+
 // execute returns jj's stdout and, on success, the notices it writes to stderr,
 // which is where jj says what it did.
 func (c *Client) execute(ctx context.Context, args ...string) (string, string, error) {
+	c.queue.Lock()
+	defer c.queue.Unlock()
+
 	cmd := c.jjCommand(ctx, args...)
 
 	var stdout, stderr bytes.Buffer
