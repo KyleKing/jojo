@@ -116,11 +116,10 @@ someone lives in", and all four are now shipped:
 
 ## Still open
 
-**No release has been cut.** `.goreleaser.yml` has the homebrew cask configured against
-`kyleking/homebrew-tap` and it has never run, so nobody can install jojo.
-
 **Large repositories are untested.** The log loads 500 rows in one call with a diff stat
-per row. Nothing streams or pages.
+per row, and reaching the last row doubles the window and reloads, so deep history pages
+in rather than cutting off. Startup cost on a repo with tens of thousands of reachable
+revisions is still unmeasured.
 
 [docs/requirements.md](docs/requirements.md) carries the rest: conflict resolution inside
 jj-diff's hunk engine rather than shelling out to `jj resolve`, a manual bisect form to sit

@@ -33,6 +33,8 @@ import (
 )
 
 // logLimit caps one query, because a revset over the whole repository costs a diff stat per row.
+// The cap doubles each time the cursor reaches the last loaded row, so a long history pages in
+// rather than cutting off at the first window.
 const logLimit = 500
 
 // messageLife is how long a "done, press u to undo" line stays up.
@@ -101,8 +103,10 @@ type Model struct {
 	focus      focus
 	width      int
 	height     int
+	logWindow  int
 	showForge  bool
 	showHelp   bool
+	logFull    bool
 	quitting   bool
 }
 
@@ -138,6 +142,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		help:       help.New(skin, opts.Keys),
 		keys:       opts.Keys,
 		revset:     revset,
+		logWindow:  logLimit,
 	}
 }
 
@@ -147,10 +152,10 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {
-	client, ctx := m.client, m.ctx
+	client, ctx, limit := m.client, m.ctx, m.logWindow
 
 	return func() tea.Msg {
-		rows, err := client.Log(ctx, revset, logLimit)
+		rows, err := client.Log(ctx, revset, limit)
 
 		return logLoadedMsg{revset: revset, rows: rows, err: err}
 	}
@@ -246,6 +251,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.revsetBox.SetError(nil)
 	m.revset = msg.revset
 	m.rows = msg.rows
+	m.logFull = len(msg.rows) >= m.logWindow
 	m.log.SetRows(msg.rows)
 	m.resize()
 

@@ -36,6 +36,12 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	cmd := m.log.Update(msg)
 
+	if m.log.AtEnd() && m.logFull {
+		m.logWindow *= 2
+
+		return m, tea.Batch(cmd, m.loadLog(m.revset))
+	}
+
 	return m, cmd
 }
 

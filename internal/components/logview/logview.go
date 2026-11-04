@@ -102,6 +102,10 @@ func (m Model) Selected() *jj.Revision {
 	return m.rows[m.cursor].Revision
 }
 
+// AtEnd reports whether no revision sits below the cursor, which is how the caller learns that
+// scrolling ran out of the rows it has loaded.
+func (m Model) AtEnd() bool { return len(m.rows) > 0 && m.nextRevision(m.cursor, 1) == m.cursor }
+
 // Checked returns the change ids marked for a batch action, in log order.
 func (m Model) Checked() []string {
 	ids := make([]string, 0, len(m.checked))
