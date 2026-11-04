@@ -300,3 +300,51 @@ func TestViewGolden(t *testing.T) {
 
 	tuitest.AssertGolden(t, m.View(testWidth, testHeight))
 }
+
+func TestResolveTargetsTheRemoteSide(t *testing.T) {
+	t.Parallel()
+
+	m := bookmarkview.New(testSkin())
+	m.Open([]jj.Bookmark{
+		local("main", "aaa", "local side", true),
+		remote("main", "bbb", 0, true),
+	}, "zzz")
+
+	msg, ok := drainMsg[bookmarkview.ResolveMsg](m.Update(tuitest.Key("x")))
+	if !ok {
+		t.Fatal("Update(x) did not emit ResolveMsg")
+	}
+
+	if msg.Name != "main" || msg.Ref != "main@origin" {
+		t.Errorf("ResolveMsg = %#v, want Name main resolving to main@origin", msg)
+	}
+
+	if m.IsOpen() {
+		t.Error("Update(x) did not close the panel")
+	}
+}
+
+func TestResolveRefusesRowsWithNothingToResolve(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		marks []jj.Bookmark
+	}{
+		{name: "clean bookmark", marks: []jj.Bookmark{local("main", "aaa", "one", false)}},
+		{name: "conflicted without a remote side", marks: []jj.Bookmark{local("main", "aaa", "one", true)}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := bookmarkview.New(testSkin())
+			m.Open(tc.marks, "zzz")
+
+			if _, ok := drainMsg[bookmarkview.ResolveMsg](m.Update(tuitest.Key("x"))); ok {
+				t.Error("Update(x) emitted ResolveMsg with nothing valid to resolve to")
+			}
+		})
+	}
+}

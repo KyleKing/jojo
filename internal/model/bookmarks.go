@@ -66,6 +66,10 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		}), true
 	case bookmarkview.PushMsg:
 		return m, m.previewPush(msg.Name, jj.PushOptions{Bookmarks: []string{msg.Name}}), true
+	case bookmarkview.ResolveMsg:
+		return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
+			return m.client.BookmarkSet(ctx, msg.Name, msg.Ref)
+		}), true
 	case pushPreviewMsg:
 		return m.offerPush(msg)
 	}

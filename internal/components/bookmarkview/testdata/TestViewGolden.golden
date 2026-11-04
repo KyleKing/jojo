@@ -1,12 +1,12 @@
                                                                                                     
-    ╭──────────────────────────────────────────────────────────────────────────────────────────╮    
-    │                                                                                          │    
-    │  bookmarks @ zzz999                                                                      │    
-    │    main                 aaa111            trunk work                                     │    
-    │    feature@origin       bbb222   ↑2 ↓0                                                   │    
-    │  ! hotfix               ccc333            urgent fix                                     │    
-    │  [s]et  [a]dvance  [c]reate  [r]ename  [d]elete  [f]orget  [t]rack  [p]ush  [esc] close  │    
-    │                                                                                          │    
-    ╰──────────────────────────────────────────────────────────────────────────────────────────╯    
+  ╭─────────────────────────────────────────────────────────────────────────────────────────────╮   
+  │                                                                                             │   
+  │  bookmarks @ zzz999                                                                         │   
+  │    main                 aaa111            trunk work                                        │   
+  │    feature@origin       bbb222   ↑2 ↓0                                                      │   
+  │  ! hotfix               ccc333            urgent fix                                        │   
+  │  [s]et  [a]dvance  [c]reate  [r]ename  [d]elete  [f]orget  [t]rack  [p]ush  …  [esc] close  │   
+  │                                                                                             │   
+  ╰─────────────────────────────────────────────────────────────────────────────────────────────╯   
                                                                                                     
                                                                                                     

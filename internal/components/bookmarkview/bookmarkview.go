@@ -68,6 +68,15 @@ type PushMsg struct {
 	Name string
 }
 
+// ResolveMsg is sent when the user asks to settle a conflicted bookmark onto
+// Ref, which is the remote-tracking side: it is the version that already
+// exported, so it is the right default when the conflict is a local rewrite
+// after a push.
+type ResolveMsg struct {
+	Name string
+	Ref  string
+}
+
 // CancelledMsg is sent when the panel is dismissed without an action.
 type CancelledMsg struct{}
 
@@ -139,6 +148,8 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 		return m.toggleTrack()
 	case "p":
 		return m.push()
+	case "x":
+		return m.resolve()
 	case "esc", "q", "b":
 		m.Close()
 
@@ -271,11 +282,53 @@ func (m *Model) push() tea.Cmd {
 	return func() tea.Msg { return PushMsg{Name: mark.Name} }
 }
 
+// resolve settles a conflicted bookmark on its remote side, which only exists when a remote row
+// carries the same name. A tracked remote wins over an untracked one, since tracking is the pair jj
+// already treats as the bookmark's other half.
+func (m *Model) resolve() tea.Cmd {
+	mark, ok := m.list.Selected()
+	if !ok {
+		return nil
+	}
+
+	if mark.Remote != "" {
+		m.list.Warn(remoteOnlyWarning)
+
+		return nil
+	}
+
+	if !mark.Conflict {
+		m.list.Warn("only a conflicted bookmark resolves")
+
+		return nil
+	}
+
+	remote, found := "", false
+	for _, other := range m.list.Items() {
+		if other.Name == mark.Name && other.Remote != "" {
+			remote, found = other.Remote, true
+			if other.Tracked {
+				break
+			}
+		}
+	}
+
+	if !found {
+		m.list.Warn("no remote side to resolve to")
+
+		return nil
+	}
+
+	m.Close()
+
+	return func() tea.Msg { return ResolveMsg{Name: mark.Name, Ref: mark.Name + "@" + remote} }
+}
+
 // View renders the title (with the target change id), a warning line when
 // set, one row per bookmark, a scroll-position footer when clipped, and a key
 // hint line, centered in a width by height frame.
 func (m Model) View(width, height int) string {
-	return m.list.View(width, height, m.row, []keyhint.Hint{
+	hints := []keyhint.Hint{
 		{Key: "s", What: "set"},
 		{Key: "a", What: "advance"},
 		{Key: "c", What: "create"},
@@ -284,8 +337,18 @@ func (m Model) View(width, height int) string {
 		{Key: "f", What: "forget"},
 		{Key: "t", What: "track"},
 		{Key: "p", What: "push"},
-		{Key: "esc", What: "close"},
-	})
+	}
+
+	// Resolve only earns its hint when a row can take it.
+	for _, mark := range m.list.Items() {
+		if mark.Conflict && mark.Remote == "" {
+			hints = append(hints, keyhint.Hint{Key: "x", What: "resolve"})
+
+			break
+		}
+	}
+
+	return m.list.View(width, height, m.row, append(hints, keyhint.Hint{Key: "esc", What: "close"}))
 }
 
 func titleText(target string) string {
