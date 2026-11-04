@@ -15,8 +15,8 @@ type staleMsg struct {
 	err error
 }
 
-// openStale offers the first rung of the recovery ladder: update-stale before op restore, which
-// before re-cloning. jj's own error text is the detail because it names the operation the checkout
+// openStale offers the first rung of the recovery ladder — update-stale before op restore, before
+// re-cloning — and jj's own error text is the detail because it names the operation the checkout
 // fell behind.
 func (m *Model) openStale(err error) tea.Cmd {
 	return m.confirm.Open(confirm.Request{
@@ -58,7 +58,9 @@ func (m Model) previewDivergent() tea.Cmd {
 func (m Model) offerDivergent(msg divergentPreviewMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, jj.ErrStaleWorkingCopy):
-		return m, m.openStale(msg.err)
+		cmd := m.openStale(msg.err)
+
+		return m, cmd
 	case msg.err != nil:
 		m.message = msg.err.Error()
 

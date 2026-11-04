@@ -186,7 +186,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logLoadedMsg:
 		return m.applyLog(msg)
 	case staleMsg:
-		return m, m.openStale(msg.err)
+		cmd := m.openStale(msg.err)
+
+		return m, cmd
 	case divergentPreviewMsg:
 		return m.offerDivergent(msg)
 	case messageMsg:
@@ -231,7 +233,9 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 		}
 
 		if errors.Is(msg.err, jj.ErrStaleWorkingCopy) {
-			return m, m.openStale(msg.err)
+			cmd := m.openStale(msg.err)
+
+			return m, cmd
 		}
 
 		m.message = msg.err.Error()

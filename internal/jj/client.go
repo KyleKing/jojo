@@ -16,14 +16,14 @@ const defaultRevsetFallback = "builtin_log()"
 // Client runs jj in one repository. Every call shells out and blocks, so callers wrap them in a
 // tea.Cmd.
 type Client struct {
+	// queue serializes every jj invocation, including the reads, because a snapshot taken while a
+	// write is still running diverges the op heads and strands the checkout. A channel rather than
+	// a mutex, so the copy IgnoringImmutable returns shares the one queue with its source.
+	queue   chan struct{}
 	baseDir string
 	// ignoreImmutable adds --ignore-immutable to every write. jj refuses to rewrite immutable
 	// revisions for a reason, so only a client built by IgnoringImmutable sets it.
 	ignoreImmutable bool
-	// queue serializes every jj invocation, including the reads, because a snapshot taken while a
-	// write is still running diverges the op heads and strands the checkout. A channel rather than
-	// a mutex, so the copy IgnoringImmutable returns shares the one queue with its source.
-	queue chan struct{}
 }
 
 // IgnoringImmutable returns a client whose writes rewrite revisions jj protects. Callers gate it

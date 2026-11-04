@@ -26,6 +26,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 
+	if next, cmd, handled := m.panelKey(key); handled {
+		return next, cmd
+	}
+
 	if next, cmd, handled := m.handleActionKey(key); handled {
 		return next, cmd
 	}
@@ -101,6 +105,24 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.redo(), true
 	case "ctrl+l":
 		return m, m.loadLog(m.revset), true
+	case "/":
+		cmd := m.find.Open()
+		m.resize()
+
+		return m, cmd, true
+	case ":":
+		cmd := m.palette.Open(m.paletteCommands())
+
+		return m, cmd, true
+	}
+
+	return m, nil, false
+}
+
+// panelKey covers the keys that open a panel of their own or fire a whole-repository action,
+// which read and reload rather than act on the revision under the cursor.
+func (m Model) panelKey(key string) (tea.Model, tea.Cmd, bool) {
+	switch key {
 	case "o":
 		return m, m.loadOpLog(), true
 	case "w":
@@ -109,17 +131,8 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadBookmarks(), true
 	case "f":
 		return m, m.fetch(), true
-	case "/":
-		cmd := m.find.Open()
-		m.resize()
-
-		return m, cmd, true
 	case "x":
 		return m, m.previewDivergent(), true
-	case ":":
-		cmd := m.palette.Open(m.paletteCommands())
-
-		return m, cmd, true
 	}
 
 	return m, nil, false

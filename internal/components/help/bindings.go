@@ -190,9 +190,9 @@ func NewKeymap(overrides map[string]string) (Keymap, error) {
 	bindings := slices.Clone(defaultBindings)
 	actions := map[string]int{}
 
-	for i, b := range bindings {
-		if b.Action != "" {
-			actions[b.Action] = i
+	for i := range bindings {
+		if bindings[i].Action != "" {
+			actions[bindings[i].Action] = i
 		}
 	}
 
@@ -223,7 +223,8 @@ const unbound = "\x00"
 func translation(bindings []Binding) (map[string]string, error) {
 	fromDefault := map[string]string{}
 
-	for _, b := range defaultBindings {
+	for i := range defaultBindings {
+		b := &defaultBindings[i]
 		if b.Action != "" {
 			fromDefault[b.Action] = b.Run
 		}
@@ -231,7 +232,8 @@ func translation(bindings []Binding) (map[string]string, error) {
 
 	held := map[string]string{}
 
-	for _, b := range bindings {
+	for i := range bindings {
+		b := &bindings[i]
 		if b.Action == "" {
 			continue
 		}
@@ -275,7 +277,8 @@ func (k Keymap) Resolve(pressed string) string {
 func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
 	out := make([]keyhint.Hint, 0, len(k.bindings))
 
-	for _, b := range k.bindings {
+	for i := range k.bindings {
+		b := &k.bindings[i]
 		if b.Head {
 			continue
 		}
@@ -294,8 +297,8 @@ func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
 // renders.
 func (k Keymap) AllHints() []keyhint.Hint {
 	out := make([]keyhint.Hint, len(k.bindings))
-	for i, b := range k.bindings {
-		out[i] = b.Hint
+	for i := range k.bindings {
+		out[i] = k.bindings[i].Hint
 	}
 
 	return out
@@ -305,9 +308,9 @@ func (k Keymap) AllHints() []keyhint.Hint {
 func (k Keymap) Runnable() []Binding {
 	out := make([]Binding, 0, len(k.bindings))
 
-	for _, b := range k.bindings {
-		if b.Run != "" {
-			out = append(out, b)
+	for i := range k.bindings {
+		if k.bindings[i].Run != "" {
+			out = append(out, k.bindings[i])
 		}
 	}
 

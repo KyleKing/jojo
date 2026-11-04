@@ -50,6 +50,10 @@ func (m Model) dispatch(id string) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 
+	if next, cmd, handled := m.panelKey(id); handled {
+		return next, cmd
+	}
+
 	if next, cmd, handled := m.handleActionKey(id); handled {
 		return next, cmd
 	}
@@ -63,7 +67,8 @@ func (m Model) paletteCommands() []palette.Command {
 	bindings := m.keys.Runnable()
 	commands := make([]palette.Command, 0, len(bindings))
 
-	for _, b := range bindings {
+	for i := range bindings {
+		b := &bindings[i]
 		commands = append(commands, palette.Command{Key: b.Run, Name: b.What, What: b.Cmd})
 	}
 

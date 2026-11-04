@@ -76,7 +76,9 @@ func diffTitle(t jj.DiffTarget) string {
 func (m Model) openDiff(msg diffLoadedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, jj.ErrStaleWorkingCopy):
-		return m, m.openStale(msg.err)
+		cmd := m.openStale(msg.err)
+
+		return m, cmd
 	case msg.err != nil:
 		m.message = msg.err.Error()
 	case msg.text == "":
