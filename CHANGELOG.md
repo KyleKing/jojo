@@ -1,3 +1,9 @@
+## v0.3.0 (2026-11-04)
+
+### Feat
+
+- **startup**: refuse a filtered clone jj cannot read
+
 ## v0.2.1 (2026-11-04)
 
 ### Fix
