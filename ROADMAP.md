@@ -31,11 +31,12 @@ readable.
    way back to an earlier version
 7. **Done.** Workspace panel on `w`, with add and forget, which neither lazyjj nor jjui
    exposes
-8. Repo health surface: stale-working-copy recovery, conflicted-bookmark resolution,
-   and divergent-side abandonment, built on the markers the log view already carries.
-   The stale-checkout detection has to exist from day one in practice, because any jj
-   command the app itself runs can hit or cause it — see the serialized-command-queue
-   note in requirements.md
+8. **Done.** Repo health surface, built on the markers the log view already carries.
+   Every jj invocation goes through one serialized queue, because a mid-write snapshot
+   diverges the op heads; a stale working copy surfaces on any command's stderr and one
+   confirmation runs `jj workspace update-stale`; a conflicted bookmark resolves to its
+   remote-tracking side with `x`; and a divergent change shows on its row, with `x`
+   listing the stale sides before `jj abandon` takes them
 
 ## Decisions worth keeping
 
@@ -83,10 +84,10 @@ Anything that reads across many repositories at once belongs to
 [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) or
 [gh-sweep](https://github.com/KyleKing/gh-sweep).
 
-Everything in the order above except the repo health surface is shipped, and so is every
-keybinding layer the requirements describe: `b` bookmarks, `/` search, and `:` the
-command palette, plus the L3 power keys (`|` parallelize, `X` `jj arrange`, `B` the
-scripted bisect).
+Everything in the order above is shipped, and so is every keybinding layer the
+requirements describe: `b` bookmarks, `/` search, and `:` the command palette, plus the
+L3 power keys (`|` parallelize, `X` `jj arrange`, `B` the scripted bisect, `x` the
+divergent cleanup).
 
 ## What daily use needed after that
 

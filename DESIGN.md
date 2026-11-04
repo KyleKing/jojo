@@ -27,6 +27,14 @@ a real terminal. [docs/dogfooding.md](docs/dogfooding.md) has the commands.
 
 ## Patterns
 
+**Every jj call goes through one queue.** A second jj process writing the op log while
+a command is still running diverges the op heads and strands the checkout, so the
+client serializes every invocation — reads included, since a read still snapshots —
+and the interactive verbs take the same queue for the life of the process holding the
+terminal. That queue is also why a stale working copy can only come from outside the
+app: whichever command's stderr reports it opens the `update-stale` offer rather than
+a dead-end status line.
+
 **The log row comes from one `jj log` call.** jj 0.45's template language exposes
 `diff.stat().total_added()`, `total_removed()`, and `diff.files().len()`, so the files and
 line counts on every row cost nothing extra. An earlier plan budgeted a second query and a
