@@ -51,16 +51,26 @@ When a check fails, fix the cause. Do not skip a test, widen a timeout, or disab
 linter to get to green. Three fix-and-push rounds with no new root cause means stop and
 report what you found.
 
-## This repo is colocated with jj
 
-`.jj/` and `.git/` both exist here, so drive it with `jj`, not `git`. Work in
-incremental changes off the `main` bookmark (`jj describe -m` to name the working
-change, `jj new` to start the next), and keep `git` read-only. A detached git HEAD is
-normal here and is not something to fix.
+## Releases race your push
 
-The consequence for the check ladder: jj never runs git hooks, so `hk` does not fire on
-`jj describe` or `jj new` the way it fires on `git commit`. Run `mise exec -- hk check
---all` by hand before treating a change as finished.
+`bump_version.yml` runs on every push to `main` whose head commit is not itself a
+`bump:` commit, and a release-worthy commit (`feat`, `fix`, `perf`) lands a
+`bump: version` commit and tag within minutes of your push landing. That means
+`main@origin` moves out from under work you have not pushed yet, so `jj git push`
+regularly refuses with "references unexpectedly moved". The cycle is
+`jj git fetch` → `jj rebase -b <change> -d main@origin` → `jj workspace update-stale`
+→ `jj bookmark set main -r @` → `jj git push`, and the simplest prevention is to
+fetch and rebase before pushing rather than after the refusal. Do not throttle or
+gate the workflow to avoid the cycle: the release cadence is every release-worthy
+commit, by design.
+
+Two jj-vs-git traps that recur here: `jj git push` does not run git hooks, so an
+`hk` pre-push check never fires for it; and a `blob:none` clone leaves jj's backend
+unable to read promisor objects (`Object <id> of type file not found` on checkout),
+fixed by `git config --unset remote.origin.partialclonefilter` plus a
+`git fetch --refetch`.
+
 
 ## Layout
 
