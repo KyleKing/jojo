@@ -1,3 +1,9 @@
+## v0.2.1 (2026-11-04)
+
+### Fix
+
+- **ci**: satisfy golangci-lint 2.13 and gate the config in the project job
+
 ## v0.2.0 (2026-11-04)
 
 ### Feat
