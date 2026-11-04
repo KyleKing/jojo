@@ -4,7 +4,11 @@
 package diffpane
 
 import (
+	"regexp"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/jj-diff/render"
 
@@ -21,6 +25,9 @@ type Model struct {
 	skin  ui.Skin
 	title string
 	text  string
+	// files are the rendered-line indexes where each file's header lands, so [ and ] can step the
+	// cursor between them.
+	files []int
 	list  listview.Model[string]
 	width int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
@@ -65,6 +72,40 @@ func (m *Model) render() {
 	})
 
 	m.list.Open(m.title, lines, 0)
+	m.files = fileBoundaries(m.text, lines)
+}
+
+// gitFileRE names the new-side path of each `diff --git` header, whether git quoted the paths or
+// not.
+var gitFileRE = regexp.MustCompile(`(?m)^diff --git (?:a/.*?|"a/.*?") "?b/(.*?)"?$`)
+
+// fileBoundaries returns where each file's header line lands in the rendered output, in order.
+// The renderer draws one `<M|A|D|R> path` line per file before its hunks, so an in-order walk of
+// the headers in the diff text finds them without re-parsing the hunks.
+func fileBoundaries(gitDiff string, lines []string) []int {
+	var bounds []int
+
+	from := 0
+
+	for _, match := range gitFileRE.FindAllStringSubmatch(gitDiff, -1) {
+		for i := from; i < len(lines); i++ {
+			if fileHeader(ansi.Strip(lines[i]), match[1]) {
+				bounds = append(bounds, i)
+				from = i + 1
+
+				break
+			}
+		}
+	}
+
+	return bounds
+}
+
+func fileHeader(stripped, path string) bool {
+	return len(stripped) >= 2 &&
+		strings.ContainsRune("MADR?", rune(stripped[0])) &&
+		stripped[1] == ' ' &&
+		strings.HasPrefix(path, stripped[2:])
 }
 
 // Close hides the pane.
@@ -74,6 +115,8 @@ func (m *Model) Close() { m.list.Close() }
 func (m Model) IsOpen() bool { return m.list.IsOpen() }
 
 // Update handles one message. Key handling only runs while the pane is open.
+//
+//nolint:unparam // matches the other panels' Update signature; the caller stays uniform.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok || !m.list.IsOpen() {
@@ -86,6 +129,10 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	switch name {
+	case "[":
+		m.stepFile(-1)
+	case "]":
+		m.stepFile(1)
 	case "s":
 		cursor := m.list.Cursor()
 		m.sideBySide = !m.sideBySide
@@ -101,10 +148,43 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// stepFile moves the cursor to the header of the next or previous file, clamped at both ends.
+func (m *Model) stepFile(dir int) {
+	if len(m.files) == 0 {
+		return
+	}
+
+	cursor := m.list.Cursor()
+	target := m.files[0]
+
+	if dir > 0 {
+		target = m.files[len(m.files)-1]
+
+		for _, file := range m.files {
+			if file > cursor {
+				target = file
+
+				break
+			}
+		}
+	} else {
+		for i := len(m.files) - 1; i >= 0; i-- {
+			if m.files[i] < cursor {
+				target = m.files[i]
+
+				break
+			}
+		}
+	}
+
+	m.list.Jump(target)
+}
+
 // View renders the diff centered in a width by height frame.
 func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "j k", What: "scroll"},
+		{Key: "[ ]", What: "file"},
 		{Key: "s", What: "side by side"},
 		{Key: "esc", What: "close"},
 	})

@@ -108,6 +108,13 @@ func (m *Model[T]) MoveKey(key string) bool {
 	return true
 }
 
+// Jump moves the cursor to index, clamped into range, for navigation the shared movement keys do
+// not cover.
+func (m *Model[T]) Jump(index int) {
+	m.cursor = clamp(index, 0, len(m.items)-1)
+	m.warning = ""
+}
+
 func (m *Model[T]) move(delta int) {
 	if len(m.items) == 0 {
 		return

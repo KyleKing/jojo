@@ -122,9 +122,6 @@ someone lives in", and all four are now shipped:
 **Large repositories are untested.** The log loads 500 rows in one call with a diff stat
 per row. Nothing streams or pages.
 
-**File stepping (`[`/`]`) inside the diff pane**, so a multi-file diff can be walked by
-file rather than scrolled.
-
 [docs/requirements.md](docs/requirements.md) carries the rest: conflict resolution inside
 jj-diff's hunk engine rather than shelling out to `jj resolve`, a manual bisect form to sit
 beside the scripted one, and sharing the operation log between machines.
