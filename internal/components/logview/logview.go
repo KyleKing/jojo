@@ -322,7 +322,7 @@ func (m *Model) snapToRevision(step int) {
 		return
 	}
 
-	m.cursor = clamp(m.cursor, 0, len(m.rows)-1)
+	m.cursor = clamp(m.cursor, len(m.rows)-1)
 	if m.rows[m.cursor].Revision == nil {
 		m.cursor = m.nextRevision(m.cursor, step)
 	}
@@ -349,7 +349,7 @@ func (m *Model) scrollIntoView() {
 		m.top = m.cursor - m.height + 1
 	}
 
-	m.top = clamp(m.top, 0, max(0, len(m.rows)-m.height))
+	m.top = clamp(m.top, max(0, len(m.rows)-m.height))
 }
 
 func abs(n int) int {
@@ -360,8 +360,8 @@ func abs(n int) int {
 	return n
 }
 
-func clamp(n, lo, hi int) int {
-	return min(max(n, lo), hi)
+func clamp(n, hi int) int {
+	return min(max(n, 0), hi)
 }
 
 // View renders the visible window. It returns exactly height lines so the

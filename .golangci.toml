@@ -13,8 +13,8 @@ sections = [
   "prefix(github.com/kyleking/jojo)",
 ]
 
-[formatters.settings.gofumpt]
-extra-rules = true
+[formatters.settings.gofumpt.extra]
+group-params = true
 
 [formatters.settings.goimports]
 local-prefixes = ["github.com/kyleking/jojo"]

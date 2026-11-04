@@ -1,0 +1,5 @@
+# The `project` CI job runs this task when it exists; `golangci-lint run` accepts an
+# invalid config silently, so the schema check is the only gate that catches one.
+[tasks."ci:project"]
+description = "Verify .golangci.toml against the installed linter's schema"
+run = "golangci-lint config verify"

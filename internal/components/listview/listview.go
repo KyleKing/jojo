@@ -41,7 +41,7 @@ func New[T any](skin ui.Skin) Model[T] {
 // Open shows items under title with the cursor at index, clamped into range.
 func (m *Model[T]) Open(title string, items []T, cursor int) {
 	m.title, m.items, m.warning, m.open = title, items, "", true
-	m.cursor = clamp(cursor, 0, len(items)-1)
+	m.cursor = clamp(cursor, len(items)-1)
 }
 
 // InnerWidth is how many cells a row has at this frame width, which a caller preparing its own rows
@@ -111,7 +111,7 @@ func (m *Model[T]) MoveKey(key string) bool {
 // Jump moves the cursor to index, clamped into range, for navigation the shared movement keys do
 // not cover.
 func (m *Model[T]) Jump(index int) {
-	m.cursor = clamp(index, 0, len(m.items)-1)
+	m.cursor = clamp(index, len(m.items)-1)
 	m.warning = ""
 }
 
@@ -120,16 +120,16 @@ func (m *Model[T]) move(delta int) {
 		return
 	}
 
-	m.cursor = clamp(m.cursor+delta, 0, len(m.items)-1)
+	m.cursor = clamp(m.cursor+delta, len(m.items)-1)
 	m.warning = ""
 }
 
-func clamp(n, lo, hi int) int {
-	if hi < lo {
-		return lo
+func clamp(n, hi int) int {
+	if hi < 0 {
+		return 0
 	}
 
-	return min(max(n, lo), hi)
+	return min(max(n, 0), hi)
 }
 
 // A frame smaller than this has no room for a title, a row, and the hints, so the overlay says so
@@ -198,7 +198,7 @@ func window(cursor, total, body int) (int, int) {
 		return 0, total
 	}
 
-	start := clamp(cursor-body/scrollCenterDivisor, 0, total-body)
+	start := clamp(cursor-body/scrollCenterDivisor, total-body)
 
 	return start, start + body
 }
