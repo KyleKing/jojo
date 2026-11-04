@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -21,6 +22,8 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
+
+	errFilteredClone = errors.New("jj cannot read this repository's objects")
 )
 
 // probe runs the two startup queries at once. Each jj invocation costs roughly what the first frame
@@ -118,6 +121,12 @@ func run() error {
 	root, configured, err := probe(ctx, client, *revset == "")
 	if err != nil {
 		return err
+	}
+
+	if why := jj.PromisorProblem(root); why != "" {
+		return fmt.Errorf("%w: %s; unfilter the clone: git -C %s config --unset "+
+			"remote.origin.partialclonefilter && git config --unset remote.origin.promisor "+
+			"&& git fetch --refetch", errFilteredClone, why, root)
 	}
 
 	if *revset == "" {
