@@ -1,3 +1,10 @@
+## v0.2.0 (2026-11-04)
+
+### Feat
+
+- **log**: page deeper history when the cursor reaches the bottom
+- **diff**: step between files with [ and ]
+
 ## v0.1.0 (2026-11-04)
 
 ### Feat
