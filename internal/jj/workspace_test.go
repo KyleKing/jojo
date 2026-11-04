@@ -2,6 +2,7 @@ package jj_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -88,4 +89,32 @@ func byName(spaces []jj.Workspace, name string) *jj.Workspace {
 	}
 
 	return nil
+}
+
+func TestUpdateStaleWorkspace_RecoversTheCheckout(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	second := filepath.Join(t.TempDir(), "two")
+	runJJ(t, dir, "workspace", "add", "--name", "two", second)
+
+	// The checkout goes stale when an operation elsewhere removes the commit its snapshot
+	// recorded; an untouched working copy quietly recovers instead.
+	writeFile(t, dir, "dirty.txt", "dirty\n")
+	runJJ(t, dir, "status")
+	runJJ(t, second, "abandon", "default@")
+
+	if _, err := client.Log(ctx, "", 10); !errors.Is(err, jj.ErrStaleWorkingCopy) {
+		t.Fatalf("Log err = %v, want ErrStaleWorkingCopy", err)
+	}
+
+	if _, err := client.UpdateStaleWorkspace(ctx); err != nil {
+		t.Fatalf("UpdateStaleWorkspace: %v", err)
+	}
+
+	if _, err := client.Log(ctx, "", 10); err != nil {
+		t.Fatalf("Log after update-stale: %v", err)
+	}
 }

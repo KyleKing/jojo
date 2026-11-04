@@ -48,7 +48,9 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, nil, true
 	case diffLoadedMsg:
-		return m.openDiff(msg), nil, true
+		next, cmd := m.openDiff(msg)
+
+		return next, cmd, true
 	}
 
 	if next, cmd, handled := m.handleFileMsg(msg); handled {

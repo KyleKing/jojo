@@ -67,6 +67,9 @@ var (
 	// ErrNothingChanged marks a jj command that succeeded and moved nothing, so
 	// a caller must not report the edit as done.
 	ErrNothingChanged = errors.New("nothing changed")
+	// ErrStaleWorkingCopy marks jj refusing every command until `jj workspace update-stale` runs,
+	// which is the first rung of repo recovery rather than a dead end.
+	ErrStaleWorkingCopy = errors.New("working copy is stale")
 )
 
 // Evolution is one entry of `jj evolog`: one version a change passed through,

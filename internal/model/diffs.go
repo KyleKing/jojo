@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -72,8 +73,10 @@ func diffTitle(t jj.DiffTarget) string {
 	return "diff " + name
 }
 
-func (m Model) openDiff(msg diffLoadedMsg) tea.Model {
+func (m Model) openDiff(msg diffLoadedMsg) (tea.Model, tea.Cmd) {
 	switch {
+	case errors.Is(msg.err, jj.ErrStaleWorkingCopy):
+		return m, m.openStale(msg.err)
 	case msg.err != nil:
 		m.message = msg.err.Error()
 	case msg.text == "":
@@ -82,7 +85,7 @@ func (m Model) openDiff(msg diffLoadedMsg) tea.Model {
 		m.diff.Open(msg.title, msg.text, m.width)
 	}
 
-	return m
+	return m, nil
 }
 
 func (m Model) showOperation(msg oplogview.ShowMsg) (tea.Model, tea.Cmd) {

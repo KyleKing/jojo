@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -22,6 +23,10 @@ type loaded[T any] struct {
 
 func (l loaded[T]) open(m *Model) tea.Cmd {
 	if l.err != nil {
+		if errors.Is(l.err, jj.ErrStaleWorkingCopy) {
+			return m.openStale(l.err)
+		}
+
 		m.message = l.err.Error()
 
 		return nil

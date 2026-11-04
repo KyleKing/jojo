@@ -182,6 +182,8 @@ func wrapJJError(args []string, stderr string) error {
 		return fmt.Errorf("%w: %s", ErrImmutable, complaint(trimmed))
 	case strings.Contains(stderr, "Won't push"):
 		return fmt.Errorf("%w: %s", ErrPushRefused, complaint(trimmed))
+	case strings.Contains(stderr, "working copy is stale"):
+		return fmt.Errorf("%w: %s", ErrStaleWorkingCopy, complaint(trimmed))
 	}
 
 	return fmt.Errorf("jj %s: %w: %s", strings.Join(args, " "), ErrCommandFailed, trimmed)

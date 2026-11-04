@@ -13,6 +13,7 @@ import (
 const (
 	confirmForce = "force"
 	confirmPush  = "push"
+	confirmStale = "stale"
 )
 
 // pendingPush is the push a confirmation is standing over, kept whole so the message it reports
@@ -78,6 +79,8 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 		m.pushing = pendingPush{}
 
 		return m, m.push(pending)
+	case confirmStale:
+		return m, m.run(undoHint, m.client.UpdateStaleWorkspace)
 	}
 
 	return m, nil

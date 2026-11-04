@@ -185,6 +185,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case logLoadedMsg:
 		return m.applyLog(msg)
+	case staleMsg:
+		return m, m.openStale(msg.err)
 	case messageMsg:
 		m.message = msg.text
 
@@ -224,6 +226,10 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 			m.revsetBox.SetError(msg.err)
 
 			return m, nil
+		}
+
+		if errors.Is(msg.err, jj.ErrStaleWorkingCopy) {
+			return m, m.openStale(msg.err)
 		}
 
 		m.message = msg.err.Error()

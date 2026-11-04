@@ -63,3 +63,9 @@ func (c *Client) WorkspaceAdd(ctx context.Context, name, path string) (string, e
 func (c *Client) WorkspaceForget(ctx context.Context, name string) (string, error) {
 	return c.mutate(ctx, "workspace", "forget", name)
 }
+
+// UpdateStaleWorkspace recovers a working copy jj refuses to run against, which is also how jj
+// re-imports a colocated git store it has drifted from.
+func (c *Client) UpdateStaleWorkspace(ctx context.Context) (string, error) {
+	return c.mutate(ctx, "workspace", "update-stale")
+}

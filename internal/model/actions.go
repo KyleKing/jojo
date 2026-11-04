@@ -189,6 +189,8 @@ func wrote(ran, hint string, err error) tea.Msg {
 		return messageMsg{text: ran + ": nothing changed"}
 	case errors.Is(err, jj.ErrImmutable):
 		return refusedMsg{err: err}
+	case errors.Is(err, jj.ErrStaleWorkingCopy):
+		return staleMsg{err: err}
 	case err != nil:
 		return messageMsg{text: err.Error()}
 	}

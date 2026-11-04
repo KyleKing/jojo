@@ -124,6 +124,10 @@ func (m Model) previewPush(what string, opts jj.PushOptions) tea.Cmd {
 
 func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 	if msg.err != nil {
+		if errors.Is(msg.err, jj.ErrStaleWorkingCopy) {
+			return m, m.openStale(msg.err), true
+		}
+
 		m.message = pushProblem(msg.err)
 
 		return m, nil, true
