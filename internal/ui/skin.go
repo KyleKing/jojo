@@ -27,6 +27,9 @@ type Skin struct {
 	Immutable lipgloss.Style
 	// Conflicted marks a row with an unresolved conflict.
 	Conflicted lipgloss.Style
+	// Divergent marks a row whose change a rewrite left unreachable; the
+	// strikethrough is what a dead side is.
+	Divergent lipgloss.Style
 	// WorkingCopy marks the row @ points at.
 	WorkingCopy lipgloss.Style
 	// Bookmark draws a bookmark chip beside a row.
@@ -58,6 +61,7 @@ func New(p theme.Palette) Skin {
 		Skin:           skin.New(p, a),
 		Immutable:      base.Foreground(p.Overlay1).Faint(true),
 		Conflicted:     base.Foreground(p.Red).Bold(true),
+		Divergent:      base.Foreground(p.Yellow).Strikethrough(true),
 		WorkingCopy:    base.Foreground(a).Bold(true).Underline(true),
 		Bookmark:       base.Foreground(p.Green).Italic(true),
 		ChangeIDPrefix: base.Foreground(a).Bold(true),

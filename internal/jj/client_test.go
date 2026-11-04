@@ -409,7 +409,7 @@ func TestClient_SerializesBehindTheQueueLock(t *testing.T) {
 
 	client, _ := testRepo(t)
 
-	client.Lock()
+	client.AcquireQueue()
 
 	done := make(chan struct{})
 	go func() {
@@ -426,7 +426,7 @@ func TestClient_SerializesBehindTheQueueLock(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 
-	client.Unlock()
+	client.ReleaseQueue()
 
 	select {
 	case <-done:

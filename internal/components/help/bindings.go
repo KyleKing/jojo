@@ -163,6 +163,10 @@ var defaultBindings = []Binding{
 		Layer: L3, Run: "B", Action: "bisect", Cmd: "jj bisect run --range <a>::<b>",
 		Hint: keyhint.Hint{Key: "B", What: "bisect between the two checked revisions"},
 	},
+	{
+		Layer: L3, Run: "x", Action: "abandon-divergent", Cmd: "jj abandon 'divergent() & ~::trunk()'",
+		Hint: keyhint.Hint{Key: "x", What: "abandon divergent sides"},
+	},
 	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
 }
 

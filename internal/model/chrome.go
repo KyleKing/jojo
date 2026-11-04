@@ -46,6 +46,8 @@ func rowHints(rev *jj.Revision) []keyhint.Hint {
 		return []keyhint.Hint{{Key: "e", What: "immutable, an edit asks first"}}
 	case rev.Empty && !rev.WorkingCopy:
 		return []keyhint.Hint{{Key: "a", What: "empty, abandon it"}}
+	case rev.Divergent:
+		return []keyhint.Hint{{Key: "x", What: "divergent, abandon the stale sides"}}
 	case len(rev.LocalBookmarks) > 0:
 		return []keyhint.Hint{{Key: "b", What: "bookmarks, push from there"}}
 	}

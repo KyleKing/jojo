@@ -185,6 +185,7 @@ func StylesFrom(s ui.Skin) Styles {
 		Selected:  s.Selected,
 		Immutable: s.Immutable,
 		Conflict:  s.Conflicted,
+		Divergent: s.Divergent,
 		Working:   s.WorkingCopy,
 		Checked:   s.Accent,
 		Header:    s.Heading,

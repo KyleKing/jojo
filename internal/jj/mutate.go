@@ -112,6 +112,16 @@ func (c *Client) Abandon(ctx context.Context, revs []string) (string, error) {
 	return c.mutate(ctx, args...)
 }
 
+// DivergentRevset is every stale side a rewrite left behind, minus whatever the trunk already
+// keeps, so abandoning it never removes the live version of a pushed change.
+const DivergentRevset = "divergent() & ~::trunk()"
+
+// AbandonDivergent removes the divergent sides listing them left: rewriting a change after its
+// commit was pushed strands the pushed version's twin, and they accumulate silently.
+func (c *Client) AbandonDivergent(ctx context.Context) (string, error) {
+	return c.mutate(ctx, "abandon", DivergentRevset)
+}
+
 // Absorb moves rev's changes into the closest mutable ancestor where each line last changed.
 func (c *Client) Absorb(ctx context.Context, rev string) (string, error) {
 	return c.mutate(ctx, "absorb", "-r", rev)

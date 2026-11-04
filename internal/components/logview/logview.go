@@ -26,6 +26,7 @@ type Styles struct {
 	Selected  lipgloss.Style
 	Immutable lipgloss.Style
 	Conflict  lipgloss.Style
+	Divergent lipgloss.Style
 	Working   lipgloss.Style
 	Checked   lipgloss.Style
 	Header    lipgloss.Style
@@ -456,6 +457,8 @@ func (m Model) style(rev jj.Revision, key string) lipgloss.Style {
 	switch {
 	case rev.Conflict:
 		return m.styles.Conflict
+	case rev.Divergent:
+		return m.styles.Divergent
 	case rev.Immutable:
 		return m.styles.Immutable
 	}

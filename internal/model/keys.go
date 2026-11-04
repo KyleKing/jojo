@@ -114,6 +114,8 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		m.resize()
 
 		return m, cmd, true
+	case "x":
+		return m, m.previewDivergent(), true
 	case ":":
 		cmd := m.palette.Open(m.paletteCommands())
 

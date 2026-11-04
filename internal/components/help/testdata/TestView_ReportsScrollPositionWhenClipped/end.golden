@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│             Power                              │
 │          |  parallelize the checked revisions  │
 │          X  arrange the graph                  │
 │          B  bisect between the two checked r…  │
+│          x  abandon divergent sides            │
 │             edit the revset aliases            │
-│                                   44-48 of 48  │
+│                                   45-49 of 49  │
 │                                                │
 ╰────────────────────────────────────────────────╯

@@ -11,9 +11,10 @@ import (
 
 // Keys the confirmation dialog reports back, naming what a yes runs.
 const (
-	confirmForce = "force"
-	confirmPush  = "push"
-	confirmStale = "stale"
+	confirmForce     = "force"
+	confirmPush      = "push"
+	confirmStale     = "stale"
+	confirmDivergent = "divergent"
 )
 
 // pendingPush is the push a confirmation is standing over, kept whole so the message it reports
@@ -81,6 +82,8 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 		return m, m.push(pending)
 	case confirmStale:
 		return m, m.run(undoHint, m.client.UpdateStaleWorkspace)
+	case confirmDivergent:
+		return m, m.run(undoHint, m.client.AbandonDivergent)
 	}
 
 	return m, nil

@@ -159,7 +159,7 @@ func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 	what := strings.Join(cmd.Args, " ")
 
 	return tea.Sequence(
-		func() tea.Msg { client.Lock(); return nil },
+		func() tea.Msg { client.AcquireQueue(); return nil },
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {
 				return messageMsg{text: what + " did not finish"}
@@ -167,7 +167,7 @@ func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 
 			return messageMsg{text: done}
 		}),
-		func() tea.Msg { client.Unlock(); return nil },
+		func() tea.Msg { client.ReleaseQueue(); return nil },
 		m.loadLog(revset),
 	)
 }

@@ -27,8 +27,11 @@ type Revision struct {
 	Files           int
 	Immutable       bool
 	Conflict        bool
-	Empty           bool
-	WorkingCopy     bool
+	// Divergent marks one side of a change a pushed rewrite left unreachable, which is the
+	// cleanup the abandon-divergent verb takes.
+	Divergent   bool
+	Empty       bool
+	WorkingCopy bool
 }
 
 // GraphLine is a log line carrying no revision, such as a connector between two

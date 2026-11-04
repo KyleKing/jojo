@@ -18,7 +18,7 @@ const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`bookmarks.join(",") ++ "` + fieldSep + `" ++ ` +
 	`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`remote_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
-	`(if(immutable,"I","") ++ if(conflict,"C","") ++ ` +
+	`(if(immutable,"I","") ++ if(conflict,"C","") ++ if(divergent,"D","") ++ ` +
 	`if(empty,"E","") ++ if(current_working_copy,"@","")) ++ "` + fieldSep + `" ++ ` +
 	`author.email() ++ "` + fieldSep + `" ++ ` +
 	`committer.timestamp().ago() ++ "` + fieldSep + `" ++ ` +
@@ -106,6 +106,7 @@ func parseRevisionLine(line string) *Revision {
 		Files:           atoiOrZero(fields[9]),
 		Immutable:       strings.Contains(flags, "I"),
 		Conflict:        strings.Contains(flags, "C"),
+		Divergent:       strings.Contains(flags, "D"),
 		Empty:           strings.Contains(flags, "E"),
 		WorkingCopy:     strings.Contains(flags, "@"),
 	}

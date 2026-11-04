@@ -187,6 +187,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyLog(msg)
 	case staleMsg:
 		return m, m.openStale(msg.err)
+	case divergentPreviewMsg:
+		return m.offerDivergent(msg)
 	case messageMsg:
 		m.message = msg.text
 
