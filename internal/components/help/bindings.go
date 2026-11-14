@@ -175,7 +175,41 @@ var defaultBindings = []Binding{
 // the handlers can never disagree about which key runs what.
 type Keymap struct {
 	toDefault map[string]string
+	level     func(key string) int
 	bindings  []Binding
+}
+
+// fixedKeys are the hints whose key the dispatcher handles by name rather than through a binding.
+var fixedKeys = map[string]string{"q": "q", "?": "?", ":": ":", "Tab": "tab"}
+
+// WithLevel grades every hint that stands for one key by how long level says that key has gone
+// unpressed. Level takes the key as msg.String() spells it.
+func (k Keymap) WithLevel(level func(key string) int) Keymap {
+	k.level = level
+
+	return k
+}
+
+// Level is how unpracticed key is, 0 when nothing is known about it.
+func (k Keymap) Level(key string) int {
+	if k.level == nil {
+		return 0
+	}
+
+	return k.level(key)
+}
+
+func (k Keymap) hint(b *Binding) keyhint.Hint {
+	h := b.Hint
+
+	switch key := fixedKeys[h.Key]; {
+	case b.Run != "":
+		h.Fresh = k.Level(b.Run)
+	case key != "":
+		h.Fresh = k.Level(key)
+	}
+
+	return h
 }
 
 // ErrUnknownAction marks a rebind naming an action the keymap does not have.
@@ -287,7 +321,7 @@ func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
 			continue
 		}
 
-		out = append(out, b.Hint)
+		out = append(out, k.hint(b))
 	}
 
 	return out
@@ -298,7 +332,7 @@ func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
 func (k Keymap) AllHints() []keyhint.Hint {
 	out := make([]keyhint.Hint, len(k.bindings))
 	for i := range k.bindings {
-		out[i] = k.bindings[i].Hint
+		out[i] = k.hint(&k.bindings[i])
 	}
 
 	return out

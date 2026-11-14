@@ -113,6 +113,12 @@ Two things ask first, because `jj undo` cannot take them back: a push, which has
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj
 refuses, jojo says why, and `y` runs the same edit again with `--ignore-immutable`.
 
+## Key usage
+
+jojo logs the command keys you press, per context (`log`, `forge`, `help`, and one per overlay), and never the text you type into the revset box, a prompt, search, or the palette's query. A rebound key counts under its action. It records into `$JOJO_USAGE_DIR`, else `~/Sync/.jojo/usage/` when `~/Sync` exists, and records nothing when neither is there.
+
+`jojo keys` reads the log back: the bindings never pressed, the ones gone stale for 30 days, keys pressed where nothing is bound, and keys that mean different things in different contexts. Keys you have not pressed lately draw bold or underlined in the footer and `?`.
+
 ## Configuration
 
 Everything is optional and jojo runs with no config file at all. It reads

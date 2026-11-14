@@ -30,9 +30,13 @@ func (m Model) loadHeadOp() tea.Cmd {
 // footerHints ends on help, because the footer drops hints from the right and keeps the last.
 func (m Model) footerHints() []keyhint.Hint {
 	hints := rowHints(m.log.Selected())
+	for i := range hints {
+		hints[i].Fresh = m.keys.Level(hints[i].Key)
+	}
+
 	hints = append(hints, m.keys.Hints(help.L0, help.L2)...)
 
-	return append(hints, keyhint.Hint{Key: "?", What: "help"})
+	return append(hints, keyhint.Hint{Key: "?", What: "help", Fresh: m.keys.Level("?")})
 }
 
 // rowHints is the one thing worth saying about the revision under the cursor.

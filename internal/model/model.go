@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/keyusage"
 
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
@@ -94,6 +95,7 @@ type Model struct {
 	onSubmit   submitted
 	onPick     picked
 	keys       help.Keymap
+	usage      *keyusage.Recorder
 	redoOp     string
 	revset     string
 	message    string
@@ -113,11 +115,21 @@ type Model struct {
 // Options are the settings a user states in config.toml, which New folds into the model rather than
 // reading itself, so a test can pass its own without a file on disk.
 type Options struct {
-	Keys help.Keymap
+	// Seen is what earlier sessions logged, nil when there is none, and brightens the keys not pressed lately.
+	Seen *keyusage.Usage
+	// Usage records this session's keys, nil when recording is off.
+	Usage *keyusage.Recorder
+	Keys  help.Keymap
 }
 
 // New builds the root model against a repository jj already recognizes.
 func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset string, opts Options) Model {
+	keys := opts.Keys
+	if opts.Seen != nil {
+		seen, now := *opts.Seen, time.Now()
+		keys = keys.WithLevel(func(key string) int { return seen.Level(ctxLog, key, now) })
+	}
+
 	return Model{
 		ctx:        ctx,
 		client:     client,
@@ -139,8 +151,9 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		confirm:    confirm.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
-		help:       help.New(skin, opts.Keys),
-		keys:       opts.Keys,
+		help:       help.New(skin, keys),
+		keys:       keys,
+		usage:      opts.Usage,
 		revset:     revset,
 		logWindow:  logLimit,
 	}

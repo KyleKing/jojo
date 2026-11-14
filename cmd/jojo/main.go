@@ -23,7 +23,8 @@ var (
 	commit  = "none"
 	date    = "unknown"
 
-	errFilteredClone = errors.New("jj cannot read this repository's objects")
+	errUnknownCommand = errors.New("unknown command, the only one is keys")
+	errFilteredClone  = errors.New("jj cannot read this repository's objects")
 )
 
 // probe runs the two startup queries at once. Each jj invocation costs roughly what the first frame
@@ -111,6 +112,14 @@ func run() error {
 		return err
 	}
 
+	switch flag.Arg(0) {
+	case "":
+	case "keys":
+		return keysReport(os.Stdout, keys)
+	default:
+		return fmt.Errorf("%w: %q", errUnknownCommand, flag.Arg(0))
+	}
+
 	ctx := context.Background()
 
 	client := jj.NewClient(*repo)
@@ -133,7 +142,10 @@ func run() error {
 		*revset = configured
 	}
 
-	app := model.New(ctx, client, skin, root, *revset, model.Options{Keys: keys})
+	rec, seen := openUsage(keys)
+	defer rec.Close() //nolint:errcheck // a log that fails to close has nothing left to report
+
+	app := model.New(ctx, client, skin, root, *revset, model.Options{Keys: keys, Seen: seen, Usage: rec})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}

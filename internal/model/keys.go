@@ -6,6 +6,8 @@ import (
 
 func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
+		m.usage.Key(ctxHelp, msg.String())
+
 		return m.handleHelpKey(msg)
 	}
 
@@ -17,9 +19,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case focusRevset:
 		return m.handleRevsetKey(msg)
 	case focusForge:
+		m.usage.Key(ctxForge, msg.String())
+
 		return m.handleForgeKey(msg)
 	case focusLog:
 	}
+
+	m.usage.Key(ctxLog, msg.String())
 
 	key := m.keys.Resolve(msg.String())
 	if next, cmd, handled := m.handleRootKey(key); handled {
@@ -48,34 +54,71 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // routeToModal hands every key to whichever overlay is open, because a modal
 // sharing j and k with the log underneath would move both cursors at once.
 func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
-	switch {
-	case m.confirm.IsOpen():
-		return m.confirm.Update(msg), true
-	case m.bookmarks.IsOpen():
-		return m.bookmarks.Update(msg), true
-	case m.detail.IsOpen():
-		return m.detail.Update(msg), true
-	case m.diff.IsOpen():
-		return m.diff.Update(msg), true
-	case m.files.IsOpen():
-		return m.files.Update(msg), true
-	case m.prompt.IsOpen():
-		return m.prompt.Update(msg), true
-	case m.destPicker.IsOpen():
-		return m.destPicker.Update(msg), true
-	case m.opLog.IsOpen():
-		return m.opLog.Update(msg), true
-	case m.spaces.IsOpen():
-		return m.spaces.Update(msg), true
-	case m.evolog.IsOpen():
-		return m.evolog.Update(msg), true
-	case m.palette.IsOpen():
-		return m.palette.Update(msg), true
-	case m.find.IsOpen():
-		return m.find.Update(msg), true
+	ctx := m.openModal()
+	if ctx == "" {
+		return nil, false
 	}
 
-	return nil, false
+	m.recordModalKey(ctx, msg)
+
+	switch ctx {
+	case ctxConfirm:
+		return m.confirm.Update(msg), true
+	case ctxBookmarks:
+		return m.bookmarks.Update(msg), true
+	case ctxDetail:
+		return m.detail.Update(msg), true
+	case ctxDiff:
+		return m.diff.Update(msg), true
+	case ctxFiles:
+		return m.files.Update(msg), true
+	case ctxPrompt:
+		return m.prompt.Update(msg), true
+	case ctxDestination:
+		return m.destPicker.Update(msg), true
+	case ctxOpLog:
+		return m.opLog.Update(msg), true
+	case ctxSpaces:
+		return m.spaces.Update(msg), true
+	case ctxEvolog:
+		return m.evolog.Update(msg), true
+	case ctxPalette:
+		return m.palette.Update(msg), true
+	default:
+		return m.find.Update(msg), true
+	}
+}
+
+// openModal names the overlay that takes the next key, "" when none is open.
+func (m *Model) openModal() string {
+	switch {
+	case m.confirm.IsOpen():
+		return ctxConfirm
+	case m.bookmarks.IsOpen():
+		return ctxBookmarks
+	case m.detail.IsOpen():
+		return ctxDetail
+	case m.diff.IsOpen():
+		return ctxDiff
+	case m.files.IsOpen():
+		return ctxFiles
+	case m.prompt.IsOpen():
+		return ctxPrompt
+	case m.destPicker.IsOpen():
+		return ctxDestination
+	case m.opLog.IsOpen():
+		return ctxOpLog
+	case m.spaces.IsOpen():
+		return ctxSpaces
+	case m.evolog.IsOpen():
+		return ctxEvolog
+	case m.palette.IsOpen():
+		return ctxPalette
+	case m.find.IsOpen():
+		return ctxFind
+	}
+
+	return ""
 }
 
 // handleRootKey covers the keys that belong to the application rather than to
