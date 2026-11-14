@@ -1,3 +1,9 @@
+## v0.4.0 (2026-11-14)
+
+### Feat
+
+- record key usage per context and add a keys report
+
 ## v0.3.0 (2026-11-04)
 
 ### Feat
