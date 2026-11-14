@@ -119,6 +119,8 @@ jojo logs the command keys you press, per context (`log`, `forge`, `help`, and o
 
 `jojo keys` reads the log back: the bindings never pressed, the ones gone stale for 30 days, keys pressed where nothing is bound, and keys that mean different things in different contexts. Keys you have not pressed lately draw bold or underlined in the footer and `?`.
 
+Every run also logs the subcommand and the flag names it was given (`jojo keys -r`), never a flag's value, and `jojo keys` reports the subcommands and flags you have not used.
+
 ## Configuration
 
 Everything is optional and jojo runs with no config file at all. It reads

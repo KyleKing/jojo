@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/keyusage"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/config"
@@ -101,6 +102,11 @@ func run() error {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
+	rec := keyusage.Open(model.UsageApp)
+	defer rec.Close() //nolint:errcheck // a log that fails to close has nothing left to report
+
+	rec.Invoke(cliRoot(flag.CommandLine), os.Args[1:])
+
 	if *showVersion {
 		fmt.Printf("jojo %s (commit: %s, built: %s)\n", version, commit, date)
 
@@ -114,7 +120,7 @@ func run() error {
 
 	switch flag.Arg(0) {
 	case "":
-	case "keys":
+	case keysCommand:
 		return keysReport(os.Stdout, keys)
 	default:
 		return fmt.Errorf("%w: %q", errUnknownCommand, flag.Arg(0))
@@ -142,8 +148,7 @@ func run() error {
 		*revset = configured
 	}
 
-	rec, seen := openUsage(keys)
-	defer rec.Close() //nolint:errcheck // a log that fails to close has nothing left to report
+	seen := loadSeen(rec, keys)
 
 	app := model.New(ctx, client, skin, root, *revset, model.Options{Keys: keys, Seen: seen, Usage: rec})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
