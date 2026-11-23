@@ -1,3 +1,9 @@
+## v0.7.0 (2026-11-23)
+
+### Feat
+
+- render diffs with jj-diff v0.7.0
+
 ## v0.6.0 (2026-11-23)
 
 ### Feat
