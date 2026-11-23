@@ -1,3 +1,11 @@
+## v0.6.0 (2026-11-23)
+
+### Feat
+
+- title lists with labeled rules and draw files with their type's icon
+- dock the diff beside the log and follow the cursor
+- stage, unstage, and commit from the file list of @
+
 ## v0.5.0 (2026-11-14)
 
 ### Feat
