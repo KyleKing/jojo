@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/keyusage"
 
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
@@ -89,6 +90,7 @@ type Model struct {
 	detail     detailview.Model
 	files      fileview.Model
 	diff       diffpane.Model
+	dock       diffpane.Model
 	confirm    confirm.Model
 	forcible   forcible
 	pushing    pendingPush
@@ -106,10 +108,13 @@ type Model struct {
 	width      int
 	height     int
 	logWindow  int
-	showForge  bool
-	showHelp   bool
-	logFull    bool
-	quitting   bool
+	// dockSeq numbers the docked diff's reads, so only the newest one lands.
+	dockSeq   int
+	docked    bool
+	showForge bool
+	showHelp  bool
+	logFull   bool
+	quitting  bool
 }
 
 // Options are the settings a user states in config.toml, which New folds into the model rather than
@@ -148,6 +153,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		detail:     detailview.New(skin),
 		files:      fileview.New(skin),
 		diff:       diffpane.New(skin),
+		dock:       diffpane.NewDocked(skin),
 		confirm:    confirm.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
@@ -198,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case revsetbox.ChangedMsg:
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
-		cmd := m.followBookmark(msg.Revision)
+		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(msg.Revision))
 
 		return m, cmd
 	case logLoadedMsg:
@@ -233,8 +239,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // routeToPanes fans out what the root does not own: a pane's debounce and poll ticks are its own
-// unexported types and would otherwise never come back.
+// unexported types and would otherwise never come back. The docked diff's reads are the root's own,
+// since the root decides which revision it follows.
 func (m Model) routeToPanes(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.handleDockMsg(msg); handled {
+		return next, cmd
+	}
+
 	cmd := tea.Batch(m.revsetBox.Update(msg), m.forge.Update(msg))
 
 	return m, cmd
@@ -268,7 +279,9 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.log.SetRows(msg.rows)
 	m.resize()
 
-	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp())
+	// A write changes what the docked diff shows without moving the cursor, so it reads again.
+	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp(),
+		m.loadDock(m.log.Selected()))
 
 	return m, cmd
 }
@@ -285,8 +298,33 @@ func (m Model) followBookmark(rev *jj.Revision) tea.Cmd {
 }
 
 // resize gives the log whatever the revset box, the search bar, the forge pane, and the footer
-// leave.
+// leave, less what the docked diff takes beside or under it.
 func (m *Model) resize() {
+	forgeHeight := 0
+	if m.showForge {
+		forgeHeight = forgeRows
+	}
+
+	m.forge.SetSize(m.width, forgeHeight)
+
+	width, height := m.width, m.logHeight()
+
+	if m.docked {
+		dockWidth, dockHeight := m.dockSize()
+		m.dock.SetWidth(diffpane.DockWidth(dockWidth))
+
+		if m.dockSideBySide() {
+			width -= dockWidth
+		} else {
+			height -= dockHeight
+		}
+	}
+
+	m.log.SetSize(width, height)
+}
+
+// logHeight is the rows between the revset box and whatever sits under the log, docked diff included.
+func (m Model) logHeight() int {
 	forgeHeight := 0
 	if m.showForge {
 		forgeHeight = forgeRows
@@ -297,8 +335,7 @@ func (m *Model) resize() {
 		findHeight = findRows
 	}
 
-	m.forge.SetSize(m.width, forgeHeight)
-	m.log.SetSize(m.width, max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight))
+	return max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight)
 }
 
 // View renders the log above the footer, with the help legend over both.
@@ -349,7 +386,7 @@ func (m Model) render() string {
 		return view(m.width, m.height)
 	}
 
-	panes := []string{m.revsetBox.View(m.width), m.log.View()}
+	panes := []string{m.revsetBox.View(m.width), m.logPane()}
 	if m.find.IsOpen() {
 		panes = append(panes, m.find.View(m.width))
 	}
@@ -359,4 +396,33 @@ func (m Model) render() string {
 	}
 
 	return strings.Join(append(panes, m.footer()), "\n")
+}
+
+// logPane is the log, with the docked diff beside it on a wide terminal or under it on a narrow one.
+func (m Model) logPane() string {
+	if !m.docked {
+		return m.log.View()
+	}
+
+	dockWidth, dockHeight := m.dockSize()
+	focused := m.focus == focusDock
+
+	if !m.dockSideBySide() {
+		return m.log.View() + "\n" + m.dock.DockView(dockWidth, dockHeight, focused)
+	}
+
+	logWidth := m.width - dockWidth
+	logLines := strings.Split(m.log.View(), "\n")
+	dockLines := strings.Split(m.dock.DockView(dockWidth, dockHeight, focused), "\n")
+
+	for i := range logLines {
+		pad := max(0, logWidth-ansi.StringWidth(logLines[i]))
+		logLines[i] += strings.Repeat(" ", pad)
+
+		if i < len(dockLines) {
+			logLines[i] += dockLines[i]
+		}
+	}
+
+	return strings.Join(logLines, "\n")
 }

@@ -3,6 +3,7 @@
 package tuitest
 
 import (
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -29,12 +30,17 @@ var namedKeys = map[string]rune{
 }
 
 // Key builds a tea.KeyPressMsg from a name such as "enter", "up", "ctrl+c",
-// or a single printable rune such as "j".
+// "alt+p", or a single printable rune such as "j".
 func Key(name string) tea.KeyPressMsg {
 	mod := tea.KeyMod(0)
-	if len(name) > 5 && name[:5] == "ctrl+" {
+	if rest, ok := strings.CutPrefix(name, "ctrl+"); ok && rest != "" {
 		mod |= tea.ModCtrl
-		name = name[5:]
+		name = rest
+	}
+
+	if rest, ok := strings.CutPrefix(name, "alt+"); ok && rest != "" {
+		mod |= tea.ModAlt
+		name = rest
 	}
 
 	if code, ok := namedKeys[name]; ok {

@@ -22,6 +22,7 @@ const (
 	ctxDestination = "destination"
 	ctxDetail      = "detail"
 	ctxDiff        = "diff"
+	ctxDock        = "dock"
 	ctxEvolog      = "evolog"
 	ctxFiles       = "files"
 	ctxFind        = "find"
@@ -100,6 +101,10 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 		),
 		ctxDiff: listModal(
 			bind("previous file", "["), bind("next file", "]"), bind("side by side", "s"), bind("close", "esc", "q"),
+		),
+		ctxDock: listModal(
+			bind("previous file", "["), bind("next file", "]"), bind("side by side", "s"),
+			bind("back to the log", "esc", "q"), bind("switch pane", "tab"), bind("close", dockKey),
 		),
 		ctxFiles: listModal(
 			bind("diff the file", "enter"), bind("restore", "r"), bind("move", "m"),

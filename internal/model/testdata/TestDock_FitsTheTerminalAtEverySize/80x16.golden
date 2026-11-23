@@ -1,0 +1,16 @@
+r: @                                                                             
+  aaaa              source                                                      
+  bbbb              destination                                                 
+
+
+
+
+
+│ diff aaaa
+│ M first.txt
+│ @@ -1 +1 @@
+│ -old first
+│ +new first
+│ M second.txt
+│ @@ -1 +1 @@
+@  [↑ ↓ ← →] move  [Enter] select  [Esc] back  [q]uit  …  [?] help              

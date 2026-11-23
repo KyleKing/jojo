@@ -5,11 +5,13 @@ package diffpane
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/table"
 	"github.com/kyleking/jj-diff/render"
 
 	"github.com/kyleking/jojo/internal/components/listview"
@@ -26,17 +28,29 @@ type Model struct {
 	title string
 	text  string
 	// files are the rendered-line indexes where each file's header lands, so [ and ] can step the
-	// cursor between them.
+	// cursor between them, and paths names the file each one heads.
 	files []int
+	paths []string
 	list  listview.Model[string]
 	width int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
 	sideBySide bool
+	// docked draws the pane flat beside the log rather than framed over it, so its lines take the
+	// whole width it is given.
+	docked bool
 }
 
 // New returns a closed pane drawn in skin.
 func New(skin ui.Skin) Model {
 	return Model{skin: skin, list: listview.New[string](skin)}
+}
+
+// NewDocked returns a closed pane that draws with DockView, beside the log rather than over it.
+func NewDocked(skin ui.Skin) Model {
+	m := New(skin)
+	m.docked = true
+
+	return m
 }
 
 // Open shows gitDiff, which must come from `jj diff --git`, rendered to fit width.
@@ -63,8 +77,13 @@ func (m *Model) SetWidth(width int) {
 }
 
 func (m *Model) render() {
+	width := m.list.InnerWidth(m.width)
+	if m.docked {
+		width = m.width
+	}
+
 	lines := render.Lines(m.text, render.Options{
-		Width:      m.list.InnerWidth(m.width),
+		Width:      width,
 		Palette:    paletteFor(m.skin),
 		Syntax:     true,
 		WordDiff:   true,
@@ -72,7 +91,43 @@ func (m *Model) render() {
 	})
 
 	m.list.Open(m.title, lines, 0)
-	m.files = fileBoundaries(m.text, lines)
+	m.files, m.paths = fileHeaders(m.text, lines)
+}
+
+// Show replaces the diff and lands on the header of keep when the new diff touches that file, else on
+// the first file. It is how the docked pane follows the log without losing the reader's place.
+func (m *Model) Show(title, gitDiff string, width int, keep string) {
+	m.title, m.text, m.width = title, gitDiff, width
+	m.render()
+
+	if i := slices.Index(m.paths, keep); keep != "" && i >= 0 {
+		m.list.Jump(m.files[i])
+
+		return
+	}
+
+	if len(m.files) > 0 {
+		m.list.Jump(m.files[0])
+	}
+}
+
+// CurrentPath names the file the cursor is in, "" before the first header or with nothing open.
+func (m Model) CurrentPath() string {
+	if !m.list.IsOpen() {
+		return ""
+	}
+
+	cursor, path := m.list.Cursor(), ""
+
+	for i, bound := range m.files {
+		if bound > cursor {
+			break
+		}
+
+		path = m.paths[i]
+	}
+
+	return path
 }
 
 // gitFileRE names the new-side path of each `diff --git` header, whether git quoted the paths or
@@ -83,7 +138,17 @@ var gitFileRE = regexp.MustCompile(`(?m)^diff --git (?:a/.*?|"a/.*?") "?b/(.*?)"
 // The renderer draws one `<M|A|D|R> path` line per file before its hunks, so an in-order walk of
 // the headers in the diff text finds them without re-parsing the hunks.
 func fileBoundaries(gitDiff string, lines []string) []int {
-	var bounds []int
+	bounds, _ := fileHeaders(gitDiff, lines)
+
+	return bounds
+}
+
+// fileHeaders is fileBoundaries with the path each boundary heads.
+func fileHeaders(gitDiff string, lines []string) ([]int, []string) {
+	var (
+		bounds []int
+		paths  []string
+	)
 
 	from := 0
 
@@ -91,6 +156,7 @@ func fileBoundaries(gitDiff string, lines []string) []int {
 		for i := from; i < len(lines); i++ {
 			if fileHeader(ansi.Strip(lines[i]), match[1]) {
 				bounds = append(bounds, i)
+				paths = append(paths, match[1])
 				from = i + 1
 
 				break
@@ -98,7 +164,7 @@ func fileBoundaries(gitDiff string, lines []string) []int {
 		}
 	}
 
-	return bounds
+	return bounds, paths
 }
 
 func fileHeader(stripped, path string) bool {
@@ -107,6 +173,9 @@ func fileHeader(stripped, path string) bool {
 		stripped[1] == ' ' &&
 		strings.HasPrefix(path, stripped[2:])
 }
+
+// Title is what the pane was last opened under.
+func (m Model) Title() string { return m.list.Title() }
 
 // Close hides the pane.
 func (m *Model) Close() { m.list.Close() }
@@ -188,6 +257,56 @@ func (m Model) View(width, height int) string {
 		{Key: "s", What: "side by side"},
 		{Key: "esc", What: "close"},
 	})
+}
+
+// dockRule is the column the docked pane gives up to separate itself from the log.
+const dockRule = "│ "
+
+// DockWidth is how many cells a diff line gets in a docked pane width cells wide.
+func DockWidth(width int) int {
+	return max(0, width-ansi.StringWidth(dockRule))
+}
+
+// DockView draws the pane flat into exactly height lines of width cells: a title, then the lines
+// around the cursor. The cursor row is only marked while the pane has the keys, since an unfocused
+// highlight would read as a second cursor beside the log's.
+func (m Model) DockView(width, height int, focused bool) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
+	inner := DockWidth(width)
+	rule := m.skin.Muted.Render(dockRule)
+
+	titleStyle := m.skin.Muted
+	if focused {
+		titleStyle = m.skin.Title
+	}
+
+	lines := []string{rule + titleStyle.Render(table.Truncate(m.title, inner))}
+	items := m.list.Items()
+
+	if len(items) == 0 {
+		lines = append(lines, rule+m.skin.Muted.Render(table.Truncate("nothing changed", inner)))
+	}
+
+	body := height - 1
+	start := min(max(0, m.list.Cursor()-body/2), max(0, len(items)-body))
+
+	for i := start; i < len(items) && len(lines) < height; i++ {
+		line := table.Truncate(items[i], inner)
+		if focused && i == m.list.Cursor() {
+			line = m.skin.Selected.Render(ansi.Strip(line))
+		}
+
+		lines = append(lines, rule+line)
+	}
+
+	for len(lines) < height {
+		lines = append(lines, rule)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) row(line string, selected bool) listview.Row {

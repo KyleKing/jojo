@@ -88,10 +88,11 @@ the handlers read. The ones worth knowing before you start:
 | `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
 | `:` | the command palette, listing every action and the jj command it runs |
 | `L` | edit the revset, which re-filters the log as you type |
-| `Tab` | cycle the log, the revset box, and the forge pane |
+| `Tab` | cycle the log, the revset box, the forge pane, and the docked diff |
 | `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions; `s` there switches to side by side |
 | `v` / `l` | details of the revision, or the files it touches, where `m` moves one file into another revision |
 | `space` / `C` in the files of `@` | stage or unstage the file, or commit what is staged, with `@-` standing in for git's index |
+| `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |

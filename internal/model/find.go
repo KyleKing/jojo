@@ -15,12 +15,14 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case search.ChangedMsg:
 		m.find.SetMatches(m.log.SetSearch(msg.Pattern))
+		cmd := m.followDock(m.log.Selected())
 
-		return m, nil, true
+		return m, cmd, true
 	case search.SteppedMsg:
 		m.find.SetMatches(m.log.StepMatch(msg.Delta))
+		cmd := m.followDock(m.log.Selected())
 
-		return m, nil, true
+		return m, cmd, true
 	case search.AcceptedMsg:
 		m.resize()
 

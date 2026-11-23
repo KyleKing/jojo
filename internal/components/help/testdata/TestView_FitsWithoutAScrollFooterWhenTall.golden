@@ -22,6 +22,7 @@
 │          I  move hunks into any revision                 │
 │      Enter  diff the revision                            │
 │      Alt+d  diff any two revisions                       │
+│      Alt+p  diff docked beside the log                   │
 │          a  abandon                                      │
 │          A  absorb                                       │
 │          D  duplicate                                    │
@@ -34,7 +35,6 @@
 │          P  push the revision's bookmarks                │
 │          o  op log                                       │
 │          v  details of the revision                      │
-│          E  evolution of the revision                    │
-│                                              1-35 of 52  │
+│                                              1-35 of 53  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

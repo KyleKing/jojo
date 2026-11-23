@@ -17,6 +17,7 @@ const (
 	focusLog focus = iota
 	focusRevset
 	focusForge
+	focusDock
 )
 
 // forgeRows is the height the forge pane takes when it is open.

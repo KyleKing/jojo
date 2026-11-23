@@ -92,6 +92,10 @@ var defaultBindings = []Binding{
 		Layer: L2, Run: "alt+d", Action: "diff-range", Cmd: "jj diff --from <a> --to <b>",
 		Hint: keyhint.Hint{Key: "Alt+d", What: "diff any two revisions"},
 	},
+	{
+		Layer: L2, Run: "alt+p", Action: "dock-diff", Cmd: "jj diff -r <rev> --git",
+		Hint: keyhint.Hint{Key: "Alt+p", What: "diff docked beside the log"},
+	},
 	{Layer: L2, Run: "a", Action: "abandon", Cmd: "jj abandon <rev>", Hint: keyhint.Hint{Key: "a", What: "abandon"}},
 	{Layer: L2, Run: "A", Action: "absorb", Cmd: "jj absorb -r <rev>", Hint: keyhint.Hint{Key: "A", What: "absorb"}},
 	{

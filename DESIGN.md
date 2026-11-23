@@ -101,14 +101,20 @@ refuses all three when `@-` is immutable, shared with another child, or one of s
 since rewriting it then reaches past the working copy. There is no setting: someone who does not
 think in git never presses the keys.
 
+**The docked diff follows the log, debounced.** `Alt+p` draws the diff beside the log (under it
+below 100 columns) and the log keeps the keys. Every cursor move bumps a sequence number and waits
+120ms before reading, so holding `j` costs one jj call rather than one per row, and a read the
+cursor has already left is dropped when it lands. The new diff opens on the file the reader was in
+when the revision touches it, else on its first file.
+
 **Configuration is two settings.** A theme and key rebinds, and nothing that jj already
 carries: named revsets are jj's `revset-aliases`, which the revset box completes, so jojo
 does not keep a second list of them. A setting jojo cannot honor stops startup, since a TUI
 has nowhere to report it once it is drawing.
 
 **Whoever is open owns the keys.** An open overlay takes every key before the log sees it,
-since they share `j` and `k`. Below that, Tab cycles the log, the revset box, and the forge
-pane, and each handles its own bindings while focused. That is what lets `r` mean rebase in
+since they share `j` and `k`. Below that, Tab cycles the log, the revset box, the forge
+pane, and the docked diff, and each handles its own bindings while focused. That is what lets `r` mean rebase in
 the log and refresh in the forge pane.
 
 **Search moves the cursor, the revset changes the list.** `/` finds a revision among the

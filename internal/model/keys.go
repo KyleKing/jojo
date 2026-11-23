@@ -22,6 +22,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.usage.Key(ctxForge, msg.String())
 
 		return m.handleForgeKey(msg)
+	case focusDock:
+		m.usage.Key(ctxDock, msg.String())
+
+		return m.handleDockKey(msg)
 	case focusLog:
 	}
 
@@ -139,6 +143,10 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.toggleForge()
 
 		return next, cmd, true
+	case dockKey:
+		next, cmd := m.toggleDock()
+
+		return next, cmd, true
 	case "q", "ctrl+c":
 		m.quitting = true
 
@@ -200,6 +208,11 @@ func (m Model) cycleFocus() (tea.Model, tea.Cmd) {
 	case m.focus == focusRevset && m.showForge:
 		m.revsetBox.Blur()
 		m.focus = focusForge
+
+		return m, nil
+	case (m.focus == focusRevset || m.focus == focusForge) && m.docked:
+		m.revsetBox.Blur()
+		m.focus = focusDock
 
 		return m, nil
 	default:
