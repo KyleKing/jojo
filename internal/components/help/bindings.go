@@ -43,6 +43,9 @@ type Binding struct {
 	Layer Layer
 }
 
+// spaceKey checks a revision in the log and stages a file in the file list of @.
+const spaceKey = "space"
+
 // defaultBindings is the whole keymap, as data. The statusbar and the root model both read from
 // here, so a binding cannot drift between the footer, the help overlay, and the handler that acts
 // on it. Never hand it out: NewKeymap clones it, because a rebind rewrites its entries.
@@ -148,7 +151,7 @@ var defaultBindings = []Binding{
 	},
 	{Layer: L2, Run: "p", Action: "forge", Hint: keyhint.Hint{Key: "p", What: "forge pane"}},
 	{Layer: L2, Run: "L", Action: "revset", Hint: keyhint.Hint{Key: "L", What: "edit the revset"}},
-	{Layer: L2, Run: "space", Action: "check", Hint: keyhint.Hint{Key: "space", What: "check for a batch action"}},
+	{Layer: L2, Run: spaceKey, Action: "check", Hint: keyhint.Hint{Key: spaceKey, What: "check for a batch action"}},
 
 	{Layer: L3, Hint: keyhint.Hint{What: "Power", Head: true}},
 	{
@@ -168,6 +171,18 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "x", What: "abandon divergent sides"},
 	},
 	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
+
+	// The staging keys live in the file list of @ (l on the working copy) rather than the log, so they
+	// carry no Run: the legend teaches them and the list dispatches them.
+	{Layer: L3, Hint: keyhint.Hint{What: "Staging, in the files of @", Head: true}},
+	{
+		Layer: L3, Cmd: "jj squash --from @ --into @- <path>",
+		Hint: keyhint.Hint{Key: spaceKey, What: "stage or unstage the file"},
+	},
+	{
+		Layer: L3, Cmd: "jj describe @- && jj new -A @- -B @",
+		Hint: keyhint.Hint{Key: "C", What: "commit what is staged"},
+	},
 }
 
 // Keymap is the effective keymap: the default table with the user's rebinds applied. Build it once

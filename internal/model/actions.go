@@ -80,7 +80,7 @@ func (m Model) viewKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	case "v":
 		return m.loadDetail(rev.ChangeID), true
 	case "l":
-		return m.loadFiles(rev.ChangeID), true
+		return m.filesKey(rev), true
 	case "c":
 		return m.resolveKey(rev), true
 	case "P":

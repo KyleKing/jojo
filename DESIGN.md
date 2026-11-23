@@ -93,6 +93,14 @@ all), and hunks or lines with `I`, which picks the destination here and hands th
 to whichever diff editor the repository configures. jojo never reimplements hunk selection,
 and the file case never pays for an editor it does not need.
 
+**Staging is a reading of jj, not a mode.** The file list of `@` treats `@-` as git's index:
+stage and unstage are `jj squash --keep-emptied` between the two, and commit is `jj describe @-`
+followed by `jj new --insert-after @- --insert-before @`. Each step moves content between `@` and
+`@-` or moves a parent pointer, so none can cost what the working copy holds, and `internal/jj`
+refuses all three when `@-` is immutable, shared with another child, or one of several parents,
+since rewriting it then reaches past the working copy. There is no setting: someone who does not
+think in git never presses the keys.
+
 **Configuration is two settings.** A theme and key rebinds, and nothing that jj already
 carries: named revsets are jj's `revset-aliases`, which the revset box completes, so jojo
 does not keep a second list of them. A setting jojo cannot honor stops startup, since a TUI

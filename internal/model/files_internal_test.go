@@ -1,12 +1,14 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/tuitest"
 )
 
 func openFiles(t *testing.T, files []jj.FileChange) Model {
@@ -134,5 +136,92 @@ func TestMoveFileSquashesOnlyThatPath(t *testing.T) {
 
 	if picking.files.IsOpen() {
 		t.Error("the file list stayed open under the destination picker")
+	}
+}
+
+func openWorkingCopyFiles(t *testing.T, refresh bool, wc workingCopyFiles) Model {
+	t.Helper()
+
+	model, _ := deliver(testModel(t, twoRows()), wc, nil, showWorkingCopyFiles("aaaa", refresh))
+
+	return model
+}
+
+func stagedFiles() workingCopyFiles {
+	return workingCopyFiles{
+		files: []jj.FileChange{{Status: "M", Path: "unstaged.txt"}},
+		staging: fileview.Staging{
+			Index: "bbbb", Message: "wip", Files: []jj.FileChange{{Status: "A", Path: "staged.txt"}},
+		},
+	}
+}
+
+// l on the working copy opens the staging list, which lists what the index holds as well.
+func TestFilesKey_OnTheWorkingCopyListsWhatIsStaged(t *testing.T) {
+	t.Parallel()
+
+	model := openWorkingCopyFiles(t, false, stagedFiles())
+
+	if !model.files.IsOpen() {
+		t.Fatal("the working copy's file list did not open")
+	}
+
+	view := tuitest.StripANSI(model.files.View(80, 12))
+	for _, want := range []string{"unstaged.txt", "staged staged.txt", "stage"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the list is missing %q:\n%s", want, view)
+		}
+	}
+}
+
+// A stage finishing after the list was closed must not pull it back over whatever came next.
+func TestStage_RefreshDoesNotReopenAClosedList(t *testing.T) {
+	t.Parallel()
+
+	if openWorkingCopyFiles(t, true, stagedFiles()).files.IsOpen() {
+		t.Error("a refresh reopened a list the user had closed")
+	}
+}
+
+// With everything committed and nothing left in @, there is nothing to open, and the status says so.
+func TestFilesKey_SaysSoWhenNothingIsChangedOrStaged(t *testing.T) {
+	t.Parallel()
+
+	model := openWorkingCopyFiles(t, false, workingCopyFiles{staging: fileview.Staging{Index: "bbbb"}})
+
+	if model.files.IsOpen() {
+		t.Error("the list opened with nothing in it")
+	}
+
+	if !strings.Contains(model.message, "nothing is staged") {
+		t.Errorf("the status reads %q, want it to say nothing is staged", model.message)
+	}
+}
+
+// The prompt sits under the file list in the stacking order, so the list has to close for the
+// message to be typed where it can be seen.
+func TestCommit_ClosesTheListAndAsksForTheMessage(t *testing.T) {
+	t.Parallel()
+
+	model := openWorkingCopyFiles(t, false, stagedFiles())
+
+	next, cmd := model.Update(tuitest.Key("C"))
+	if cmd == nil {
+		t.Fatal("C produced no command")
+	}
+
+	commit, ok := cmd().(fileview.CommitMsg)
+	if !ok {
+		t.Fatalf("C produced %T, want a commit", cmd())
+	}
+
+	asking := asModel(t, update(asModel(t, next), commit))
+
+	if asking.files.IsOpen() {
+		t.Error("the file list stayed open over the commit prompt")
+	}
+
+	if !asking.prompt.IsOpen() || asking.onSubmit == nil {
+		t.Fatal("committing did not ask for a message")
 	}
 }

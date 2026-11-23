@@ -2,6 +2,9 @@ package model
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -29,8 +32,126 @@ func showFiles(revision string) func(*Model, []jj.FileChange) tea.Cmd {
 	}
 }
 
+// workingCopyFiles is what the file list of @ shows: its own files as unstaged, and the index below.
+type workingCopyFiles struct {
+	staging fileview.Staging
+	files   []jj.FileChange
+}
+
+// loadWorkingCopyFiles reads the files of @ and of the parent standing in for the index. A parent
+// that cannot be the index is not an error here: the list still opens, and says why when a staging
+// key is pressed. A refresh only redraws a list still open, so a write finishing after the list was
+// closed does not reopen it.
+func (m Model) loadWorkingCopyFiles(revision string, refresh bool) tea.Cmd {
+	client := m.client
+
+	return load(m.ctx,
+		func(ctx context.Context) (workingCopyFiles, error) {
+			return readWorkingCopyFiles(ctx, client, revision)
+		},
+		showWorkingCopyFiles(revision, refresh))
+}
+
+func readWorkingCopyFiles(ctx context.Context, client *jj.Client, revision string) (workingCopyFiles, error) {
+	files, err := client.Files(ctx, revision)
+	if err != nil {
+		return workingCopyFiles{}, fmt.Errorf("listing the files of %s: %w", revision, err)
+	}
+
+	index, err := client.Index(ctx)
+
+	switch {
+	case errors.Is(err, jj.ErrNoIndex):
+		return workingCopyFiles{files: files, staging: fileview.Staging{Refused: err.Error()}}, nil
+	case err != nil:
+		return workingCopyFiles{}, fmt.Errorf("reading the index: %w", err)
+	}
+
+	staged, err := client.Files(ctx, index.ChangeID)
+	if err != nil {
+		return workingCopyFiles{}, fmt.Errorf("listing what is staged in %s: %w", index.ChangeID, err)
+	}
+
+	return workingCopyFiles{
+		files:   files,
+		staging: fileview.Staging{Index: index.ChangeID, Message: index.Description, Files: staged},
+	}, nil
+}
+
+func showWorkingCopyFiles(revision string, refresh bool) func(*Model, workingCopyFiles) tea.Cmd {
+	return func(m *Model, wc workingCopyFiles) tea.Cmd {
+		if refresh && !m.files.IsOpen() {
+			return nil
+		}
+
+		if !refresh && len(wc.files) == 0 && len(wc.staging.Files) == 0 {
+			m.message = revision + " changes no files and nothing is staged"
+
+			return nil
+		}
+
+		return m.files.OpenWorkingCopy(revision, wc.files, wc.staging)
+	}
+}
+
+// filesKey opens the file list, which for the working copy also lists what is staged beneath it.
+func (m Model) filesKey(rev jj.Revision) tea.Cmd {
+	if rev.WorkingCopy {
+		return m.loadWorkingCopyFiles(rev.ChangeID, false)
+	}
+
+	return m.loadFiles(rev.ChangeID)
+}
+
+// stagingWrite runs one staging verb and redraws the list it was pressed in, which stays open so a
+// run of files can be staged one after another.
+func (m Model) stagingWrite(revision string, write func(context.Context) (string, error)) tea.Cmd {
+	return tea.Sequence(m.run(undoHint, write), m.loadWorkingCopyFiles(revision, true))
+}
+
+// openCommit closes the file list, which would otherwise draw over the prompt, and reopens it once
+// the commit lands so the next round of staging starts where this one left off.
+func (m *Model) openCommit(msg fileview.CommitMsg) tea.Cmd {
+	m.files.Close()
+
+	revision := msg.Revision
+	m.onSubmit = func(m Model, message string) (Model, tea.Cmd) {
+		if strings.TrimSpace(message) == "" {
+			return m, tea.Batch(m.say("a commit needs a message"), m.loadWorkingCopyFiles(revision, false))
+		}
+
+		client := m.client
+		cmd := tea.Sequence(
+			m.run(", press u twice to undo", func(ctx context.Context) (string, error) {
+				return client.CommitIndex(ctx, message)
+			}),
+			m.loadWorkingCopyFiles(revision, false),
+		)
+
+		return m, cmd
+	}
+
+	return m.prompt.Open("commit what is staged", msg.Message)
+}
+
 func (m Model) handleFileMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case fileview.StageMsg:
+		path, client := msg.Path, m.client
+
+		return m, m.stagingWrite(msg.Revision, func(ctx context.Context) (string, error) {
+			return client.Stage(ctx, path)
+		}), true
+	case fileview.UnstageMsg:
+		path, client := msg.Path, m.client
+
+		return m, m.stagingWrite(msg.Revision, func(ctx context.Context) (string, error) {
+			return client.Unstage(ctx, path)
+		}), true
+	case fileview.CommitMsg:
+		cmd := m.openCommit(msg)
+
+		return m, cmd, true
 	case fileview.DiffMsg:
 		return m, m.showDiff(jj.DiffTarget{Revision: msg.Revision, Paths: []string{msg.Path}}), true
 	case fileview.RestoreMsg:

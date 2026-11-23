@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│          |  parallelize the checked revisions  │
-│          X  arrange the graph                  │
-│          B  bisect between the two checked r…  │
 │          x  abandon divergent sides            │
 │             edit the revset aliases            │
-│                                   45-49 of 49  │
+│             Staging, in the files of @         │
+│      space  stage or unstage the file          │
+│          C  commit what is staged              │
+│                                   48-52 of 52  │
 │                                                │
 ╰────────────────────────────────────────────────╯

@@ -91,6 +91,7 @@ the handlers read. The ones worth knowing before you start:
 | `Tab` | cycle the log, the revset box, and the forge pane |
 | `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions; `s` there switches to side by side |
 | `v` / `l` | details of the revision, or the files it touches, where `m` moves one file into another revision |
+| `space` / `C` in the files of `@` | stage or unstage the file, or commit what is staged, with `@-` standing in for git's index |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
@@ -108,6 +109,17 @@ Every action runs immediately and tells you to press `u`, because jj's operation
 makes all of them reversible. The footer keeps naming the operation `u` would reverse, so
 the way back is never a guess. jj has no redo, so `Ctrl+r` restores the operation the undo
 moved away from.
+
+### Staging, for people coming from git
+
+The file list of the working copy (`l` on `@`) also speaks git, without changing anything else
+about jj. `@-` stands in for the index: it lists the working copy's own files as unstaged and
+`@-`'s files beneath them as staged. `space` stages the file under the cursor
+(`jj squash --from @ --into @- <path>`) or unstages a staged one (the same squash in the other
+direction), and `C` commits: it describes `@-` and inserts a fresh empty change between it and `@`
+to be the next index. None of the three changes a file in the working copy, only which revision
+records it. When `@-` is immutable, has another child, or `@` is a merge, the keys refuse and say
+why rather than rewrite past the working copy.
 
 Two things ask first, because `jj undo` cannot take them back: a push, which has left the
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj

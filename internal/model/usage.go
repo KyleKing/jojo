@@ -103,7 +103,8 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 		),
 		ctxFiles: listModal(
 			bind("diff the file", "enter"), bind("restore", "r"), bind("move", "m"),
-			bind("resolve", "c"), bind("close", "esc", "q", "l"),
+			bind("resolve", "c"), bind("stage or unstage", "space"), bind("commit", "C"),
+			bind("close", "esc", "q", "l"),
 		),
 		ctxOpLog: listModal(
 			bind("restore", "enter", "r"), bind("show", "d"), bind("revert", "v"), bind("close", "esc", "q", "o"),
