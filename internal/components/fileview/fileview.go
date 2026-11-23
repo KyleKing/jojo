@@ -6,7 +6,10 @@
 package fileview
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -336,8 +339,8 @@ func (m Model) row(file entry, selected bool) listview.Row {
 
 	text := table.Pad(status, statusWidth, table.AlignLeft) + " "
 
+	tag := ""
 	if m.staging != nil {
-		tag := ""
 		if file.staged {
 			tag = stagedTag
 		}
@@ -345,5 +348,33 @@ func (m Model) row(file entry, selected bool) listview.Row {
 		text += table.Pad(tag, stagedWidth, table.AlignLeft)
 	}
 
-	return listview.Row{Text: text + file.Path, Style: style}
+	out := listview.Row{Text: text + file.Path, Style: style}
+	if !selected {
+		out.Drawn = m.drawn(file, status, style, tag)
+	}
+
+	return out
+}
+
+// drawn is a file's row in pieces: its status in the status's color, the
+// index's tag a step back, the file type's icon, and the path with its
+// directory muted so the eye lands on the name.
+func (m Model) drawn(file entry, status string, style lipgloss.Style, tag string) string {
+	var b strings.Builder
+
+	b.WriteString(style.Render(table.Pad(status, statusWidth, table.AlignLeft)) + " ")
+
+	if m.staging != nil {
+		b.WriteString(m.skin.Muted.Render(table.Pad(tag, stagedWidth, table.AlignLeft)))
+	}
+
+	if g := m.skin.Icons.File(file.Path); g.Text != "" {
+		b.WriteString(lipgloss.NewStyle().Foreground(g.Color).Render(g.Prefix()))
+	}
+
+	cut := strings.LastIndex(file.Path, "/") + 1
+	dir, name := file.Path[:cut], file.Path[cut:]
+	b.WriteString(m.skin.Muted.Render(dir) + m.skin.Body.Render(name))
+
+	return b.String()
 }

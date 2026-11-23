@@ -167,10 +167,22 @@ func TestFilesKey_OnTheWorkingCopyListsWhatIsStaged(t *testing.T) {
 	}
 
 	view := tuitest.StripANSI(model.files.View(80, 12))
-	for _, want := range []string{"unstaged.txt", "staged staged.txt", "stage"} {
+	for _, want := range []string{"unstaged.txt", "stage"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the list is missing %q:\n%s", want, view)
 		}
+	}
+
+	// The staged row carries the tag ahead of its name, with the file's icon between.
+	staged := false
+
+	for line := range strings.SplitSeq(view, "\n") {
+		tag := strings.Index(line, " staged ")
+		staged = staged || (tag >= 0 && strings.Index(line, "staged.txt") > tag)
+	}
+
+	if !staged {
+		t.Errorf("the list does not tag staged.txt as staged:\n%s", view)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
@@ -21,6 +22,9 @@ import (
 type Row struct {
 	Style lipgloss.Style
 	Text  string
+	// Drawn, when set, is the row already styled in pieces, and is drawn in
+	// place of Text. Text stays the row's plain reading.
+	Drawn string
 }
 
 // Model is a list of T. The zero cursor is the first item.
@@ -157,7 +161,8 @@ func (m Model[T]) View(width, height int, row func(item T, selected bool) Row, h
 		return ui.TooSmall(width, height)
 	}
 
-	head := []string{m.skin.Title.Render(table.Truncate(m.title, inner))}
+	// The title is a labeled rule, the heading every list in these tools wears.
+	head := []string{m.skin.Rule(m.title, "", inner)}
 	if m.warning != "" {
 		head = append(head, m.skin.Error.Render(table.Truncate(m.warning, inner)))
 	}
@@ -176,6 +181,12 @@ func (m Model[T]) View(width, height int, row func(item T, selected bool) Row, h
 
 	for i := start; i < end; i++ {
 		drawn := row(m.items[i], i == m.cursor)
+		if drawn.Drawn != "" {
+			lines = append(lines, ansi.Truncate(drawn.Drawn, inner, "…"))
+
+			continue
+		}
+
 		lines = append(lines, drawn.Style.Render(table.Truncate(drawn.Text, inner)))
 	}
 

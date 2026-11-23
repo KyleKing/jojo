@@ -1,12 +1,12 @@
                                                             
-╭─────────────────────────────────────────────────────────╮ 
-│                                                         │ 
-│  files in wcwcwcwc, staged in idxidxid                  │ 
-│  M         unstaged.go                                  │ 
-│  A         new.go                                       │ 
-│  M  staged staged.go                                    │ 
-│  [space] stage  [C]ommit  [enter] diff  …  [esc] close  │ 
-│                                                         │ 
-╰─────────────────────────────────────────────────────────╯ 
+╭──────────────────────────────────────────────────────────╮
+│                                                          │
+│  ── files in wcwcwcwc, staged in idxidxid ─────────────  │
+│  M         unstaged.go                                   │
+│  A          new.go                                      │
+│  M  staged  staged.go                                   │
+│  [space] stage  [C]ommit  [enter] diff  …  [esc] close   │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
                                                             
                                                             

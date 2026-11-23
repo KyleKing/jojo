@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/skin"
@@ -43,6 +44,9 @@ type Skin struct {
 	// Palette is the flavor this skin was built from, for the few callers that need a raw color
 	// rather than a face: a diff needs more of them than a skin has roles for.
 	Palette theme.Palette
+	// Icons draws a file's type beside its name: Nerd Font glyphs unless
+	// ARAGONITE_ICONS asks for plain unicode, shared with the sibling tools.
+	Icons icons.Set
 }
 
 // accent returns the color that tells jojo apart from aragonite's other
@@ -68,6 +72,7 @@ func New(p theme.Palette) Skin {
 		Added:          base.Foreground(p.Green),
 		Removed:        base.Foreground(p.Red),
 		Selected:       base.Reverse(true),
+		Icons:          icons.New(icons.Resolve(""), p),
 		Palette:        p,
 	}
 }
