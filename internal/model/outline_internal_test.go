@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/rounds"
@@ -344,4 +345,36 @@ func keysNoPump(t *testing.T, m Model, keys ...string) Model {
 	}
 
 	return m
+}
+
+// Beside the dock the outline takes its own width rather than a fixed share, up to 45% of the
+// terminal, stretching to half before it drops a column, and the dock gets the rest.
+func TestOutline_TakesItsContentWidthAndTheDockTheRest(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{100, 120, 160, 240} {
+		m := outlineFrame(t, width, 30)
+		dock, _ := m.dockSize()
+		outline := width - dock
+		content := m.outline.view.ContentWidth()
+
+		if outline > content {
+			t.Errorf("at %d the outline takes %d cells for rows %d wide", width, outline, content)
+		}
+
+		if outline > width/2 {
+			t.Errorf("at %d the outline takes %d cells, past half the terminal", width, outline)
+		}
+
+		if outline < content && outline < width*outlineMaxShare/percent {
+			t.Errorf("at %d the outline cuts its rows at %d cells with room up to %d",
+				width, outline, width*outlineMaxShare/percent)
+		}
+
+		for i, line := range strings.Split(ansi.Strip(m.render()), "\n") {
+			if w := ansi.StringWidth(line); w > width {
+				t.Errorf("at %d row %d is %d cells", width, i, w)
+			}
+		}
+	}
 }

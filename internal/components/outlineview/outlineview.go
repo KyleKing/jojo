@@ -52,6 +52,7 @@ const (
 	numberMax    = 2
 	changeWidth  = 8
 	descMin      = 24
+	descBeside   = 14
 	descWeight   = 4
 	bookmarksMin = 6
 	bookmarksMax = 18
@@ -61,19 +62,6 @@ const (
 	forgeMax     = 22
 )
 
-func columns() []table.Column {
-	return []table.Column{
-		{Key: colNumber, Min: numberMin, Max: numberMax, Align: table.AlignRight},
-		{Key: colChange, Min: changeWidth, Max: changeWidth},
-		{Key: colFlags, Min: 1, Max: 1},
-		{Key: colDesc, Min: descMin, Weight: descWeight},
-		{Key: colBookmarks, Min: bookmarksMin, Max: bookmarksMax, Weight: 1, Priority: prioBookmarks},
-		{Key: colSize, Min: sizeMin, Max: sizeMax, Priority: prioSize, Align: table.AlignRight},
-		{Key: colForge, Min: forgeMin, Max: forgeMax, Weight: 1, Priority: prioForge},
-		{Key: colRead, Min: readmark.Width, Max: readmark.Width, Priority: prioRead},
-	}
-}
-
 // Model is the outline's state: the chapters, which one the cursor is on, and the room it draws in.
 type Model struct {
 	skin     ui.Skin
@@ -82,10 +70,131 @@ type Model struct {
 	top      int
 	width    int
 	height   int
+	beside   bool
 }
 
 // New returns an empty outline drawn in skin.
 func New(skin ui.Skin) Model { return Model{skin: skin} }
+
+// columns is the outline's table, less the bookmark and forge columns when no chapter has anything
+// to put in them, so a stack with no branches yet spends no width on blanks.
+func (m Model) columns() []table.Column {
+	cols := []table.Column{
+		{Key: colNumber, Min: numberMin, Max: numberMax, Align: table.AlignRight},
+		{Key: colChange, Min: changeWidth, Max: changeWidth},
+		{Key: colFlags, Min: 1, Max: 1},
+		{Key: colDesc, Min: m.descMin(), Weight: descWeight},
+	}
+
+	if m.any(func(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }) {
+		cols = append(cols, table.Column{
+			Key: colBookmarks, Min: bookmarksMin, Max: bookmarksMax, Weight: 1, Priority: prioBookmarks,
+		})
+	}
+
+	cols = append(cols, table.Column{
+		Key: colSize, Min: sizeMin, Max: sizeMax, Priority: prioSize, Align: table.AlignRight,
+	})
+
+	if m.any(func(c Chapter) string { return c.Forge }) {
+		cols = append(cols, table.Column{Key: colForge, Min: forgeMin, Max: forgeMax, Weight: 1, Priority: prioForge})
+	}
+
+	return append(cols, table.Column{Key: colRead, Min: readmark.Width, Max: readmark.Width, Priority: prioRead})
+}
+
+// descMin is the narrowest the description goes before a column is dropped. Beside the docked diff
+// it gives way sooner, since the inspector carries a cut description whole and nothing carries a
+// dropped size or bookmark.
+func (m Model) descMin() int {
+	if m.beside {
+		return descBeside
+	}
+
+	return descMin
+}
+
+// SetBeside says whether the outline shares the terminal's width with the docked diff.
+func (m *Model) SetBeside(beside bool) { m.beside = beside }
+
+// any reports whether text has something to say for some chapter.
+func (m Model) any(text func(Chapter) string) bool {
+	for _, c := range m.chapters {
+		if text(c) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ContentWidth is how wide the outline is when no row is cut: each column as wide as its widest
+// cell, within its bounds, and the title. A caller laying the outline beside something else gives
+// it this much and the rest to its neighbor, rather than a share its short rows would leave blank.
+func (m Model) ContentWidth() int {
+	widest := func(text func(Chapter) string) int {
+		w := 0
+		for _, c := range m.chapters {
+			w = max(w, lipgloss.Width(text(c)))
+		}
+
+		return w
+	}
+
+	natural := map[string]int{
+		colNumber:    len(strconv.Itoa(len(m.chapters))),
+		colChange:    widest(func(c Chapter) string { return c.Rev.ChangeID }),
+		colDesc:      widest(description),
+		colBookmarks: widest(func(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }),
+		colSize:      widest(func(c Chapter) string { return sizeText(c.Rev) }),
+		colForge:     widest(func(c Chapter) string { return c.Forge }),
+	}
+
+	total := table.Gutter
+
+	for i, col := range m.columns() {
+		w := max(col.Min, natural[col.Key])
+		if col.Max > 0 {
+			w = min(w, col.Max)
+		}
+
+		if i > 0 {
+			total += table.Gutter
+		}
+
+		total += w
+	}
+
+	return max(total, lipgloss.Width(m.titleText()))
+}
+
+// MinWidth is the narrowest the outline draws every column it has at, each at its least, so a
+// caller squeezing it can tell where its rows would start to lose a column.
+func (m Model) MinWidth() int {
+	total := table.Gutter
+
+	for i, col := range m.columns() {
+		if i > 0 {
+			total += table.Gutter
+		}
+
+		total += col.Min
+	}
+
+	return total
+}
+
+// description is a chapter's description as its row draws it.
+func description(c Chapter) string {
+	if c.Rev.Description == "" {
+		return noDescription
+	}
+
+	return c.Rev.Description
+}
+
+// noDescription stands in for a chapter with no description yet.
+const noDescription = "(no description set)"
 
 // SetChapters replaces the chapters, keeping the cursor on the change it was on when the stack
 // still holds it, and otherwise on the chapter at the working copy, else the first.
@@ -218,7 +327,7 @@ func (m Model) View() string {
 		lines = append(lines, m.skin.Muted.Render(empty))
 	}
 
-	layout := table.FitCompact(columns(), m.width-table.Gutter)
+	layout := table.FitCompact(m.columns(), m.width-table.Gutter)
 
 	for i := m.top; i < len(m.chapters) && len(lines) < m.height; i++ {
 		lines = append(lines, m.row(i, layout))
@@ -242,7 +351,16 @@ func (m Model) titleLine() string {
 		return title
 	}
 
-	return title + m.skin.Muted.Render(table.Truncate(" · "+strconv.Itoa(len(m.chapters))+" · "+m.Name(), rest))
+	return title + m.skin.Muted.Render(table.Truncate(strings.TrimPrefix(m.titleText(), "Stack"), rest))
+}
+
+// titleText is the title row unstyled and uncut.
+func (m Model) titleText() string {
+	if len(m.chapters) == 0 {
+		return "Stack"
+	}
+
+	return "Stack · " + strconv.Itoa(len(m.chapters)) + " · " + m.Name()
 }
 
 // Name is what the stack is called: the bookmark nearest its tip, since that is the branch a review
@@ -295,7 +413,7 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colDesc:
 		text = rev.Description
 		if text == "" {
-			text, face = "(no description set)", m.skin.Muted.Italic(true)
+			text, face = noDescription, m.skin.Muted.Italic(true)
 		}
 	case colBookmarks:
 		text, face = strings.Join(rev.Bookmarks, " "), m.skin.Bookmark
@@ -359,7 +477,7 @@ func (m Model) size(rev *jj.Revision, width int) string {
 
 	files := strconv.Itoa(rev.Files) + "f"
 	added, removed := "+"+strconv.Itoa(rev.Added), "-"+strconv.Itoa(rev.Removed)
-	plain := files + " " + added + " " + removed
+	plain := sizeText(rev)
 
 	if lipgloss.Width(plain) > width {
 		return m.skin.Muted.Render(table.PadTrim(plain, width, table.AlignRight, table.TrimRight))
@@ -367,6 +485,15 @@ func (m Model) size(rev *jj.Revision, width int) string {
 
 	return strings.Repeat(" ", width-lipgloss.Width(plain)) +
 		m.skin.Muted.Render(files) + " " + m.skin.Added.Render(added) + " " + m.skin.Removed.Render(removed)
+}
+
+// sizeText is a chapter's size as the row writes it, "3f +7 -3", or nothing for an empty change.
+func sizeText(rev *jj.Revision) string {
+	if rev.Files == 0 && rev.Added == 0 && rev.Removed == 0 {
+		return ""
+	}
+
+	return strconv.Itoa(rev.Files) + "f +" + strconv.Itoa(rev.Added) + " -" + strconv.Itoa(rev.Removed)
 }
 
 // Overflow is what the chapter under the cursor had no room for: its whole description when the
@@ -378,7 +505,7 @@ func (m Model) Overflow() []string {
 	}
 
 	c := m.chapters[m.cursor]
-	layout := table.FitCompact(columns(), m.width-table.Gutter)
+	layout := table.FitCompact(m.columns(), m.width-table.Gutter)
 	whole := map[string]string{
 		colDesc: rev.Description, colBookmarks: strings.Join(rev.Bookmarks, " "), colForge: c.Forge,
 	}

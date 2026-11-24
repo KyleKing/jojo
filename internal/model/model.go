@@ -464,6 +464,8 @@ func (m *Model) resize() {
 
 	m.forge.SetSize(m.width, forgeHeight)
 	m.revsetShown = m.revsetRow()
+	// The outline's columns depend on whether it shares the width, and the dock's share on them.
+	m.outline.view.SetBeside(m.docked && m.dockSideBySide())
 
 	width, height := m.width, m.logHeight()
 

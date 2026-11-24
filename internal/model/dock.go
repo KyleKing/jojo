@@ -15,10 +15,14 @@ import (
 // diff is one jj call in the shared queue, so holding j would otherwise queue one per row passed.
 const dockDebounce = 120 * time.Millisecond
 
-// outlineDockShare is the percent of a wide terminal the dock takes beside the outline.
+// outlineMaxShare is the most of a wide terminal the outline takes beside the dock, which gets the
+// rest: the outline's rows are short, so past its own width a share would only be blank. It may
+// stretch to half the terminal rather than drop a column, since a dropped size or bookmark is
+// nowhere else on screen.
 const (
-	outlineDockShare = 45
-	percent          = 100
+	outlineMaxShare     = 45
+	outlineStretchShare = 50
+	percent             = 100
 )
 
 // dockMinSideBySide is the narrowest terminal that docks the diff beside the log rather than under
@@ -173,8 +177,7 @@ func (m *Model) showDockText(title, text, keep string) {
 func (m Model) dockSize() (int, int) {
 	logHeight := m.logHeight()
 	if m.width >= dockMinSideBySide && m.outline.active {
-		// The outline's rows carry more columns than the log's, so it keeps the larger share.
-		return m.width * outlineDockShare / percent, logHeight
+		return m.width - m.outlineWidth(), logHeight
 	}
 
 	if m.width >= dockMinSideBySide {
@@ -182,6 +185,17 @@ func (m Model) dockSize() (int, int) {
 	}
 
 	return m.width, logHeight / 2 //nolint:mnd // the log and the diff share the rows evenly.
+}
+
+// outlineWidth is the outline's share of a wide terminal beside the dock: its own width, up to the
+// cap, past which its rows cut descriptions before they drop a column.
+func (m Model) outlineWidth() int {
+	share := m.width * outlineMaxShare / percent
+	if least := m.outline.view.MinWidth(); least > share && least <= m.width*outlineStretchShare/percent {
+		share = least
+	}
+
+	return min(m.outline.view.ContentWidth(), share)
 }
 
 // dockSideBySide reports whether the docked pane sits beside the log rather than under it.
