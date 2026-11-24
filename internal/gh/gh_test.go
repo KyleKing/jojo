@@ -86,7 +86,9 @@ func TestCLI_FilesEveryCallInTheTrail(t *testing.T) {
 		t.Fatalf("PRFor a branch with none = %v, %v", pr, err)
 	}
 
-	n, url, err := cli.Create(ctx, gh.CreateOptions{Head: "a", Base: "main", Title: "t", Draft: true}, "")
+	create := gh.CreateArgs(gh.CreateOptions{Head: "a", Base: "main", Title: "t", Draft: true})
+
+	n, url, err := cli.Create(ctx, create, "")
 	if err != nil || n != 1 || url == "" {
 		t.Fatalf("Create = %d %q %v", n, url, err)
 	}

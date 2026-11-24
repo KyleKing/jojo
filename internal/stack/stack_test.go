@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/trail"
+
 	"github.com/kyleking/jojo/internal/gh"
 	"github.com/kyleking/jojo/internal/gh/ghtest"
 	"github.com/kyleking/jojo/internal/jj"
@@ -216,6 +218,64 @@ func TestSubmit_FirstOpensOnePullRequestPerChangeEachOnTheOneBelow(t *testing.T)
 
 	if out := run(t, f.dir, "jj", "bookmark", "list", "--tracked", "push-"+c); !strings.Contains(out, "@origin") {
 		t.Errorf("c's bookmark is not tracked on origin:\n%s", out)
+	}
+}
+
+// The plan's Runs list is the argv that runs, --repo included, and what gm's trail files: one list
+// built once, so the screen cannot show a call other than the one made.
+func TestSubmit_RunsExactlyTheCommandsThePlanLists(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	const repo = "github.com/me/stack"
+
+	log := trail.New(0)
+	f.cli = gh.New(f.dir, log, gh.WithBinary(f.forge.Bin), gh.WithEnv(f.forge.Env()),
+		gh.WithRepo(func(context.Context) (string, error) { return repo, nil }))
+
+	in, err := stack.Read(t.Context(), f.revs(t), f.client, f.cli, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	in.Repo = repo
+	plan := stack.Build(in)
+	f.forge.Reset(t)
+
+	if _, err := stack.Run(t.Context(), plan, f.client.Apply, f.cli); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var listed []string
+
+	for _, c := range plan.Commands {
+		if c.Tool() != "gh" {
+			continue
+		}
+
+		i := slices.Index(c.Args, "--repo")
+		if i < 0 || c.Args[i+1] != repo || slices.Contains(c.Args[i+1:], "--repo") {
+			t.Errorf("%q does not name the repository once", c.Line())
+		}
+
+		listed = append(listed, strings.TrimSuffix(c.Line(), " <<< body"))
+	}
+
+	if got := f.forge.Writes(t); !slices.Equal(got, listed) {
+		t.Errorf("gh ran:\n%s\nthe plan listed:\n%s", strings.Join(got, "\n"), strings.Join(listed, "\n"))
+	}
+
+	calls := log.Calls(true)
+	filed := make([]string, 0, len(calls))
+
+	for _, c := range calls {
+		filed = append(filed, c.Shell())
+	}
+
+	slices.Reverse(filed) // the trail lists the newest first
+
+	if !slices.Equal(filed, listed) {
+		t.Errorf("gm files:\n%s\nthe plan listed:\n%s", strings.Join(filed, "\n"), strings.Join(listed, "\n"))
 	}
 }
 

@@ -131,3 +131,35 @@ func TestCLI_PollFilesThePanesCallsInTheTrail(t *testing.T) {
 		t.Errorf("the trail files %q", line)
 	}
 }
+
+// Pointed names the repository once: not when gh is left to find it, and not again on a call that
+// already names one.
+func TestPointed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, repo string
+		args, want []string
+	}{
+		{
+			name: "adds it", repo: "github.com/me/x", args: []string{"pr", "edit", "a"},
+			want: []string{"pr", "edit", "a", "--repo", "github.com/me/x"},
+		},
+		{name: "no repository", args: []string{"pr", "edit", "a"}, want: []string{"pr", "edit", "a"}},
+		{
+			name: "already named", repo: "github.com/me/x", args: []string{"pr", "view", "--repo", "o/r"},
+			want: []string{"pr", "view", "--repo", "o/r"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := slices.Clone(tc.args)
+			if got := gh.Pointed(args, tc.repo); !slices.Equal(got, tc.want) || !slices.Equal(args, tc.args) {
+				t.Errorf("Pointed(%q, %q) = %q (args now %q), want %q", tc.args, tc.repo, got, args, tc.want)
+			}
+		})
+	}
+}

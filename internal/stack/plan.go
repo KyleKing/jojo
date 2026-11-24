@@ -162,6 +162,8 @@ func (c Command) Line() string {
 
 // Plan is what a submit will do.
 type Plan struct {
+	// Repo is the repository every gh call names with --repo, "" when gh is left to its own lookup.
+	Repo     string
 	Trunk    string
 	Steps    []Step
 	Commands []Command
@@ -177,6 +179,7 @@ type Plan struct {
 // branch trunk() is on, the bookmark name template, and whether new pull requests open as drafts.
 type Input struct {
 	PRs      map[string]*gh.PR
+	Repo     string
 	Trunk    string
 	Template string
 	Changes  []Change
@@ -186,7 +189,7 @@ type Input struct {
 
 // Build works out the plan. It writes nothing.
 func Build(in Input) Plan {
-	plan := Plan{Trunk: in.Trunk, Draft: in.Draft, Skipped: in.Skipped}
+	plan := Plan{Repo: in.Repo, Trunk: in.Trunk, Draft: in.Draft, Skipped: in.Skipped}
 	base := in.Trunk
 	inStack := map[string]bool{in.Trunk: true}
 
@@ -284,14 +287,14 @@ func commands(plan Plan) []Command {
 	for i := range plan.Steps {
 		s := &plan.Steps[i]
 		if s.Action == Create {
-			out = append(out, Command{Kind: KindCreate, Step: i, Args: gh.CreateArgs(createOptions(s, plan.Draft))})
+			out = append(out, plan.ghCall(KindCreate, i, gh.CreateArgs(createOptions(s, plan.Draft))))
 		}
 	}
 
 	for i := range plan.Steps {
 		s := &plan.Steps[i]
 		if s.Action == Retarget {
-			out = append(out, Command{Kind: KindRetarget, Step: i, Args: gh.RetargetArgs(s.Bookmark, s.Base)})
+			out = append(out, plan.ghCall(KindRetarget, i, gh.RetargetArgs(s.Bookmark, s.Base)))
 		}
 	}
 
@@ -306,11 +309,17 @@ func commands(plan Plan) []Command {
 		// A new pull request changes every number the others link, so each body is rewritten; with
 		// none, only a body whose stack section would read differently is.
 		if creates || normalized(Body(plan, i, numbers)) != normalized(s.PR.Body) {
-			out = append(out, Command{Kind: KindBody, Step: i, Args: gh.BodyArgs(s.Bookmark)})
+			out = append(out, plan.ghCall(KindBody, i, gh.BodyArgs(s.Bookmark)))
 		}
 	}
 
 	return out
+}
+
+// ghCall is a gh command of the plan, aimed at its repository the way gh.CLI would aim it, so the
+// argv the plan lists is the argv that runs.
+func (p Plan) ghCall(kind Kind, step int, args []string) Command {
+	return Command{Kind: kind, Step: step, Args: gh.Pointed(args, p.Repo)}
 }
 
 // createOptions is the gh pr create a step runs.

@@ -92,6 +92,18 @@ func (c *CLI) Installed() error {
 	return nil
 }
 
+// Pointed is args aimed at repo with --repo, which is how every gh call jojo makes names its
+// repository: a plan lists its calls through it and Run runs them through it, so the two cannot
+// differ. Args that already name a repository, or an empty repo, which leaves gh to its own lookup,
+// come back as they are.
+func Pointed(args []string, repo string) []string {
+	if repo == "" || slices.Contains(args, "--repo") {
+		return args
+	}
+
+	return append(slices.Clone(args), "--repo", repo)
+}
+
 // Run runs gh with args, stdin fed from stdin when it is not empty, and answers stdout. The trail
 // files it as a write when write is set.
 func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string) (string, error) {
@@ -100,9 +112,7 @@ func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string)
 		return "", fmt.Errorf("finding the repository for gh: %w", err)
 	}
 
-	if repo != "" {
-		args = append(slices.Clone(args), "--repo", repo)
-	}
+	args = Pointed(args, repo)
 
 	//nolint:gosec // G204: the binary is fixed at construction; only the arguments vary and no shell runs.
 	cmd := exec.CommandContext(ctx, c.bin, args...)
@@ -143,9 +153,9 @@ func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string)
 // WithRepo names when it is known; when it is not, gh is left to its own lookup, since the pane says
 // what gh answered either way.
 func (c *CLI) Poll(ctx context.Context, dir string, env []string, args ...string) ([]byte, error) {
-	if len(args) > 0 && args[0] == "pr" && !slices.Contains(args, "--repo") {
-		if repo, err := c.resolve.get(ctx); err == nil && repo != "" {
-			args = append(slices.Clone(args), "--repo", repo)
+	if len(args) > 0 && args[0] == "pr" {
+		if repo, err := c.resolve.get(ctx); err == nil {
+			args = Pointed(args, repo)
 		}
 	}
 
@@ -282,9 +292,10 @@ func CreateArgs(opts CreateOptions) []string {
 	return args
 }
 
-// Create opens a pull request and answers its number, read from the URL gh prints.
-func (c *CLI) Create(ctx context.Context, opts CreateOptions, body string) (int, string, error) {
-	out, err := c.Run(ctx, true, bodyOrBlank(body), CreateArgs(opts)...)
+// Create runs args, a CreateArgs call, with body on stdin, and answers the pull request's number,
+// read from the URL gh prints. A plan passes the argv it listed, so what ran is what it showed.
+func (c *CLI) Create(ctx context.Context, args []string, body string) (int, string, error) {
+	out, err := c.Run(ctx, true, bodyOrBlank(body), args...)
 	if err != nil {
 		return 0, "", err
 	}
@@ -301,7 +312,12 @@ func RetargetArgs(branch, base string) []string {
 
 // Retarget moves branch's pull request onto base.
 func (c *CLI) Retarget(ctx context.Context, branch, base string) error {
-	_, err := c.Run(ctx, true, "", RetargetArgs(branch, base)...)
+	return c.Edit(ctx, RetargetArgs(branch, base), "")
+}
+
+// Edit runs args, a RetargetArgs or BodyArgs call, with stdin fed from stdin when it is not empty.
+func (c *CLI) Edit(ctx context.Context, args []string, stdin string) error {
+	_, err := c.Run(ctx, true, stdin, args...)
 
 	return err
 }
@@ -313,10 +329,12 @@ func BodyArgs(branch string) []string {
 
 // SetBody replaces branch's pull request body.
 func (c *CLI) SetBody(ctx context.Context, branch, body string) error {
-	_, err := c.Run(ctx, true, bodyOrBlank(body), BodyArgs(branch)...)
-
-	return err
+	return c.Edit(ctx, BodyArgs(branch), bodyOrBlank(body))
 }
+
+// BodyStdin is what a body edit feeds gh: the body, or a blank line for an empty one, which would
+// otherwise leave gh waiting on stdin.
+func BodyStdin(body string) string { return bodyOrBlank(body) }
 
 // bodyOrBlank keeps an empty body from leaving stdin unset, which gh would wait on.
 func bodyOrBlank(body string) string {

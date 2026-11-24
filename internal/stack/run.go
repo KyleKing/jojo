@@ -9,11 +9,11 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// Forge is the gh calls Run makes.
+// Forge runs a plan's gh calls, each exactly as the plan's Command lists it: a create, which
+// answers the new pull request, and an edit, a retarget or a body fed on stdin.
 type Forge interface {
-	Create(ctx context.Context, opts gh.CreateOptions, body string) (int, string, error)
-	Retarget(ctx context.Context, branch, base string) error
-	SetBody(ctx context.Context, branch, body string) error
+	Create(ctx context.Context, args []string, body string) (int, string, error)
+	Edit(ctx context.Context, args []string, stdin string) error
 }
 
 // Writer runs a jj write; jj.Client.Apply is one.
@@ -57,7 +57,7 @@ func runOne(ctx context.Context, plan Plan, c Command, write Writer, forge Forge
 
 	switch c.Kind {
 	case KindCreate:
-		n, url, err := forge.Create(ctx, createOptions(s, plan.Draft), s.Change.Body)
+		n, url, err := forge.Create(ctx, c.Args, s.Change.Body)
 		if err != nil {
 			return fmt.Errorf("opening %s's pull request: %w", s.Bookmark, err)
 		}
@@ -65,11 +65,11 @@ func runOne(ctx context.Context, plan Plan, c Command, write Writer, forge Forge
 		res.Numbers[s.Bookmark] = n
 		res.Opened = append(res.Opened, url)
 	case KindRetarget:
-		if err := forge.Retarget(ctx, s.Bookmark, s.Base); err != nil {
+		if err := forge.Edit(ctx, c.Args, ""); err != nil {
 			return fmt.Errorf("retargeting %s: %w", s.Bookmark, err)
 		}
 	case KindBody:
-		if err := forge.SetBody(ctx, s.Bookmark, Body(plan, c.Step, res.Numbers)); err != nil {
+		if err := forge.Edit(ctx, c.Args, gh.BodyStdin(Body(plan, c.Step, res.Numbers))); err != nil {
 			return fmt.Errorf("writing %s's stack section: %w", s.Bookmark, err)
 		}
 	case KindBookmark, KindPush:

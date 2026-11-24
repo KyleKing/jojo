@@ -14,11 +14,11 @@ Submit · 3 pull requests onto main · draft
   jj bookmark create push-yqosmzxtdddd -r yqosmzxtdddd                                              
   jj git push --bookmark push-nnzolpqrcccc --bookmark push-yqosmzxtdddd                             
   gh pr create --head push-yqosmzxtdddd --base push-nnzolpqrcccc --title 'test: cover the fallbacks'
-      --body-file - --draft <<< body                                                                
-  gh pr edit split-reader --base main                                                               
-  gh pr edit split-reader --body-file - <<< body                                                    
-  gh pr edit push-nnzolpqrcccc --body-file - <<< body                                               
-  gh pr edit push-yqosmzxtdddd --body-file - <<< body                                               
+      --body-file - --draft --repo github.com/kyleking/jojo <<< body                                
+  gh pr edit split-reader --base main --repo github.com/kyleking/jojo                               
+  gh pr edit split-reader --body-file - --repo github.com/kyleking/jojo <<< body                    
+  gh pr edit push-nnzolpqrcccc --body-file - --repo github.com/kyleking/jojo <<< body               
+  gh pr edit push-yqosmzxtdddd --body-file - --repo github.com/kyleking/jojo <<< body               
                                                                                                     
                                                                                                     
                                                                                                     

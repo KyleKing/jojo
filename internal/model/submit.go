@@ -205,11 +205,13 @@ func (m Model) readSubmit() tea.Cmd {
 	return func() tea.Msg {
 		// Which repository gh asks is settled first, so a refusal says so rather than naming the
 		// first pull request it could not read.
-		if _, err := forge.Repo(ctx); err != nil {
+		repo, err := forge.Repo(ctx)
+		if err != nil {
 			return submitReadMsg{err: err, seq: seq}
 		}
 
 		in, err := stack.Read(ctx, revs, client, forge, template, draft)
+		in.Repo = repo
 
 		return submitReadMsg{in: in, err: err, seq: seq}
 	}
@@ -394,7 +396,7 @@ func (m Model) dispatchSubmit(action string) (tea.Model, tea.Cmd) {
 		m.submit.draft = !m.submit.draft
 		if p := m.submit.view.Plan(); p != nil {
 			m.submit.view.SetPlan(stack.Build(stack.Input{
-				Changes: changesOf(p), Skipped: p.Skipped, PRs: prsOf(p), Trunk: p.Trunk,
+				Changes: changesOf(p), Skipped: p.Skipped, PRs: prsOf(p), Trunk: p.Trunk, Repo: p.Repo,
 				Template: m.submit.template, Draft: m.submit.draft,
 			}))
 		}

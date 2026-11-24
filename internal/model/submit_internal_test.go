@@ -39,7 +39,7 @@ func fakePlanInput() stack.Input {
 	}
 
 	return stack.Input{
-		Trunk: "main", Changes: changes, Draft: true,
+		Trunk: "main", Changes: changes, Draft: true, Repo: "github.com/kyleking/jojo",
 		Skipped: []stack.Change{{ID: "wkwyyxvq", WorkingCopy: true, Empty: true}},
 		PRs: map[string]*gh.PR{
 			"parse-header": {Number: 41, State: gh.StateMerged, BaseRefName: "main", HeadRefName: "parse-header"},
@@ -80,7 +80,7 @@ func TestSubmit_Frames(t *testing.T) {
 
 			plain := tuitest.StripANSI(frame)
 			for _, want := range []string{
-				"Submit", "merged", "retarget", "new", "gh pr create", "enter submit", "esc cancel",
+				"Submit", "merged", "retarget", "new", "gh pr create", "--repo", "enter submit", "esc cancel",
 			} {
 				if !strings.Contains(plain, want) {
 					t.Errorf("the plan lacks %q:\n%s", want, plain)
@@ -105,6 +105,13 @@ func TestSubmit_DraftFlagRebuildsTheCommands(t *testing.T) {
 
 	if strings.Contains(strings.Join(commandLines(m), "\n"), "--draft") || m.submit.draft {
 		t.Errorf("-d left --draft on:\n%s", strings.Join(commandLines(m), "\n"))
+	}
+
+	// The rebuilt plan still names the repository every gh call runs against.
+	for _, line := range commandLines(m) {
+		if strings.HasPrefix(line, "gh ") && !strings.Contains(line, "--repo github.com/kyleking/jojo") {
+			t.Errorf("-d dropped --repo from %q", line)
+		}
 	}
 }
 
