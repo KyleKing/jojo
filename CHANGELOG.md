@@ -1,3 +1,9 @@
+## v0.17.1 (2026-11-24)
+
+### Fix
+
+- **color**: draw the selected row as one even bar in 16 colors (aragonite v1.28.0)
+
 ## v0.17.0 (2026-11-24)
 
 ### Feat
