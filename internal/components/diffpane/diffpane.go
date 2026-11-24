@@ -43,22 +43,21 @@ type Model struct {
 	skin  ui.Skin
 	title string
 	text  string
-	// files are the rendered-line indexes where each file's header lands, so [ and ] can step the
-	// cursor between them, and paths names the file each one heads. hunks are where each hunk's label
-	// lands, in the same order.
+	// files are the row indexes where each file's header lands, so [ and ] can step the cursor
+	// between them, and paths names the file each one heads.
 	files []int
 	paths []string
-	hunks []int
 	// last is the motion n repeats, and hints the keys the framed pane's footer offers.
 	last  motion
 	hints []keyhint.Hint
-	// key is what the rows on show were drawn from, and plain that they were drawn without syntax
-	// colors, which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
+	// key is what the rows on show are drawn from, and plain that they draw without syntax colors,
+	// which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
 	colors *colorCache
-	// sheet is the diff on show as documents, while it is drawn plain and its colors are to come.
+	// sheet is the diff on show as documents, which draw the rows a frame shows and no others. The
+	// list holds row numbers.
 	sheet *sheet
 	key   drawKey
-	list  listview.Model[string]
+	list  listview.Model[int]
 	width int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
 	sideBySide bool
@@ -70,7 +69,7 @@ type Model struct {
 
 // New returns a closed pane drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin, list: listview.New[string](skin), colors: newColorCache()}
+	return Model{skin: skin, list: listview.New[int](skin), colors: newColorCache()}
 }
 
 // NewDocked returns a closed pane that draws with DockView, beside the log rather than over it.
@@ -104,29 +103,33 @@ func (m *Model) SetWidth(width int) {
 	m.list.Open(m.title, m.list.Items(), cursor)
 }
 
-// render draws the diff for the pane's width: in color when a colored copy is already kept, or when
-// every file it touches was lexed before, and otherwise plain, leaving the colors to Colorize so the
-// update loop never waits on a lexer.
+// render lays the diff out for the pane's width, drawing none of it: a frame draws its own rows. It is
+// in color when a lexed copy is already kept, and otherwise plain, leaving the colors to Colorize so
+// the update loop never waits on a lexer.
 func (m *Model) render() {
 	key := m.keyFor(m.text)
-	m.key, m.sheet = key, nil
+	m.key = key
 
-	d, ok := m.colors.get(key)
-	if !ok {
-		sh := m.parse(key)
-		d, ok = m.drawSheet(sh)
-
-		if ok {
-			m.colors.put(key, d)
-		} else {
-			m.sheet = sh
-		}
+	sh, lexed := m.colors.get(key)
+	if !lexed {
+		sh = m.parse(key)
 	}
 
+	m.sheet = sh
 	// A diff with no file in it has no code to color, only jj's prose.
-	m.plain = !ok && len(d.files) > 0
-	m.files, m.paths, m.hunks = d.files, d.paths, d.hunks
-	m.list.Open(m.title, d.lines, 0)
+	m.plain = !lexed && sh.hasCode()
+	m.files, m.paths = sh.files, sh.paths
+	m.list.Open(m.title, rowNumbers(sh.rows), 0)
+}
+
+// rowNumbers is the list's items for a sheet of n rows: the rows themselves, by number.
+func rowNumbers(n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i
+	}
+
+	return out
 }
 
 // segment is a run of lines that is either a git diff or the prose jj writes around one, which is
@@ -233,39 +236,6 @@ func (m Model) CurrentPath() string {
 // not.
 var gitFileRE = regexp.MustCompile(`(?m)^diff --git (?:a/.*?|"a/.*?") "?b/(.*?)"?$`)
 
-// fileBoundaries returns where each file's header line lands in the rendered output, in order.
-// The renderer draws one `<M|A|D|R> path` line per file before its hunks, so an in-order walk of
-// the headers in the diff text finds them without re-parsing the hunks.
-func fileBoundaries(gitDiff string, lines []string) []int {
-	bounds, _ := fileHeaders(gitDiff, lines)
-
-	return bounds
-}
-
-// fileHeaders is fileBoundaries with the path each boundary heads.
-func fileHeaders(gitDiff string, lines []string) ([]int, []string) {
-	var (
-		bounds []int
-		paths  []string
-	)
-
-	from := 0
-
-	for _, match := range gitFileRE.FindAllStringSubmatch(gitDiff, -1) {
-		for i := from; i < len(lines); i++ {
-			if fileHeader(ansi.Strip(lines[i]), match[1]) {
-				bounds = append(bounds, i)
-				paths = append(paths, match[1])
-				from = i + 1
-
-				break
-			}
-		}
-	}
-
-	return bounds, paths
-}
-
 func fileHeader(stripped, path string) bool {
 	return len(stripped) >= 2 &&
 		strings.ContainsRune("MADR?", rune(stripped[0])) &&
@@ -273,8 +243,14 @@ func fileHeader(stripped, path string) bool {
 		strings.HasPrefix(path, stripped[2:])
 }
 
-// Lines is the diff as rendered, one entry per line.
-func (m Model) Lines() []string { return m.list.Items() }
+// Lines is the whole diff as drawn, one entry per row. It draws every row, which a frame never does.
+func (m Model) Lines() []string {
+	if m.sheet == nil {
+		return nil
+	}
+
+	return m.sheet.all()
+}
 
 // Title is what the pane was last opened under.
 func (m Model) Title() string { return m.list.Title() }
@@ -364,7 +340,28 @@ func (m *Model) move(step motion) tea.Cmd {
 // the outline beside a docked pane reads through it without taking the focus.
 func (m *Model) StepHunk(dir int) {
 	m.last = motion{object: ObjectHunk, dir: dir}
-	m.list.Jump(step(m.hunks, m.list.Cursor(), dir))
+	m.list.Jump(m.hunkStep(m.list.Cursor(), dir))
+}
+
+// hunkStep is the hunk label past cursor in dir, or the last label that way when none is past it.
+// It reads the hunks of the files it walks through and no others, so a step costs a file, not the
+// diff.
+func (m *Model) hunkStep(cursor, dir int) int {
+	if m.sheet == nil {
+		return cursor
+	}
+
+	if next, ok := m.sheet.hunkPast(cursor, dir); ok {
+		return next
+	}
+
+	if last, ok := m.sheet.hunkPast(cursor, -dir); ok {
+		// Nothing lies past the cursor, so the clamp is the hunk furthest that way, which is the
+		// cursor's own when it sits on one.
+		return m.sheet.furthestHunk(dir, last)
+	}
+
+	return cursor
 }
 
 // step is the first mark past cursor in dir, or the last one that way when none is past it.
@@ -447,6 +444,7 @@ func (m Model) DockView(width, height int, focused bool) string {
 
 	inner := DockWidth(width)
 	rule := m.skin.Muted.Render(dockRule)
+	total := len(m.list.Items())
 
 	titleStyle := m.skin.Muted
 	if focused {
@@ -454,17 +452,16 @@ func (m Model) DockView(width, height int, focused bool) string {
 	}
 
 	lines := []string{rule + titleStyle.Render(table.Truncate(m.title, inner))}
-	items := m.list.Items()
 
-	if len(items) == 0 {
+	if total == 0 {
 		lines = append(lines, rule+m.skin.Muted.Render(table.Truncate("nothing changed", inner)))
 	}
 
 	body := height - 1
-	start := min(max(0, m.list.Cursor()-body/2), max(0, len(items)-body))
+	start := min(max(0, m.list.Cursor()-body/2), max(0, total-body))
 
-	for i := start; i < len(items) && len(lines) < height; i++ {
-		line := table.Truncate(items[i], inner)
+	for i := start; i < total && len(lines) < height; i++ {
+		line := table.Truncate(m.sheet.row(i), inner)
 		if focused && i == m.list.Cursor() {
 			line = m.skin.Selected.Render(ansi.Strip(line))
 		}
@@ -479,7 +476,8 @@ func (m Model) DockView(width, height int, focused bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) row(line string, selected bool) listview.Row {
+func (m Model) row(i int, selected bool) listview.Row {
+	line := m.sheet.row(i)
 	if selected {
 		return listview.Row{Text: line, Style: m.skin.Selected}
 	}

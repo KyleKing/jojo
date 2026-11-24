@@ -2,6 +2,8 @@ package diffpane
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -9,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/theme"
+	"github.com/kyleking/jj-diff/render"
 
 	"github.com/kyleking/jojo/internal/tuitest"
 	"github.com/kyleking/jojo/internal/ui"
@@ -42,9 +45,9 @@ func TestFileKeysStepBetweenHeaders(t *testing.T) {
 	m := New(ui.New(theme.Macchiato()))
 	m.Open("diff", twoFileDiff, 80)
 
-	bounds := fileBoundaries(twoFileDiff, m.list.Items())
+	bounds := m.files
 	if len(bounds) != 2 {
-		t.Fatalf("fileBoundaries = %v, want one per file", bounds)
+		t.Fatalf("files = %v, want one per file", bounds)
 	}
 
 	press(&m, "]", "f")
@@ -134,32 +137,33 @@ func TestHunkMotionsAndRepeat(t *testing.T) {
 	m := NewDocked(ui.New(theme.Macchiato()))
 	m.Show("diff", twoHunkDiff, 80, "")
 
-	if len(m.hunks) != 3 {
-		t.Fatalf("hunks = %v, want three labels", m.hunks)
+	hunks := m.sheet.hunkRows()
+	if len(hunks) != 3 {
+		t.Fatalf("hunks = %v, want three labels", hunks)
 	}
 
 	press(&m, "n")
 
-	if m.list.Cursor() != m.hunks[0] {
-		t.Errorf("n before any motion: cursor %d, want the first hunk %d", m.list.Cursor(), m.hunks[0])
+	if m.list.Cursor() != hunks[0] {
+		t.Errorf("n before any motion: cursor %d, want the first hunk %d", m.list.Cursor(), hunks[0])
 	}
 
 	press(&m, "]", "h")
 
-	if m.list.Cursor() != m.hunks[1] {
-		t.Errorf("]h: cursor %d, want %d", m.list.Cursor(), m.hunks[1])
+	if m.list.Cursor() != hunks[1] {
+		t.Errorf("]h: cursor %d, want %d", m.list.Cursor(), hunks[1])
 	}
 
 	press(&m, "n")
 
-	if m.list.Cursor() != m.hunks[2] || m.CurrentPath() != "b.txt" {
+	if m.list.Cursor() != hunks[2] || m.CurrentPath() != "b.txt" {
 		t.Errorf("n after ]h: cursor %d in %s, want the hunk in b.txt", m.list.Cursor(), m.CurrentPath())
 	}
 
 	press(&m, "N")
 
-	if m.list.Cursor() != m.hunks[1] {
-		t.Errorf("N: cursor %d, want back at %d", m.list.Cursor(), m.hunks[1])
+	if m.list.Cursor() != hunks[1] {
+		t.Errorf("N: cursor %d, want back at %d", m.list.Cursor(), hunks[1])
 	}
 }
 
@@ -327,8 +331,8 @@ func TestOpen_OperationDrawsItsHeaderAroundThePatch(t *testing.T) {
 		m := New(ui.New(theme.Macchiato()))
 		m.Open("operation 8a5b04bd", operationShow, width)
 
-		plain := make([]string, 0, len(m.list.Items()))
-		for _, line := range m.list.Items() {
+		plain := make([]string, 0, len(m.Lines()))
+		for _, line := range m.Lines() {
 			plain = append(plain, ansi.Strip(line))
 		}
 
@@ -363,5 +367,161 @@ func TestSegments_APlainDiffIsOneSegment(t *testing.T) {
 
 	if got := segments(""); len(got) != 0 {
 		t.Errorf("segments of nothing = %+v", got)
+	}
+}
+
+// variedDiff has every shape of file header git writes: a modified file of two hunks, a new file, a
+// deleted one, a rename with an edit, a mode change alone, and a binary file.
+const variedDiff = `diff --git a/main.go b/main.go
+index 0000000..1111111 100644
+--- a/main.go
++++ b/main.go
+@@ -1,3 +1,3 @@ package main
+ package main
+-func a() { println("old") }
++func a() { println("new") }
+ // end
+@@ -40,3 +40,4 @@ func b()
+ func b() {
+-	return 1
++	return 2
++	// two
+ }
+diff --git a/new.txt b/new.txt
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/new.txt
+@@ -0,0 +1,2 @@
++first
++second
+diff --git a/gone.txt b/gone.txt
+deleted file mode 100644
+index 3333333..0000000
+--- a/gone.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-gone
+diff --git a/old/name.go b/new/name.go
+similarity index 90%
+rename from old/name.go
+rename to new/name.go
+index 4444444..5555555 100644
+--- a/old/name.go
++++ b/new/name.go
+@@ -1,2 +1,2 @@
+ package name
+-var v = 1
++var v = 2
+diff --git a/run.sh b/run.sh
+old mode 100644
+new mode 100755
+diff --git a/logo.png b/logo.png
+index 6666666..7777777 100644
+Binary files a/logo.png and b/logo.png differ
+`
+
+// labeledRows is the old whole-diff reading of where files and hunk labels land: one document for the
+// segment, drawn whole, and searched.
+func labeledRows(m *Model, key drawKey) ([]string, []int, []int) {
+	sh := m.parse(drawKey{text: key.text, width: key.width, sideBySide: key.sideBySide})
+	doc := render.New(key.text, sh.opts)
+	rows := doc.Rows(0, doc.Len())
+
+	var files []int
+
+	from := 0
+
+	for _, match := range gitFileRE.FindAllStringSubmatch(key.text, -1) {
+		for i := from; i < len(rows); i++ {
+			if fileHeader(ansi.Strip(rows[i]), match[1]) {
+				files = append(files, i)
+				from = i + 1
+
+				break
+			}
+		}
+	}
+
+	return rows, files, hunkLabels(rows, files)
+}
+
+// The pane lays a diff out as a document per file and counts each hunk alone, never drawing the
+// whole diff, and that has to put every row, file header, and hunk label exactly where one document
+// of the whole diff drew them.
+func TestSheet_LaysOutTheDiffAsOneDocumentWould(t *testing.T) {
+	t.Parallel()
+
+	for _, sbs := range []bool{false, true} {
+		for _, width := range []int{60, 100} {
+			t.Run(fmt.Sprintf("sbs=%v/%d", sbs, width), func(t *testing.T) {
+				t.Parallel()
+
+				m := NewDocked(ui.New(theme.Macchiato()))
+				key := drawKey{text: variedDiff, width: width, sideBySide: sbs}
+				wantRows, wantFiles, wantHunks := labeledRows(&m, key)
+				if len(wantFiles) < 5 || len(wantHunks) != 5 {
+					t.Fatalf("the reference found files %v and hunks %v, want five of each", wantFiles, wantHunks)
+				}
+
+				sh := m.parse(key)
+				if got := stripped(sh.all()); !slices.Equal(got, stripped(wantRows)) {
+					t.Errorf("rows differ from one document's:\n got %q\nwant %q", got, stripped(wantRows))
+				}
+
+				if !slices.Equal(sh.files, wantFiles) {
+					t.Errorf("files at %v, want %v", sh.files, wantFiles)
+				}
+
+				if got := sh.hunkRows(); !slices.Equal(got, wantHunks) {
+					t.Errorf("hunks at %v, want %v", got, wantHunks)
+				}
+			})
+		}
+	}
+}
+
+func stripped(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = ansi.Strip(line)
+	}
+
+	return out
+}
+
+// A frame of a large diff draws the rows it shows and a margin, never the whole diff, so what the
+// update loop pays for a revision is bounded by the pane, not by the revision.
+func TestDockView_DrawsOnlyTheRowsAroundTheWindow(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+	for f := range 50 {
+		fmt.Fprintf(&b, "diff --git a/f%d.txt b/f%d.txt\nindex 0000000..1111111 100644\n", f, f)
+		fmt.Fprintf(&b, "--- a/f%d.txt\n+++ b/f%d.txt\n", f, f)
+		b.WriteString("@@ -1,40 +1,40 @@\n")
+
+		for i := range 40 {
+			fmt.Fprintf(&b, "-line %d\n+LINE %d\n", i, i)
+		}
+	}
+
+	for _, height := range []int{10, 40} {
+		t.Run(strconv.Itoa(height), func(t *testing.T) {
+			t.Parallel()
+
+			m := NewDocked(ui.New(theme.Macchiato()))
+			m.Show("diff", b.String(), 80, "f25.txt")
+			_ = m.DockView(82, height, false)
+
+			if drawn, most := len(m.sheet.win), height+3*windowMargin; drawn > most || drawn == 0 {
+				t.Errorf("a %d-row frame drew %d rows of %d, want at most %d", height, drawn, m.sheet.rows, most)
+			}
+
+			if m.sheet.lo > m.list.Cursor() || m.sheet.lo+len(m.sheet.win) <= m.list.Cursor() {
+				t.Errorf("the window [%d, %d) misses the cursor at %d",
+					m.sheet.lo, m.sheet.lo+len(m.sheet.win), m.list.Cursor())
+			}
+		})
 	}
 }

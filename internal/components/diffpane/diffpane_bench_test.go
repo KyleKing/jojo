@@ -64,6 +64,28 @@ func BenchmarkDock_Show(b *testing.B) {
 	}
 }
 
+// dockRows is the docked pane's height in the benchmarks, a tall terminal's log height.
+const dockRows = 40
+
+// BenchmarkDock_ShowFrame times a revision landing in the dock and its first frame, which is what the
+// update loop pays before the reader sees it: Show alone may defer drawing to the frame.
+func BenchmarkDock_ShowFrame(b *testing.B) {
+	for _, size := range benchSizes {
+		text := benchDiff(size.files, size.lines)
+
+		b.Run(size.name, func(b *testing.B) {
+			m := diffpane.NewDocked(ui.New(theme.Macchiato()))
+
+			b.ReportAllocs()
+
+			for i := range b.N {
+				m.Show(fmt.Sprintf("diff %d", i), text, 100, "")
+				_ = m.DockView(102, dockRows, false)
+			}
+		})
+	}
+}
+
 // BenchmarkDock_Frame times one frame of the docked pane once a diff is showing.
 func BenchmarkDock_Frame(b *testing.B) {
 	for _, size := range benchSizes {
@@ -77,7 +99,7 @@ func BenchmarkDock_Frame(b *testing.B) {
 			b.ResetTimer()
 
 			for range b.N {
-				_ = m.DockView(102, 40, false)
+				_ = m.DockView(102, dockRows, false)
 			}
 		})
 	}
@@ -108,7 +130,7 @@ func BenchmarkDock_ToColor(b *testing.B) {
 }
 
 // BenchmarkDock_ToColorLoop is BenchmarkDock_ToColor less the command, which runs off the update loop:
-// what showing a revision and swapping its colors in costs the loop.
+// what showing a revision, drawing it, swapping its colors in, and drawing it again costs the loop.
 func BenchmarkDock_ToColorLoop(b *testing.B) {
 	for _, size := range benchSizes {
 		text := benchDiff(size.files, size.lines)
@@ -119,6 +141,7 @@ func BenchmarkDock_ToColorLoop(b *testing.B) {
 			for i := range b.N {
 				m := diffpane.NewDocked(ui.New(theme.Macchiato()))
 				m.Show(fmt.Sprintf("diff %d", i), text, 100, "")
+				_ = m.DockView(102, dockRows, false)
 
 				cmd := m.Colorize()
 				if cmd == nil {
@@ -131,6 +154,7 @@ func BenchmarkDock_ToColorLoop(b *testing.B) {
 
 				if ok {
 					m.Colored(msg)
+					_ = m.DockView(102, dockRows, false)
 				}
 			}
 		})

@@ -291,7 +291,14 @@ func TestDock_ColorsArriveWithTheReadOrRightAfterIt(t *testing.T) {
 	}
 
 	m = asModel(t, next)
-	plain := strings.Join(m.dock.Lines(), "\n")
+
+	// The lexers start with the update that drew the revision, so by the time a frame draws it the
+	// colors may have landed already; the plain rows are what a pane that never asked draws.
+	fresh := diffpane.NewDocked(m.skin)
+	width, _ := m.dockSize()
+	fresh.Show("diff cccc", plainText, diffpane.DockWidth(width), "")
+	plain := strings.Join(fresh.Lines(), "\n")
+
 	m = asModel(t, update(m, cmd()))
 
 	if got := strings.Join(m.dock.Lines(), "\n"); got == plain || ansi.Strip(got) != ansi.Strip(plain) {
