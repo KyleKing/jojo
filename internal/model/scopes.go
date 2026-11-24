@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/kyleking/aragonite/seen"
+
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/readmark"
 )
 
 // errNoScope is a mark asked of a change whose full id no log or outline read has named yet.
@@ -36,7 +37,7 @@ func newScopeBook(reads ReadState) *scopeBook {
 func (b *scopeBook) of(change string) string { return b.full[change] }
 
 // learn files each revision's full id under the id the screen shows it by, and the first time a
-// full id is seen moves marks an older jojo filed under a prefix of it (readmark.Migrate). It
+// full id is seen moves marks an older jojo filed under a prefix of it (aragonite's seen.Migrate). It
 // answers the full ids whose marks moved, so the caller can drop what the store read for them, and
 // the first failure to move.
 func (b *scopeBook) learn(revs []*jj.Revision) ([]string, error) {
@@ -58,7 +59,7 @@ func (b *scopeBook) learn(revs []*jj.Revision) ([]string, error) {
 
 		b.moved[rev.FullChangeID] = true
 
-		did, err := readmark.Migrate(b.dir, rev.FullChangeID)
+		did, err := seen.Migrate(b.dir, rev.FullChangeID)
 		if err != nil {
 			errs = errors.Join(errs, fmt.Errorf("moving %s's read marks to its full id: %w", rev.ChangeID, err))
 		}

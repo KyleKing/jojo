@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/jojo/internal/hermetic"
+	"github.com/kyleking/aragonite/hermetic"
 )
 
 // PushNames is the bookmark `jj git push -c` would create, from templates.git_push_bookmark, and

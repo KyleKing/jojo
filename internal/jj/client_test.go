@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kyleking/jojo/internal/hermetic"
+	"github.com/kyleking/aragonite/hermetic"
+
 	"github.com/kyleking/jojo/internal/jj"
 )
 

@@ -15,8 +15,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
-
-	"github.com/kyleking/jojo/internal/hermetic"
+	"github.com/kyleking/aragonite/hermetic"
 )
 
 // These drive the built binary on a pty with a terminal emulator reading what it writes, because a
@@ -172,7 +171,7 @@ func (s *screen) quit() {
 var binary string //nolint:gochecknoglobals // set once by TestMain, before any test runs
 
 func TestMain(m *testing.M) {
-	os.Exit(hermetic.Run(builder{m}))
+	os.Exit(hermetic.Run(builder{m}, hermetic.App("jojo")))
 }
 
 // builder builds jojo before it runs the tests, inside the home hermetic made, so the build's temp

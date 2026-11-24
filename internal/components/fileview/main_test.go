@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kyleking/jojo/internal/hermetic"
+	"github.com/kyleking/aragonite/hermetic"
 )
 
 // TestMain pins the icon set the goldens were drawn with, so an ARAGONITE_ICONS in the environment
@@ -15,5 +15,5 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	hermetic.Main(m)
+	hermetic.Main(m, hermetic.App("jojo"))
 }
