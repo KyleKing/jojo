@@ -108,10 +108,10 @@
 │         d  describe                                                          │
 │         D  describe in $EDITOR                                               │
 │         c  commit @: describe it and start a new one                         │
-│         S  split                                                             │
+│         S  split into commits, one column each, in jj-diff                   │
 │         a  abandon                                                           │
 │         A  absorb into the revisions that last touched each line             │
-│         x  resolve the conflict                                              │
+│         x  resolve the conflict, side by side in jj-diff                     │
 │         X  converge divergent changes                                        │
 │         |  parallelize the checked revisions                                 │
 │     space  check for a batch action                                          │

@@ -56,6 +56,8 @@ github.com/kyleking/aragonite v1.23.4 h1:4tzidKmsqIAtc6Jct5vGrA2DZELurTxh5skjTZv
 github.com/kyleking/aragonite v1.23.4/go.mod h1:gSjm+tHd1gsx4sv20F6Ux+/cwMiKJNffMG1ZdCraPOE=
 github.com/kyleking/jj-diff v0.8.0 h1:P9VlIoP1WRh6B9gyfefRy5gp0G5wtYiZTM0Eb8AM+2k=
 github.com/kyleking/jj-diff v0.8.0/go.mod h1:TSLKES+PvEuvLGiOPV2mLEiPJmydtuIHj8X75ok2WOk=
+github.com/kyleking/jj-diff v0.10.0 h1:86TVIG5yuq3yIIuwxcY20Bhx2tzoJhZyRD7Evi+hzkM=
+github.com/kyleking/jj-diff v0.10.0/go.mod h1:DNZN1vYqnVFe0ezQ4y5YBcipGttdvOAWPfb33wpv2o0=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-runewidth v0.0.31 h1:1oCV4ReTlosDBc6rYRw5cL8S/4y8iv5oRl4SJ5IBgwo=

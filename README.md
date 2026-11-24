@@ -101,9 +101,9 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `d` / `D` | describe in a prompt that holds the whole description (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
 | `c` | commit `@`: describe it and start a new change (`jj commit`) |
 | `s` / `r` / `y` / `R` | squash, rebase, duplicate, or restore, each in the picker below |
-| `S` | split the revision |
+| `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit |
 | `a` / `A` | abandon, absorb |
-| `x` / `X` | resolve the conflict, or converge divergent changes (`jj converge`) |
+| `x` / `X` | resolve the conflict in jj-diff's conflict viewer (`jj-diff --resolve -r`), or converge divergent changes (`jj converge`) |
 | `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip; the diff docks beside it, `]]` / `[[` step chapters, `]h` the dock's hunks, `Enter` reads in the dock, `Esc` returns to the log |
 | `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |
@@ -114,6 +114,11 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
+
+`S` and `x` hand the terminal to jj-diff v0.10.0 or newer, then read the log again and say in the
+footer whether it wrote (judged by jj's operation log, so quitting without a pick says "nothing
+written"). Without jj-diff on PATH, or with an older one, they run `jj split -i` and `jj resolve`
+instead and the footer says why.
 
 ### The picker
 

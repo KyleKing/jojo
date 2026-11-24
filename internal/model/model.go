@@ -5,6 +5,7 @@ package model
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/jjdiff"
 	"github.com/kyleking/jojo/internal/readmark"
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -123,6 +125,10 @@ type Model struct {
 	message     string
 	// lastOutput is the full text of the last failure, which "!" shows.
 	lastOutput string
+	// jjDiff is what the probe found about jj-diff, the zero Tool until it answers, and jjDiffProbe
+	// the probe, which a test replaces.
+	jjDiff      jjdiff.Tool
+	jjDiffProbe func(context.Context) jjdiff.Tool
 	// diffPreference is config.toml's diff_tool, and diffTool what it resolved to.
 	diffPreference string
 	diffTool       string
@@ -199,6 +205,8 @@ type Options struct {
 	DiffTool string
 	// OutlineRevset is config.toml's outline_revset, "" for DefaultOutlineRevset.
 	OutlineRevset string
+	// JJDiff answers what the jj-diff on PATH can do, nil for jjdiff.Probe.
+	JJDiff func(context.Context) jjdiff.Tool
 	// Ticker replaces tea.Tick for the model's own timers, nil for tea.Tick.
 	Ticker Ticker
 	Keys   help.Keymap
@@ -223,25 +231,31 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	diff := diffpane.New(skin)
 	diff.SetHints(diffHints(km))
 
+	probe := opts.JJDiff
+	if probe == nil {
+		probe = func(ctx context.Context) jjdiff.Tool { return jjdiff.Probe(ctx, exec.LookPath, jjdiff.Exec) }
+	}
+
 	return Model{
-		ctx:        ctx,
-		client:     client,
-		skin:       skin,
-		repoPath:   repoPath,
-		log:        logview.New(logview.StylesFrom(skin)),
-		revsetBox:  revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
-		forge:      forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
-		prompt:     prompt.New(skin),
-		destPicker: destpicker.New(skin),
-		opLog:      oplogview.New(skin),
-		spaces:     workspaceview.New(skin),
-		roundsBox:  roundsview.New(skin),
-		outline:    outlineState{view: outlineview.New(skin)},
-		rounds:     roundsState{at: -1},
-		versions:   map[string][]jj.Version{},
-		interdiffs: map[string]string{},
-		strips:     map[string]readmark.Strip{},
-		reads:      reads,
+		ctx:         ctx,
+		jjDiffProbe: probe,
+		client:      client,
+		skin:        skin,
+		repoPath:    repoPath,
+		log:         logview.New(logview.StylesFrom(skin)),
+		revsetBox:   revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
+		forge:       forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
+		prompt:      prompt.New(skin),
+		destPicker:  destpicker.New(skin),
+		opLog:       oplogview.New(skin),
+		spaces:      workspaceview.New(skin),
+		roundsBox:   roundsview.New(skin),
+		outline:     outlineState{view: outlineview.New(skin)},
+		rounds:      roundsState{at: -1},
+		versions:    map[string][]jj.Version{},
+		interdiffs:  map[string]string{},
+		strips:      map[string]readmark.Strip{},
+		reads:       reads,
 
 		outlineTemplate: opts.OutlineRevset,
 		find:            search.New(skin),
@@ -277,7 +291,8 @@ func (m Model) Init() tea.Cmd {
 		warn = m.say(strings.Join(w, "; "))
 	}
 
-	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool(), warn)
+	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool(), m.probeJJDiff("", ""),
+		warn)
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {
@@ -338,20 +353,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // route sends a message to whatever handles it. Keys go to handleKeyPress, the one place a binding is
 // added.
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.handleModeMsg(msg); handled {
-		return next, cmd
-	}
-
-	if next, cmd, handled := m.handleOverlayMsg(msg); handled {
-		return next, cmd
-	}
-
-	if next, cmd, handled := m.handleFindMsg(msg); handled {
-		return next, cmd
-	}
-
-	if next, cmd, handled := m.handleBookmarkMsg(msg); handled {
-		return next, cmd
+	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
+		m.handleModeMsg, m.handleOverlayMsg, m.handleFindMsg, m.handleBookmarkMsg, m.handleExternalMsg,
+	} {
+		if next, cmd, handled := handle(msg); handled {
+			return next, cmd
+		}
 	}
 
 	switch msg := msg.(type) {

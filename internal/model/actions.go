@@ -13,6 +13,7 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/jjdiff"
 )
 
 // targets is the one rule every verb that takes several revisions follows: the checked revisions when
@@ -114,7 +115,7 @@ func (m Model) openAction(action string, rev jj.Revision) (tea.Model, tea.Cmd) {
 	case help.ActionDiffedit:
 		return m, m.exec("edited "+rev.ChangeID+undoHint, m.hunkArgs("diffedit", "-r", rev.ChangeID)...)
 	case help.ActionSplit:
-		return m, m.exec("split"+undoHint, m.hunkArgs("split", "-i", "-r", rev.ChangeID)...)
+		return m, m.openJJDiff(jjdiff.Split, rev.ChangeID)
 	case help.ActionBisect:
 		return m.openBisect()
 	case help.ActionBookmarkCreate:
@@ -215,24 +216,66 @@ func (m Model) exec(done string, args ...string) tea.Cmd {
 }
 
 func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
-	revset, client := m.revset, m.client
 	// The repaint covers whatever the tool printed, so the message has to name the command itself.
 	// An exit status says nothing a reader who just quit the editor does not already know, so the
 	// line reports the one fact that matters: nothing was written.
 	what := strings.Join(cmd.Args, " ")
 
-	return tea.Sequence(
-		func() tea.Msg { client.AcquireQueue(); return nil },
-		tea.ExecProcess(cmd, func(err error) tea.Msg {
-			if err != nil {
-				return messageMsg{text: what + " did not finish"}
-			}
+	return m.execThen(cmd, func(err error, _ bool) tea.Msg {
+		if err != nil {
+			return messageMsg{text: what + " did not finish"}
+		}
 
-			return messageMsg{text: done}
+		return messageMsg{text: done}
+	})
+}
+
+// execThen suspends the TUI, hands cmd the terminal, and once it has exited says what outcome makes
+// of its exit and whether jj's operation log moved, then reads the log again, since the program may
+// have rewritten anything. The jj queue is held while it runs, so no background read races its
+// writes. A sequence does not wait for the program to exit before running its next command, so
+// everything after the exit runs from execDoneMsg, which the program sends once it has.
+func (m Model) execThen(cmd *exec.Cmd, outcome func(err error, wrote bool) tea.Msg) tea.Cmd {
+	client := m.client
+	before := new(string)
+
+	return tea.Sequence(
+		func() tea.Msg { *before = headOp(m.ctx, client); client.AcquireQueue(); return nil },
+		tea.ExecProcess(cmd, func(err error) tea.Msg {
+			return execDoneMsg{err: err, before: *before, outcome: outcome}
 		}),
-		func() tea.Msg { client.ReleaseQueue(); return nil },
-		m.loadLog(revset),
 	)
+}
+
+// execDoneMsg is a program jojo handed the terminal to having exited.
+type execDoneMsg struct {
+	err     error
+	outcome func(err error, wrote bool) tea.Msg
+	before  string
+}
+
+// finishExec gives the queue back, then says how the program went and reads the log it left.
+func (m Model) finishExec(msg execDoneMsg) tea.Cmd {
+	client, ctx := m.client, m.ctx
+
+	return tea.Sequence(
+		func() tea.Msg {
+			client.ReleaseQueue()
+
+			return msg.outcome(msg.err, headOp(ctx, client) != msg.before)
+		},
+		m.loadLog(m.revset),
+	)
+}
+
+// headOp is the id of jj's newest operation, "" when it cannot be read.
+func headOp(ctx context.Context, client *jj.Client) string {
+	ops, err := client.OpLog(ctx, 1)
+	if err != nil || len(ops) == 0 {
+		return ""
+	}
+
+	return ops[0].ID
 }
 
 func (Model) say(text string) tea.Cmd {

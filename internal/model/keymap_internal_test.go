@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/jjdiff"
 	"github.com/kyleking/jojo/internal/tuitest"
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -122,5 +124,40 @@ func TestFooter_OffersOnlyBoundKeys(t *testing.T) {
 		if !bound[h.Key] {
 			t.Errorf("the footer offers %q (%s), which nothing binds", h.Key, h.What)
 		}
+	}
+}
+
+// Without a jj-diff that has the modes, the verb still runs through jj, and the footer says why.
+func TestJJDiff_FallbackSaysWhy(t *testing.T) {
+	t.Parallel()
+
+	old := jjdiff.Tool{Path: "/bin/jj-diff", Version: "0.9.0", Why: "jj-diff 0.9.0 is older than v0.10.0"}
+
+	want := "jj-diff 0.9.0 is older than v0.10.0; split with jj split -i" + undoHint
+	if got := fallbackLine(old, jjdiff.Split); got != want {
+		t.Errorf("split fallback said %q", got)
+	}
+
+	if got := fallbackLine(old, jjdiff.Resolve); !strings.HasSuffix(got, "resolved with jj resolve"+undoHint) {
+		t.Errorf("resolve fallback said %q", got)
+	}
+}
+
+// The probe answers once: a launch pressed before it has answered waits for it and then runs.
+func TestJJDiff_LaunchWaitsForTheProbe(t *testing.T) {
+	t.Parallel()
+
+	opts := testOptions(t)
+	opts.JJDiff = func(context.Context) jjdiff.Tool { return jjdiff.Tool{Why: "jj-diff is not on PATH"} }
+	m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@", opts)
+
+	msg, ok := m.openJJDiff(jjdiff.Split, "abcd")().(jjDiffMsg)
+	if !ok || msg.mode != jjdiff.Split || msg.rev != "abcd" {
+		t.Fatalf("an unprobed launch produced %#v, want the probe carrying the launch", msg)
+	}
+
+	landed, cmd := m.landJJDiff(msg)
+	if landed.jjDiff.Why == "" || cmd == nil {
+		t.Errorf("the probe's answer was not kept, or the launch did not run")
 	}
 }

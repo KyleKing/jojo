@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/jjdiff"
 )
 
 func (m Model) loadFiles(revision string) tea.Cmd {
@@ -180,13 +181,13 @@ func (m Model) handleFileMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 }
 
 // resolveKey refuses on a clean revision rather than letting jj report an error the row already
-// says is impossible.
+// says is impossible, and opens jj-diff's conflict viewer on a conflicted one.
 func (m Model) resolveKey(rev jj.Revision) tea.Cmd {
 	if !rev.Conflict {
 		return m.say(rev.ChangeID + " has no conflict to resolve")
 	}
 
-	return m.resolve(rev.ChangeID)
+	return m.openJJDiff(jjdiff.Resolve, rev.ChangeID)
 }
 
 // resolve hands the terminal to jj, because resolving runs whichever merge tool the repository
