@@ -18,7 +18,7 @@ const opLogFieldCount = 4
 
 // OpLog runs `jj op log` and returns each operation newest first. A non-positive limit means no limit.
 func (c *Client) OpLog(ctx context.Context, limit int) ([]Operation, error) {
-	args := []string{"op", "log", "--no-graph", "--color=never", "--no-pager", "-T", opLogTemplate}
+	args := []string{"op", "log", "--no-graph", "-T", opLogTemplate}
 	if limit > 0 {
 		args = append(args, "-n", strconv.Itoa(limit))
 	}

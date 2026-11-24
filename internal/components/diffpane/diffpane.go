@@ -82,7 +82,7 @@ func (m *Model) render() {
 		width = m.width
 	}
 
-	lines := render.Lines(m.text, render.Options{
+	opts := render.Options{
 		Width:      width,
 		Palette:    paletteFor(m.skin),
 		Syntax:     true,
@@ -90,10 +90,98 @@ func (m *Model) render() {
 		SideBySide: m.sideBySide,
 		SignBar:    m.skin.SignBar(),
 		HunkLabels: true,
-	})
+	}
+
+	var lines []string
+
+	m.files, m.paths = nil, nil
+
+	for _, seg := range segments(m.text) {
+		if !seg.diff {
+			for _, line := range seg.lines {
+				lines = append(lines, m.prose(line, width))
+			}
+
+			continue
+		}
+
+		text := strings.Join(seg.lines, "\n") + "\n"
+		rendered := render.Lines(text, opts)
+		bounds, paths := fileHeaders(text, rendered)
+
+		for _, bound := range bounds {
+			m.files = append(m.files, bound+len(lines))
+		}
+
+		m.paths = append(m.paths, paths...)
+		lines = append(lines, rendered...)
+	}
 
 	m.list.Open(m.title, lines, 0)
-	m.files, m.paths = fileHeaders(m.text, lines)
+}
+
+// segment is a run of lines that is either a git diff or the prose jj writes around one, which is
+// what `jj op show -p` interleaves: a header, then each changed commit followed by its patch.
+type segment struct {
+	lines []string
+	diff  bool
+}
+
+// diffLinePrefixes are how every line inside a git diff starts, so the first line without one is
+// where jj's prose resumes.
+var diffLinePrefixes = []string{
+	"diff --git ", "index ", "--- ", "+++ ", "@@", " ", "+", "-", "\\", "new file", "deleted file",
+	"old mode", "new mode", "similarity", "rename ", "copy ", "Binary files",
+}
+
+// segments splits text into diffs and the prose between them. A plain diff is one segment, so a
+// revision's diff renders exactly as before.
+func segments(text string) []segment {
+	var out []segment
+
+	for _, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		diff := strings.HasPrefix(line, "diff --git ") ||
+			(len(out) > 0 && out[len(out)-1].diff && inDiff(line))
+
+		if len(out) == 0 || out[len(out)-1].diff != diff {
+			out = append(out, segment{diff: diff})
+		}
+
+		out[len(out)-1].lines = append(out[len(out)-1].lines, line)
+	}
+
+	if len(out) == 1 && !out[0].diff && strings.TrimSpace(text) == "" {
+		return nil
+	}
+
+	return out
+}
+
+func inDiff(line string) bool {
+	for _, prefix := range diffLinePrefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// prose draws a line jj wrote around a diff: a section heading, a commit added or removed by the
+// operation, or anything else as body text.
+func (m Model) prose(line string, width int) string {
+	text := table.Truncate(line, width)
+
+	switch {
+	case strings.HasSuffix(line, ":") && !strings.HasPrefix(line, " "):
+		return m.skin.Heading.Render(text)
+	case strings.HasPrefix(line, "+ "):
+		return m.skin.Added.Render(text)
+	case strings.HasPrefix(line, "- "):
+		return m.skin.Removed.Render(text)
+	}
+
+	return m.skin.Body.Render(text)
 }
 
 // Show replaces the diff and lands on the header of keep when the new diff touches that file, else on

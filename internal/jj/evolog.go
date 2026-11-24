@@ -18,7 +18,7 @@ const evologFieldCount = 5
 // Evolog returns how rev reached its current state, newest version first.
 func (c *Client) Evolog(ctx context.Context, rev string) ([]Evolution, error) {
 	out, err := c.executeJJ(ctx,
-		"evolog", "-r", rev, "--no-graph", "--color=never", "--no-pager", "-T", evologTemplate)
+		"evolog", "-r", rev, "--no-graph", "-T", evologTemplate)
 	if err != nil {
 		return nil, err
 	}

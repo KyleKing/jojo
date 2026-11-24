@@ -37,7 +37,7 @@ const logFieldCount = 11
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
 // A non-positive limit means no limit.
 func (c *Client) Log(ctx context.Context, revset string, limit int) ([]LogRow, error) {
-	args := []string{"log", "--color=never", "--no-pager", "-T", logTemplate}
+	args := []string{"log", "-T", logTemplate}
 	if revset != "" {
 		args = append(args, "-r", revset)
 	}

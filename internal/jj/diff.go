@@ -40,14 +40,16 @@ func (t DiffTarget) args() ([]string, error) {
 	case revision:
 		return append([]string{"diff", "-r", t.Revision}, t.Paths...), nil
 	case operation:
-		return []string{"op", "show", t.Operation}, nil
+		// -p puts each changed commit's patch under it, and a flat list keeps the graph's drawing
+		// out of text the pane renders itself.
+		return []string{"op", "show", "-p", "--no-graph", t.Operation}, nil
 	default:
 		return append([]string{"diff", "--from", t.From, "--to", t.To}, t.Paths...), nil
 	}
 }
 
-// DiffCommand returns t ready for tea.ExecProcess. It skips jjCommand's editor-disabling
-// environment because this command is handed the real terminal on purpose, and jj's pager needs it.
+// DiffCommand returns t ready for tea.ExecProcess, for a caller that hands jj the real terminal. It
+// skips jjCommand's editor-disabling environment, because jj's pager needs it.
 func (c *Client) DiffCommand(ctx context.Context, t DiffTarget) (*exec.Cmd, error) {
 	args, err := t.args()
 	if err != nil {
@@ -69,5 +71,5 @@ func (c *Client) GitDiff(ctx context.Context, t DiffTarget) (string, error) {
 		return "", err
 	}
 
-	return c.executeJJ(ctx, append(args, "--git", "--no-pager", "--color=never")...)
+	return c.executeJJ(ctx, append(args, "--git")...)
 }

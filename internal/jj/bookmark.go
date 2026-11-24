@@ -28,7 +28,7 @@ const bookmarkFieldCount = 8
 // Bookmarks lists every bookmark and its remote counterparts.
 func (c *Client) Bookmarks(ctx context.Context) ([]Bookmark, error) {
 	out, err := c.executeJJ(ctx,
-		"bookmark", "list", "--all-remotes", "--color=never", "--no-pager", "-T", bookmarkTemplate)
+		"bookmark", "list", "--all-remotes", "-T", bookmarkTemplate)
 	if err != nil {
 		return nil, err
 	}

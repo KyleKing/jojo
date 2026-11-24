@@ -18,7 +18,7 @@ type FileChange struct {
 // Files lists what the revision changes, with the conflicted paths folded in. A merge's own diff can
 // be empty while it is still conflicted, so the conflict list is the only source for those paths.
 func (c *Client) Files(ctx context.Context, revision string) ([]FileChange, error) {
-	out, err := c.executeJJ(ctx, "diff", "-r", revision, "--summary", "--no-pager", "--color=never")
+	out, err := c.executeJJ(ctx, "diff", "-r", revision, "--summary")
 	if err != nil {
 		return nil, err
 	}

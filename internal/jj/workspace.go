@@ -18,7 +18,7 @@ const workspaceFieldCount = 4
 // Workspaces lists every working copy attached to this repository. The one the client runs in is
 // marked Current, since `jj workspace list` does not say which that is.
 func (c *Client) Workspaces(ctx context.Context) ([]Workspace, error) {
-	out, err := c.executeJJ(ctx, "workspace", "list", "--color=never", "--no-pager", "-T", workspaceTemplate)
+	out, err := c.executeJJ(ctx, "workspace", "list", "-T", workspaceTemplate)
 	if err != nil {
 		return nil, err
 	}

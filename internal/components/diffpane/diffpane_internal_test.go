@@ -175,3 +175,70 @@ func TestDockView_SaysSoWhenNothingChanged(t *testing.T) {
 		t.Errorf("an empty docked diff does not say so:\n%s", view)
 	}
 }
+
+const operationShow = `8a5b04bdf956 root@vm default@ now, lasted 2 milliseconds
+describe commit 0b68fc5a49c0578c6f0b76b3581fc772f51b23ee
+args: jj describe -m wip2
+
+Changed commits:
++ puwuvkol d63b3a3c wip2
+- puwuvkol/1 0b68fc5a (hidden) wip
+diff --git a/JJ-COMMIT-DESCRIPTION b/JJ-COMMIT-DESCRIPTION
+--- JJ-COMMIT-DESCRIPTION
++++ JJ-COMMIT-DESCRIPTION
+@@ -1,1 +1,1 @@
+-wip
++wip2
+
+Changed working copy default@:
++ puwuvkol d63b3a3c wip2
+- puwuvkol/1 0b68fc5a (hidden) wip
+`
+
+// An operation's diff went to jj's pager, and a pager that quits on a short page flashed it and
+// returned. The pane draws it instead: jj's header and changed commits as prose, the patch as a diff.
+func TestOpen_OperationDrawsItsHeaderAroundThePatch(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{100, 60} {
+		m := New(ui.New(theme.Macchiato()))
+		m.Open("operation 8a5b04bd", operationShow, width)
+
+		plain := make([]string, 0, len(m.list.Items()))
+		for _, line := range m.list.Items() {
+			plain = append(plain, ansi.Strip(line))
+		}
+
+		text := strings.Join(plain, "\n")
+		wants := []string{
+			"args: jj describe -m wip2", "Changed commits:", "+ puwuvkol d63b3a3c wip2",
+			"Changed working copy default@:",
+		}
+		for _, want := range wants {
+			if !strings.Contains(text, want) {
+				t.Errorf("width %d lacks %q:\n%s", width, want, text)
+			}
+		}
+
+		if len(m.files) != 1 || m.paths[0] != "JJ-COMMIT-DESCRIPTION" {
+			t.Errorf("width %d found files %v at %v, want the one patch", width, m.paths, m.files)
+		}
+
+		if header := plain[m.files[0]]; !strings.Contains(header, "JJ-COMMIT-DESCRIPTION") {
+			t.Errorf("width %d file boundary lands on %q", width, header)
+		}
+	}
+}
+
+// A revision's diff is one segment, so it renders exactly as it did before operations shared the path.
+func TestSegments_APlainDiffIsOneSegment(t *testing.T) {
+	t.Parallel()
+
+	if got := segments(twoFileDiff); len(got) != 1 || !got[0].diff {
+		t.Errorf("segments = %+v, want one diff", got)
+	}
+
+	if got := segments(""); len(got) != 0 {
+		t.Errorf("segments of nothing = %+v", got)
+	}
+}

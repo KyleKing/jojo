@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -52,5 +53,19 @@ func TestOpLogFailureReportsRatherThanOpening(t *testing.T) {
 
 	if failed.message == "" {
 		t.Error("a failed operation log reported nothing")
+	}
+}
+
+// The operation's diff opens in the pane rather than handing the terminal to jj's pager.
+func TestOpLogShow_ReadsTheDiffIntoThePane(t *testing.T) {
+	t.Parallel()
+
+	_, cmd := testModel(t, twoRows()).showOperation(oplogview.ShowMsg{Operation: operations()[0]})
+	if cmd == nil {
+		t.Fatal("showing an operation ran nothing")
+	}
+
+	if msg, ok := cmd().(diffLoadedMsg); !ok || msg.title != "operation aaa111" {
+		t.Errorf("showing an operation produced %#v, want a diff read for the pane", msg)
 	}
 }

@@ -32,7 +32,7 @@ type Detail struct {
 
 // RevisionDetail reads one revision's metadata and full description.
 func (c *Client) RevisionDetail(ctx context.Context, rev string) (Detail, error) {
-	out, err := c.executeJJ(ctx, "log", "--no-graph", "--color=never", "--no-pager", "-r", rev, "-T", detailTemplate)
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "-r", rev, "-T", detailTemplate)
 	if err != nil {
 		return Detail{}, err
 	}

@@ -46,7 +46,7 @@ type Index struct {
 
 // Index reads @- and refuses with ErrNoIndex when rewriting it would touch more than @ and @-.
 func (c *Client) Index(ctx context.Context) (Index, error) {
-	out, err := c.executeJJ(ctx, "log", "--no-graph", "--color=never", "--no-pager",
+	out, err := c.executeJJ(ctx, "log", "--no-graph",
 		"-r", "parents(@)", "-T", indexTemplate)
 	if err != nil {
 		return Index{}, err
@@ -61,7 +61,7 @@ func (c *Client) Index(ctx context.Context) (Index, error) {
 		return Index{}, fmt.Errorf("%w: %s is immutable", ErrNoIndex, index.ChangeID)
 	}
 
-	siblings, err := c.executeJJ(ctx, "log", "--no-graph", "--color=never", "--no-pager",
+	siblings, err := c.executeJJ(ctx, "log", "--no-graph",
 		"-r", "children(@-) ~ @", "-T", `change_id.shortest(8) ++ "\n"`)
 	if err != nil {
 		return Index{}, err

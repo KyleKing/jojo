@@ -77,7 +77,7 @@ func TestDiffArgsOperation(t *testing.T) {
 		t.Fatalf("diff args: %v", err)
 	}
 
-	if want := []string{"op", "show", "op123"}; !equalArgs(args, want) {
+	if want := []string{"op", "show", "-p", "--no-graph", "op123"}; !equalArgs(args, want) {
 		t.Errorf("diff args = %v, want %v", args, want)
 	}
 }
@@ -402,6 +402,10 @@ func TestGitDiffOperation(t *testing.T) {
 
 	if !strings.Contains(text, "Changed commits") {
 		t.Errorf("operation diff missing its summary, got:\n%s", text)
+	}
+
+	if !strings.Contains(text, "diff --git") {
+		t.Errorf("operation diff missing the patch the pane draws, got:\n%s", text)
 	}
 }
 

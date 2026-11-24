@@ -39,18 +39,10 @@ type diffLoadedMsg struct {
 	text  string
 }
 
-// showDiff reads the diff and opens it in a pane. An operation is the exception: `jj op show`
-// prints its own header above the diff, which no diff parser reads, so it keeps the pager.
+// showDiff reads the diff and opens it in a pane. An operation's diff opens there too, its header and
+// changed commits drawn as prose between the patches: handed to jj's pager instead, a pager that
+// quits on a short page (less -F) flashed it and returned before it could be read.
 func (m Model) showDiff(target jj.DiffTarget) tea.Cmd {
-	if target.Operation != "" {
-		cmd, err := m.client.DiffCommand(m.ctx, target)
-		if err != nil {
-			return m.say(err.Error())
-		}
-
-		return m.execCommand("", cmd)
-	}
-
 	client, ctx, title := m.client, m.ctx, diffTitle(target)
 
 	return func() tea.Msg {
@@ -62,7 +54,11 @@ func (m Model) showDiff(target jj.DiffTarget) tea.Cmd {
 
 func diffTitle(t jj.DiffTarget) string {
 	name := t.Revision
-	if name == "" {
+
+	switch {
+	case t.Operation != "":
+		return "operation " + t.Operation
+	case name == "":
 		name = t.From + " to " + t.To
 	}
 

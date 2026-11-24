@@ -110,7 +110,8 @@ func (c *Client) execute(ctx context.Context, args ...string) (string, string, e
 	c.queue <- struct{}{}
 	defer func() { <-c.queue }()
 
-	cmd := c.jjCommand(ctx, args...)
+	// Captured output is parsed, so a user's ui.color = "always" or a pager must not reach it.
+	cmd := c.jjCommand(ctx, append([]string{"--no-pager", "--color=never"}, args...)...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
