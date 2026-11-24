@@ -163,6 +163,8 @@ type Model struct {
 	// that says which hunks were read.
 	strips map[string]readmark.Strip
 	reads  ReadState
+	// scopes names each change's full id, which marks are filed under.
+	scopes *scopeBook
 	marks  readsState
 	// outlineTemplate is config.toml's outline_revset, with {rev} for the revision under the cursor.
 	outlineTemplate string
@@ -309,6 +311,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		interdiffs: map[string]string{},
 		strips:     map[string]readmark.Strip{},
 		reads:      reads,
+		scopes:     newScopeBook(reads),
 		marks:      readsState{live: map[string]liveHunks{}},
 
 		outlineTemplate: opts.OutlineRevset,
@@ -531,6 +534,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.revsetLoaded = true
 	m.revset = msg.revset
 	m.rows = msg.rows
+	m.learnScopes(revisionsOf(msg.rows))
 	m.logFull = len(msg.rows) >= m.logWindow
 	m.log.SetRows(msg.rows)
 	m.resize()
@@ -546,6 +550,18 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 		m.loadDock(m.dockTarget()), m.loadStats(), outline)
 
 	return m, cmd
+}
+
+// revisionsOf is the rows that are revisions.
+func revisionsOf(rows []jj.LogRow) []*jj.Revision {
+	out := make([]*jj.Revision, 0, len(rows))
+	for _, r := range rows {
+		if r.Revision != nil {
+			out = append(out, r.Revision)
+		}
+	}
+
+	return out
 }
 
 // followBookmark points the forge pane at the selected revision's bookmark. A revision carrying

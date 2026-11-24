@@ -129,7 +129,7 @@ func (m Model) stripOf(changeID string, refs []seen.Ref) readmark.Strip {
 	strip := readmark.Strip{Total: len(refs)}
 
 	for _, r := range refs {
-		if !m.reads.Unread(changeID, string(r.ID)) {
+		if !m.unread(changeID, string(r.ID)) {
 			strip.Read++
 		}
 	}
@@ -166,7 +166,10 @@ func (m *Model) reloadMarks() {
 	}
 
 	for change := range m.marks.live {
-		reloader.Reload(change)
+		if scope := m.scopes.of(change); scope != "" {
+			reloader.Reload(scope)
+		}
+
 		m.refreshStrip(change)
 	}
 }
@@ -186,7 +189,7 @@ func (m *Model) drawChange(v readView, keep string) {
 
 	if m.marks.only {
 		filtered, kept, ok := filterDiff(text, refs, func(r seen.Ref) bool {
-			return m.reads.Unread(st.change, string(r.ID))
+			return m.unread(st.change, string(r.ID))
 		})
 		if ok {
 			text, shown = filtered, kept
@@ -204,11 +207,11 @@ func (m *Model) drawChange(v readView, keep string) {
 		v.pane.Show(st.title, text, m.width, keep)
 	}
 
-	change, byPath, reads := st.change, st.byPath, m.reads
+	scope, byPath, reads := m.scopes.of(st.change), st.byPath, m.reads
 	v.pane.SetRead(func(path string, k int) bool {
 		in := byPath[path]
 
-		return k < len(in) && !reads.Unread(change, string(in[k].ID))
+		return scope != "" && k < len(in) && !reads.Unread(scope, string(in[k].ID))
 	})
 }
 
@@ -449,10 +452,16 @@ func (m Model) markCmd(change string, read bool, live []seen.Ref, ids []seen.ID,
 		marker = noReads{}
 	}
 
+	// The scope is read here, on the update loop, which is the only place the book is written.
+	scope := m.scopes.of(change)
+	if scope == "" && !m.marksOff() {
+		return func() tea.Msg { return markedMsg{change: change, err: errNoScope, what: what} }
+	}
+
 	live, ids = slices.Clone(live), slices.Clone(ids)
 
 	return func() tea.Msg {
-		err := marker.Mark(change, read, live, ids...)
+		err := marker.Mark(scope, read, live, ids...)
 
 		return markedMsg{change: change, err: err, what: what}
 	}
@@ -477,7 +486,7 @@ func (m *Model) markPane(v readView) tea.Cmd {
 		for _, r := range live {
 			if r.Path == path {
 				ids = append(ids, r.ID)
-				all = all && !m.reads.Unread(change, string(r.ID))
+				all = all && !m.unread(change, string(r.ID))
 			}
 		}
 
@@ -496,7 +505,7 @@ func (m *Model) markPane(v readView) tea.Cmd {
 	}
 
 	id := in[k].ID
-	read := m.reads.Unread(change, string(id))
+	read := m.unread(change, string(id))
 	m.hold(v, path, k)
 
 	return m.markCmd(change, read, live, []seen.ID{id}, "hunk "+readWord(read))
@@ -690,7 +699,7 @@ func (m *Model) stepUnread(v readView, dir int) tea.Cmd {
 	change := v.state.change
 
 	for i := pos + dir; i >= 0 && i < len(shown); i += dir {
-		if !m.reads.Unread(change, string(shown[i].ID)) {
+		if !m.unread(change, string(shown[i].ID)) {
 			continue
 		}
 

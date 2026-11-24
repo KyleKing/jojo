@@ -251,7 +251,10 @@ func fakeStack() outlineLoadedMsg {
 			},
 			{ChangeID: "vwtrlsqy", CommitID: "b2", Description: "refactor: split the reader", Conflict: true},
 			{ChangeID: "nnzolpqr", CommitID: "c3", Empty: true},
-			{ChangeID: "yqosmzxt", CommitID: "d4", Description: "test: cover the fallbacks", WorkingCopy: true},
+			{
+				ChangeID: "yqosmzxt", FullChangeID: yqFull, CommitID: "d4", Description: "test: cover the fallbacks",
+				WorkingCopy: true,
+			},
 		},
 		stats: map[string]jj.Stats{"a1": {Files: 3, Added: 120, Removed: 14}, "b2": {Files: 2, Added: 40, Removed: 38}},
 		forge: map[string]string{"kxqpmnzo": "#41 open · CI passing"},

@@ -106,7 +106,7 @@ func main() {
 // with jj-diff, which opens the same directory. A repository whose store or state directory cannot be
 // found runs without marks (nil): the screen says so where a mark is asked for.
 func openReads(root string) *seen.Store {
-	store, err := jj.RepoStore(root)
+	store, err := seen.JJRepo(root)
 	if err != nil {
 		return nil
 	}

@@ -229,10 +229,14 @@ the cursor has left is dropped. `H` lists the rounds to jump to one.
 
 **Read marks are the repository's, scoped by change.** `cmd/jojo` opens one `aragonite/seen` store
 at `seen.StateDir("jojo", "seen", seen.RepoKey(repoStore))`, where `repoStore` is `.jj/repo`
-resolved through a secondary workspace's pointer file (`jj.RepoStore`), so every workspace of one
-repository, and jj-diff, share the marks. The scope is the change id and a hunk is named by its
-text (`seen.Parse`), so a mark survives every rebase that leaves the hunk alone and drops once it
-changes. `model.ReadState`, `ReadMarker`, and `ReadReloader` are the seams a `*seen.Store` fills;
+resolved through a secondary workspace's pointer file and symlinks (`seen.JJRepo`, the one jj-diff
+uses too), so every workspace of one repository, and jj-diff, share the marks. The scope is the
+change's full id, never the `change_id.shortest(8)` a row shows: that grows once another change
+shares its prefix, and a scope named by it would lose its marks. The log template carries both, and
+`scopeBook` maps the one on screen to the full one; the first time a full id is seen,
+`readmark.Migrate` moves a file an older jojo filed under a prefix of it, under seen's lock. A hunk
+is named by its text (`seen.Parse`), so a mark survives every rebase that leaves the hunk alone and
+drops once it changes. `model.ReadState`, `ReadMarker`, and `ReadReloader` are the seams a `*seen.Store` fills;
 without one, `noReads` answers and every read key says marks are off. A mark is saved from a
 `tea.Cmd`, always with the change's whole hunk list as `live`, since a save drops marks for hunks
 `live` does not carry; `U`'s filtered view is drawn from a copy (`filterDiff`) and never saved

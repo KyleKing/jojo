@@ -133,6 +133,7 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 	}
 
 	chapters := make([]outlineview.Chapter, len(msg.revs))
+	revs := make([]*jj.Revision, 0, len(msg.revs))
 
 	for i := range msg.revs {
 		rev := &msg.revs[i]
@@ -142,7 +143,10 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 		}
 
 		chapters[i] = outlineview.Chapter{Rev: rev, Forge: msg.forge[rev.ChangeID], Read: m.strips[rev.ChangeID]}
+		revs = append(revs, rev)
 	}
+
+	m.learnScopes(revs)
 
 	opening := !m.outline.active
 	m.outline.view.SetChapters(chapters)

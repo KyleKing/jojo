@@ -33,38 +33,43 @@ func TestParseLog(t *testing.T) {
 		{
 			name: "empty description and no bookmarks",
 			out: "◉ zzzzzzzz" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "000000000000" + fieldSep + "\n",
+				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "000000000000" + fieldSep +
+				"zzzzzzzzzzzz" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
-				Graph:       "◉ ",
-				ChangeID:    "zzzzzzzz",
-				CommitID:    "000000000000",
-				AuthorEmail: "a@b.com",
-				Age:         "1 hour ago",
+				Graph:        "◉ ",
+				ChangeID:     "zzzzzzzz",
+				FullChangeID: "zzzzzzzzzzzz",
+				CommitID:     "000000000000",
+				AuthorEmail:  "a@b.com",
+				Age:          "1 hour ago",
 			}}},
 		},
 		{
 			name: "flags combine immutable, conflict, empty, and working copy",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep + "a change\n",
+				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
+				"abcdefghij" + fieldSep + "a change\n",
 			want: []LogRow{{Revision: &Revision{
-				ChangeID:    "abcdefgh",
-				CommitID:    "c0ffee",
-				AuthorEmail: "a@b.com",
-				Age:         "now",
-				Description: "a change",
-				Immutable:   true,
-				Conflict:    true,
-				Empty:       true,
-				WorkingCopy: true,
+				ChangeID:     "abcdefgh",
+				FullChangeID: "abcdefghij",
+				CommitID:     "c0ffee",
+				AuthorEmail:  "a@b.com",
+				Age:          "now",
+				Description:  "a change",
+				Immutable:    true,
+				Conflict:     true,
+				Empty:        true,
+				WorkingCopy:  true,
 			}}},
 		},
 		{
 			name: "bookmarks split on comma and the same name tracked at two remotes collapses to one",
 			out: "abcdefgh" + fieldSep + "main,feat" + fieldSep + "main,feat" +
 				fieldSep + "main,main" + fieldSep + "" + fieldSep + "a@b.com" + fieldSep +
-				"now" + fieldSep + "c0ffee" + fieldSep + "\n",
+				"now" + fieldSep + "c0ffee" + fieldSep + "abcdefghij" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:        "abcdefgh",
+				FullChangeID:    "abcdefghij",
 				CommitID:        "c0ffee",
 				AuthorEmail:     "a@b.com",
 				Age:             "now",
@@ -77,13 +82,14 @@ func TestParseLog(t *testing.T) {
 			name: "a field adjacent to the separator byte in the ASCII table is not mistaken for it",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
-				"desc with \x1e and \x20 bytes\n",
+				"abcdefghij" + fieldSep + "desc with \x1e and \x20 bytes\n",
 			want: []LogRow{{Revision: &Revision{
-				ChangeID:    "abcdefgh",
-				CommitID:    "c0ffee",
-				AuthorEmail: "a@b.com",
-				Age:         "now",
-				Description: "desc with \x1e and \x20 bytes",
+				ChangeID:     "abcdefgh",
+				FullChangeID: "abcdefghij",
+				CommitID:     "c0ffee",
+				AuthorEmail:  "a@b.com",
+				Age:          "now",
+				Description:  "desc with \x1e and \x20 bytes",
 			}}},
 		},
 	}

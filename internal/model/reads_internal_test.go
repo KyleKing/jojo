@@ -67,6 +67,17 @@ func readsModel(t *testing.T, dir, cursorOn string, store *seen.Store) Model {
 	return m
 }
 
+// yqFull is the fake stack's working-copy chapter's full change id, which its marks are filed under.
+const yqFull = "yqosmzxtkkkkkkkkkkkkkkkkkkkkkkkk"
+
+// fullOf is a change's full id, which its marks are filed under.
+func fullOf(t *testing.T, dir, change string) string {
+	t.Helper()
+
+	return strings.TrimSpace(jjRun(t, dir, "log", "--no-graph", "--ignore-working-copy",
+		"-r", change, "-T", "change_id"))
+}
+
 // refsOf is a change's hunks as seen names them.
 func refsOf(t *testing.T, dir, change string) []seen.Ref {
 	t.Helper()
@@ -113,11 +124,16 @@ func TestReads_SpaceMarksTheHunkThenTheFile(t *testing.T) {
 func assertSpaceMarks(t *testing.T, m Model, store *seen.Store, change string, refs []seen.Ref) {
 	t.Helper()
 
+	scope := m.scopes.of(change)
+	if len(scope) != 32 || !strings.HasPrefix(scope, change) {
+		t.Fatalf("%s is filed under %q, not its full change id", change, scope)
+	}
+
 	if !strings.HasPrefix(m.message, "hunk read · 2 hunks left") {
 		t.Errorf("space said %q", m.message)
 	}
 
-	if seen.Open(store.Dir()).Unread(change, string(refs[0].ID)) {
+	if seen.Open(store.Dir()).Unread(scope, string(refs[0].ID)) {
 		t.Error("the first hunk is not marked read on disk")
 	}
 
@@ -130,24 +146,24 @@ func assertSpaceMarks(t *testing.T, m Model, store *seen.Store, change string, r
 	}
 
 	m = press(t, m, "space")
-	if !store.Unread(change, string(refs[0].ID)) || !strings.HasPrefix(m.message, "hunk unread") {
+	if !store.Unread(scope, string(refs[0].ID)) || !strings.HasPrefix(m.message, "hunk unread") {
 		t.Errorf("a second space left the hunk read, said %q", m.message)
 	}
 
 	// The file's heading takes both of a.txt's hunks at once, and b.txt's stays unread.
 	m = press(t, m, "[", "f", "space")
 
-	if store.Unread(change, string(refs[0].ID)) || store.Unread(change, string(refs[1].ID)) {
+	if store.Unread(scope, string(refs[0].ID)) || store.Unread(scope, string(refs[1].ID)) {
 		t.Error("space on a.txt's heading did not mark both its hunks")
 	}
 
-	if !store.Unread(change, string(refs[2].ID)) || !strings.HasPrefix(m.message, "a.txt read") {
+	if !store.Unread(scope, string(refs[2].ID)) || !strings.HasPrefix(m.message, "a.txt read") {
 		t.Errorf("space on a.txt reached b.txt too, or said %q", m.message)
 	}
 
 	press(t, m, "space")
 
-	if !store.Unread(change, string(refs[0].ID)) {
+	if !store.Unread(scope, string(refs[0].ID)) {
 		t.Error("space on a file already read did not mark it unread")
 	}
 }
@@ -162,7 +178,9 @@ func TestReads_AMarkSurvivesARebaseWhenTheHunkIsUnchanged(t *testing.T) {
 	change := changeFor(t, dir, "top")
 
 	m := press(t, readsModel(t, dir, "top", store), "p", "tab", "]", "h", "space")
-	if store.Unread(change, string(refsOf(t, dir, change)[0].ID)) {
+	scope := fullOf(t, dir, change)
+
+	if store.Unread(scope, string(refsOf(t, dir, change)[0].ID)) {
 		t.Fatal("top's hunk was not marked read")
 	}
 
@@ -170,7 +188,7 @@ func TestReads_AMarkSurvivesARebaseWhenTheHunkIsUnchanged(t *testing.T) {
 	jjRun(t, dir, "rebase", "-r", change, "-o", "description(exact:'bottom\n')")
 	m = press(t, m, "ctrl+l")
 
-	if after := refsOf(t, dir, change); store.Unread(change, string(after[0].ID)) {
+	if after := refsOf(t, dir, change); store.Unread(scope, string(after[0].ID)) {
 		t.Error("the rebase took the mark off a hunk whose text did not change")
 	}
 
@@ -186,7 +204,7 @@ func TestReads_AMarkSurvivesARebaseWhenTheHunkIsUnchanged(t *testing.T) {
 
 	jjRun(t, dir, "status")
 
-	if after := refsOf(t, dir, change); !store.Unread(change, string(after[0].ID)) {
+	if after := refsOf(t, dir, change); !store.Unread(scope, string(after[0].ID)) {
 		t.Error("a hunk whose text changed kept its mark")
 	}
 }
@@ -204,9 +222,9 @@ func TestReads_ASecondWorkspaceSeesTheSameMarks(t *testing.T) {
 	open := func(root string) *seen.Store {
 		t.Helper()
 
-		repo, err := jj.RepoStore(root)
+		repo, err := seen.JJRepo(root)
 		if err != nil {
-			t.Fatalf("RepoStore(%s): %v", root, err)
+			t.Fatalf("JJRepo(%s): %v", root, err)
 		}
 
 		return seen.Open(filepath.Join(state, seen.RepoKey(repo)))
@@ -420,7 +438,7 @@ func TestReads_Frames(t *testing.T) {
 			store := seen.Open(t.TempDir())
 			refs := seen.Parse([]byte(dockFirstDiff))
 
-			if err := store.Mark("yqosmzxt", true, refs, refs[0].ID); err != nil {
+			if err := store.Mark(yqFull, true, refs, refs[0].ID); err != nil {
 				t.Fatal(err)
 			}
 
@@ -462,7 +480,7 @@ func TestReads_FullScreenFrames(t *testing.T) {
 			store := seen.Open(t.TempDir())
 			refs := seen.Parse([]byte(dockFirstDiff))
 
-			if err := store.Mark("yqosmzxt", true, refs, refs[0].ID); err != nil {
+			if err := store.Mark(yqFull, true, refs, refs[0].ID); err != nil {
 				t.Fatal(err)
 			}
 
@@ -472,6 +490,7 @@ func TestReads_FullScreenFrames(t *testing.T) {
 			m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@", opts)
 			m, _ = m.applyLog(logLoadedMsg{revset: "@", rows: twoRows()})
 			m = asModel(t, update(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]}))
+			m.learnScopes([]*jj.Revision{{ChangeID: "yqosmzxt", FullChangeID: yqFull}})
 			m = asModel(t, update(m, diffLoadedMsg{
 				title: "diff yqosmzxt", text: dockFirstDiff, change: "yqosmzxt", hunks: refs,
 			}))
@@ -492,5 +511,76 @@ func TestReads_FullScreenFrames(t *testing.T) {
 
 			tuitest.AssertGolden(t, frame)
 		})
+	}
+}
+
+// A mark is filed under the change's full id, so it still reads back once another change comes to
+// share the prefix the log showed and jj's shortest id grows from 8 characters to 9.
+func TestReads_AMarkSurvivesTheShortIDGrowing(t *testing.T) {
+	t.Parallel()
+
+	dir := readsRepo(t)
+	store := seen.Open(t.TempDir())
+	short := changeFor(t, dir, "two")
+	full := fullOf(t, dir, short)
+	refs := refsOf(t, dir, short)
+
+	if len(short) != 8 {
+		t.Fatalf("two's short id is %q, want 8 characters", short)
+	}
+
+	m := press(t, readsModel(t, dir, "two", store), "p", "tab", "]", "h", "space")
+	if _, err := os.Stat(filepath.Join(store.Dir(), full+".toml")); err != nil {
+		t.Fatalf("the mark is not filed under the full id: %v", err)
+	}
+
+	// A colliding change makes the log show two by 9 characters; a later session reads that log.
+	grown := full[:9]
+	rows := make([]jj.LogRow, 0, len(m.rows))
+
+	for _, r := range m.rows {
+		if r.Revision != nil && r.Revision.ChangeID == short {
+			rev := *r.Revision
+			rev.ChangeID = grown
+			r = jj.LogRow{Revision: &rev}
+		}
+
+		rows = append(rows, r)
+	}
+
+	later := readsModel(t, dir, "base", seen.Open(store.Dir()))
+	later, _ = later.applyLog(logLoadedMsg{revset: "all()", rows: rows})
+
+	if later.unread(grown, string(refs[0].ID)) {
+		t.Error("the mark made under the 8-character id is gone once the id is 9 characters")
+	}
+}
+
+// Marks an older jojo filed under the 8-character prefix move to the full id the first time the log
+// names the change, and read back from there.
+func TestReads_MarksUnderAShortScopeMoveToTheFullID(t *testing.T) {
+	t.Parallel()
+
+	dir := readsRepo(t)
+	state := t.TempDir()
+	short := changeFor(t, dir, "two")
+	full := fullOf(t, dir, short)
+	refs := refsOf(t, dir, short)
+
+	if err := seen.Open(state).Mark(short, true, refs, refs[1].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	m := readsModel(t, dir, "two", seen.Open(state))
+	if m.unread(short, string(refs[1].ID)) {
+		t.Error("the mark filed under the short id did not move")
+	}
+
+	if _, err := os.Stat(filepath.Join(state, short+".toml")); !os.IsNotExist(err) {
+		t.Errorf("the short-id file is still there: %v", err)
+	}
+
+	if seen.Open(state).Unread(full, string(refs[1].ID)) {
+		t.Error("the full-id file does not hold the moved mark")
 	}
 }

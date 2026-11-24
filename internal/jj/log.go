@@ -24,6 +24,7 @@ const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`author.email() ++ "` + fieldSep + `" ++ ` +
 	`committer.timestamp().ago() ++ "` + fieldSep + `" ++ ` +
 	`commit_id.short(12) ++ "` + fieldSep + `" ++ ` +
+	`change_id ++ "` + fieldSep + `" ++ ` +
 	`description.first_line() ++ "\n"`
 
 // statsTemplate is the expensive part of a row, read only for the commits a caller names.
@@ -80,7 +81,7 @@ func parseStats(out string) map[string]Stats {
 // change ID alphabet (lowercase k-z) never overlaps with the symbols and spaces that make up a graph.
 var changeIDSuffix = regexp.MustCompile(`[a-z]+$`)
 
-const logFieldCount = 9
+const logFieldCount = 10
 
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
@@ -161,7 +162,8 @@ func parseRevisionLine(line string) *Revision {
 	return &Revision{
 		ChangeID:        changeID,
 		CommitID:        fields[7],
-		Description:     fields[8],
+		FullChangeID:    fields[8],
+		Description:     fields[9],
 		AuthorEmail:     fields[5],
 		Age:             fields[6],
 		Graph:           graph,

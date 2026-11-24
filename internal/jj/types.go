@@ -7,7 +7,12 @@ import "errors"
 // Revision is one row of the log: everything a row renders plus the flags that
 // decide whether an action is allowed on it.
 type Revision struct {
+	// ChangeID is the shortest unique prefix, at least 8 characters, which is what a row shows and
+	// what jojo names a change by on screen. It grows when another change comes to share its
+	// prefix, so anything kept across sessions is keyed by FullChangeID instead.
 	ChangeID string
+	// FullChangeID is the whole change id, stable for the change's life: read marks are scoped by it.
+	FullChangeID string
 	// CommitID names this exact content, which is what the stats a row shows are cached under: a
 	// rewrite gives the revision a new one, so a stale count is never served for it.
 	CommitID    string
