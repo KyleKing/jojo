@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/ui"
 )
 
 // Styles is the vocabulary the log renders in. The caller owns it, so this
@@ -395,11 +396,13 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 	body := m.cells(*row.Revision, layout)
 	gutter := m.gutter(*row.Revision)
 
+	// Every cell carries its own reset, so the row face is laid under each one rather than wrapped
+	// around the whole line, which would only reach the graph.
 	switch {
 	case selected:
-		return m.styles.Selected.Render(graph + gutter + body)
+		return ui.OnBackground(graph+gutter+body, m.styles.Selected)
 	case m.searchPattern != "" && matchesSearch(*row.Revision, m.searchPattern):
-		return m.styles.Match.Render(graph + gutter + body)
+		return ui.OnBackground(graph+gutter+body, m.styles.Match)
 	default:
 		return graph + gutter + body
 	}

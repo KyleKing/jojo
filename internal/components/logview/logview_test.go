@@ -348,3 +348,43 @@ func TestSearchSurvivesSetRows(t *testing.T) {
 		t.Errorf("StepMatch(1) after SetRows landed on %v, want ryvkrytz", got)
 	}
 }
+
+// Each cell ends in a reset, so a highlight wrapped around the whole row stopped at the graph and
+// left the change id, bookmarks, description, and stats unmarked. Every field has to sit on the face.
+func TestView_SelectionCoversTheWholeRow(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{100, 72} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m := newModel(fixture(), width, len(fixture()))
+			m.Update(tuitest.Key("j"))
+
+			open, _, _ := strings.Cut(styles().Selected.Render("\x00"), "\x00")
+			row := strings.Split(m.View(), "\n")[1]
+
+			for _, field := range []string{"rnzxmskv", "large refactor", "+240"} {
+				assertOnFace(t, row, field, open)
+			}
+		})
+	}
+}
+
+// assertOnFace fails unless the last style change before field reopened face, which is what a
+// terminal draws field's background from.
+func assertOnFace(t *testing.T, row, field, open string) {
+	t.Helper()
+
+	at := strings.Index(row, field)
+	if at < 0 {
+		t.Fatalf("row lacks %q: %q", field, row)
+	}
+
+	before := row[:at]
+	reset := max(strings.LastIndex(before, "\x1b[0m"), strings.LastIndex(before, "\x1b[m"))
+
+	if !strings.Contains(before[max(reset, 0):], open) {
+		t.Errorf("%q is drawn off the selection face: %q", field, before[max(reset, 0):])
+	}
+}

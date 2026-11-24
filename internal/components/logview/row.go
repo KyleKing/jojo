@@ -182,13 +182,13 @@ func StylesFrom(s ui.Skin) Styles {
 		Files:     s.Muted,
 		Author:    s.Muted,
 		Age:       s.Muted,
-		Selected:  s.Selected,
+		Selected:  s.Selection,
 		Immutable: s.Immutable,
 		Conflict:  s.Conflicted,
 		Divergent: s.Divergent,
 		Working:   s.WorkingCopy,
 		Checked:   s.Accent,
 		Header:    s.Heading,
-		Match:     s.Accent.Bold(true),
+		Match:     s.Band,
 	}
 }
