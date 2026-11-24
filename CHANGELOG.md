@@ -1,3 +1,9 @@
+## v0.20.1 (2026-11-24)
+
+### Refactor
+
+- **test**: take hermetic and Migrate from aragonite v1.30.0
+
 ## v0.20.0 (2026-11-24)
 
 ### Feat
