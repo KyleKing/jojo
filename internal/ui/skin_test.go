@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/ui"
@@ -87,5 +89,22 @@ func TestForProfile_FitsTheDiffWashToTheProfile(t *testing.T) {
 	env := []string{"TERM=tmux-256color", "COLORTERM=truecolor", "TTY_FORCE=1"}
 	if got := theme.Profile(os.Stdout, env); got != colorprofile.TrueColor {
 		t.Errorf("tmux with COLORTERM=truecolor is %v, want truecolor", got)
+	}
+}
+
+// A color chosen for its hue keeps it in 256 colors: Latte's red, the removed side and a conflict,
+// would otherwise land on the grey ramp.
+func TestForProfile_KeepsHuesOffTheGreyRampIn256(t *testing.T) {
+	t.Parallel()
+
+	s := ui.ForProfile(ui.New(theme.Latte()), colorprofile.ANSI256)
+
+	for name, face := range map[string]lipgloss.Style{
+		"removed": s.Removed, "added": s.Added, "conflicted": s.Conflicted, "bookmark": s.Bookmark,
+	} {
+		idx, ok := colorprofile.ANSI256.Convert(face.GetForeground()).(ansi.IndexedColor)
+		if ok && idx >= 232 {
+			t.Errorf("%s draws as grey %d in 256 colors", name, idx)
+		}
 	}
 }

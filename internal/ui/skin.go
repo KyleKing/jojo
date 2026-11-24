@@ -52,6 +52,8 @@ type Skin struct {
 	// Diff is what a changed line is drawn with in the diff pane: its wash, the deeper mark on
 	// the words that changed, and the sign bar, the same faces second-look and jj-diff use.
 	Diff skin.DiffFaces
+	// Profile is the color depth the skin was fitted to, which Hue fits a meaningful color to.
+	Profile colorprofile.Profile
 }
 
 // accent returns the color that tells jojo apart from aragonite's other
@@ -63,25 +65,39 @@ func accent(p theme.Palette) color.Color {
 // New builds a skin from a palette, so callers (and tests) can pin a flavor
 // rather than reading the terminal.
 func New(p theme.Palette) Skin {
-	a := accent(p)
-	base := lipgloss.NewStyle()
-
-	return Skin{
-		Skin:           skin.New(p, a),
-		Immutable:      base.Foreground(p.Overlay1).Faint(true),
-		Conflicted:     base.Foreground(p.Red).Bold(true),
-		Divergent:      base.Foreground(p.Yellow).Strikethrough(true),
-		WorkingCopy:    base.Foreground(a).Bold(true).Underline(true),
-		Bookmark:       base.Foreground(p.Green).Italic(true),
-		ChangeIDPrefix: base.Foreground(a).Bold(true),
-		Added:          base.Foreground(p.Green),
-		Removed:        base.Foreground(p.Red),
-		Selected:       base.Reverse(true),
-		Icons:          icons.New(icons.Resolve(""), p),
-		Diff:           skin.Diff(p, true),
-		Palette:        p,
+	s := Skin{
+		Skin:     skin.New(p, accent(p)),
+		Selected: lipgloss.NewStyle().Reverse(true),
+		Icons:    icons.New(icons.Resolve(""), p),
+		Diff:     skin.Diff(p, true),
+		Palette:  p,
+		Profile:  colorprofile.TrueColor,
 	}
+
+	return s.withRoles()
 }
+
+// withRoles builds jojo's own faces for the skin's profile. Each carries its meaning by hue (a
+// conflict red, a bookmark green), so each goes through Hue, which keeps it off the grey ramp in 256
+// colors: Latte's red would otherwise answer grey 241.
+func (s Skin) withRoles() Skin {
+	p, a, base := s.Palette, s.Hue(accent(s.Palette)), lipgloss.NewStyle()
+
+	s.Immutable = base.Foreground(p.Overlay1).Faint(true)
+	s.Conflicted = base.Foreground(s.Hue(p.Red)).Bold(true)
+	s.Divergent = base.Foreground(s.Hue(p.Yellow)).Strikethrough(true)
+	s.WorkingCopy = base.Foreground(a).Bold(true).Underline(true)
+	s.Bookmark = base.Foreground(s.Hue(p.Green)).Italic(true)
+	s.ChangeIDPrefix = base.Foreground(a).Bold(true)
+	s.Added = base.Foreground(s.Hue(p.Green))
+	s.Removed = base.Foreground(s.Hue(p.Red))
+
+	return s
+}
+
+// Hue is c fitted to the skin's profile for a color that means something by its hue: a side of a
+// diff, a conflict, a bookmark.
+func (s Skin) Hue(c color.Color) color.Color { return theme.Hue(c, s.Profile) }
 
 // SignBar says whether a changed line's side can be drawn as a colored bar, which it cannot under
 // NO_COLOR, where only a + or a - says which side a line is on.
@@ -99,8 +115,9 @@ func forTerminal(s Skin) Skin {
 func ForProfile(s Skin, profile colorprofile.Profile) Skin {
 	s.Skin = skin.For(s.Palette, accent(s.Palette), profile)
 	s.Diff = skin.DiffFor(s.Palette, profile)
+	s.Profile = profile
 
-	return s
+	return s.withRoles()
 }
 
 // Detected builds a skin for whichever flavor the terminal's background calls

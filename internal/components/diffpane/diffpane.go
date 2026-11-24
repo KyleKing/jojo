@@ -489,10 +489,10 @@ func paletteFor(s ui.Skin) render.Palette {
 	p := s.Palette
 
 	return render.Palette{
-		File:        p.Mauve,
+		File:        s.Hue(p.Mauve),
 		Hunk:        p.Overlay1,
-		Added:       p.Green,
-		Removed:     p.Red,
+		Added:       s.Hue(p.Green),
+		Removed:     s.Hue(p.Red),
 		Context:     p.Text,
 		AddedWash:   s.Diff.AddWash,
 		RemovedWash: s.Diff.RemoveWash,
@@ -501,12 +501,12 @@ func paletteFor(s ui.Skin) render.Palette {
 		Gutter:      p.Overlay0,
 		Syntax: render.SyntaxPalette{
 			Comment:  p.Overlay1,
-			Keyword:  p.Mauve,
-			String:   p.Green,
-			Number:   p.Peach,
-			Name:     p.Blue,
-			Type:     p.Yellow,
-			Operator: p.Sky,
+			Keyword:  s.Hue(p.Mauve),
+			String:   s.Hue(p.Green),
+			Number:   s.Hue(p.Peach),
+			Name:     s.Hue(p.Blue),
+			Type:     s.Hue(p.Yellow),
+			Operator: s.Hue(p.Sky),
 		},
 	}
 }
