@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,7 +18,10 @@ type pushPreviewMsg struct {
 	err    error
 	what   string
 	notice string
-	opts   jj.PushOptions
+	// why is a line the dialog adds above jj's dry run when the push is not the one asked for: a
+	// new bookmark named so jj creates and tracks it, or a revision pushed under a generated name.
+	why  string
+	opts jj.PushOptions
 }
 
 // handleBookmarkMsg runs what the panel asked for. Only the push is gated, since jj can undo the
@@ -115,6 +119,10 @@ func (m Model) bookmarkWrite(write func(context.Context) (string, error)) tea.Cm
 
 // previewPush asks jj what the push would do, so the dialog shows jj's answer rather than ours.
 func (m Model) previewPush(what string, opts jj.PushOptions) tea.Cmd {
+	return m.previewPushBecause(what, "", opts)
+}
+
+func (m Model) previewPushBecause(what, why string, opts jj.PushOptions) tea.Cmd {
 	client, ctx := m.client, m.ctx
 	dry := opts
 	dry.DryRun = true
@@ -122,8 +130,50 @@ func (m Model) previewPush(what string, opts jj.PushOptions) tea.Cmd {
 	return func() tea.Msg {
 		notice, err := client.Push(ctx, dry)
 
-		return pushPreviewMsg{what: what, opts: opts, notice: notice, err: err}
+		return pushPreviewMsg{what: what, why: why, opts: opts, notice: notice, err: err}
 	}
+}
+
+// pushInstead is the push that does what a push by revision refused: a bookmark new to the remote is
+// pushed by name, which jj creates and tracks, and a revision with no bookmark goes up under one jj
+// names for it. The second preview carries why, so the dialog says which of the two it is.
+func (m Model) pushInstead(msg pushPreviewMsg) tea.Cmd {
+	if msg.why != "" || len(msg.opts.Revisions) == 0 {
+		return nil
+	}
+
+	if names, remote := jj.NewRemoteBookmarks(msg.notice); len(names) > 0 {
+		refs := make([]string, len(names))
+		for i, name := range names {
+			refs[i] = name + "@" + remote
+		}
+
+		why := strings.Join(names, ", ") + " is new on " + remote + ": pushing it by name creates " +
+			strings.Join(refs, ", ") + " and tracks it"
+
+		return m.previewPushBecause(strings.Join(names, ", "), why,
+			jj.PushOptions{Remote: msg.opts.Remote, Bookmarks: names})
+	}
+
+	if m.carryBookmarks(msg.opts.Revisions) {
+		return nil
+	}
+
+	why := msg.what + " has no bookmark: jj git push -c creates push-<change id> for it"
+
+	return m.previewPushBecause(msg.what, why, jj.PushOptions{Remote: msg.opts.Remote, Changes: msg.opts.Revisions})
+}
+
+// carryBookmarks reports whether any of revs has a local bookmark, which is what a push by revision
+// sends; one with none has nothing to send until it is given one.
+func (m Model) carryBookmarks(revs []string) bool {
+	for _, row := range m.rows {
+		if row.Revision != nil && slices.Contains(revs, row.Revision.ChangeID) && len(row.Revision.LocalBookmarks) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
@@ -141,9 +191,17 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 
 	detail := noticeLines(msg.notice)
 	if len(detail) == 0 || strings.Contains(msg.notice, nothingToPushNotice) {
+		if instead := m.pushInstead(msg); instead != nil {
+			return m, instead, true
+		}
+
 		m.message = "nothing to push for " + msg.what
 
 		return m, nil, true
+	}
+
+	if msg.why != "" {
+		detail = append([]string{msg.why, ""}, detail...)
 	}
 
 	m.pushing = pendingPush{what: msg.what, opts: msg.opts}

@@ -143,3 +143,48 @@ func TestPushConfirmationShowsTheDryRun(t *testing.T) {
 func contains(haystack, needle string) bool {
 	return strings.Contains(tuitest.StripANSI(haystack), needle)
 }
+
+const newBookmarkNotice = "Warning: Refusing to create new remote bookmark feature@origin\n" +
+	"Hint: Run `jj bookmark track feature@origin` and try again.\nNothing changed.\n"
+
+// jj refuses to create a remote bookmark from a push by revision and the warning was discarded, so P
+// on a new bookmark said "nothing to push". It asks again by name, which jj creates and tracks.
+func TestPush_NewBookmarkIsOfferedByNameRatherThanNothingToPush(t *testing.T) {
+	t.Parallel()
+
+	rows := []jj.LogRow{{Revision: &jj.Revision{ChangeID: "aaaa", LocalBookmarks: []string{"feature"}}}}
+	byRevision := jj.PushOptions{Revisions: []string{"aaaa"}}
+	refused := pushPreviewMsg{what: "aaaa", notice: newBookmarkNotice, opts: byRevision}
+
+	next, cmd, _ := testModel(t, rows).offerPush(refused)
+	if cmd == nil {
+		t.Fatalf("a refused new bookmark ended the push: %q", asModel(t, next).message)
+	}
+
+	if asModel(t, next).message != "" {
+		t.Errorf("reported %q while asking again", asModel(t, next).message)
+	}
+
+	byName := pushPreviewMsg{
+		what: "feature", why: "feature is new on origin", opts: jj.PushOptions{Bookmarks: []string{"feature"}},
+		notice: "Changes to push to origin:\n  bookmark: feature [add to 311d3d63]\n",
+	}
+
+	opened, _, _ := testModel(t, rows).offerPush(byName)
+	if view := asModel(t, opened).confirm.View(100, 20); !contains(view, "feature is new on origin") {
+		t.Errorf("the dialog does not say why it pushes by name:\n%s", view)
+	}
+}
+
+// A revision with no bookmark has nothing a push by revision sends, so P offers jj's generated one.
+func TestPush_RevisionWithoutABookmarkOffersAGeneratedOne(t *testing.T) {
+	t.Parallel()
+
+	byRevision := jj.PushOptions{Revisions: []string{"aaaa"}}
+	preview := pushPreviewMsg{what: "aaaa", notice: "Nothing changed.\n", opts: byRevision}
+
+	_, cmd, _ := testModel(t, twoRows()).offerPush(preview)
+	if cmd == nil {
+		t.Fatal("a revision with no bookmark was not offered jj git push -c")
+	}
+}

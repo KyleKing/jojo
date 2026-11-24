@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kyleking/jojo/internal/jj"
@@ -148,5 +149,59 @@ func TestPushDryRunLeavesTheRemoteAlone(t *testing.T) {
 
 	if findBookmark(marks, "feature@origin") != nil {
 		t.Error("a dry run created a remote bookmark")
+	}
+}
+
+// A push by revision refuses to create a bookmark the remote lacks, and says so only as a warning
+// beside "Nothing changed". The refusal names the bookmark and the remote, and naming the bookmark
+// is the push that goes through.
+func TestPush_NewBookmarkByRevisionIsRefusedAndByNameGoesThrough(t *testing.T) {
+	t.Parallel()
+
+	client, dir := repoWithRemote(t)
+	ctx := context.Background()
+
+	writeFile(t, dir, "a.txt", "a\n")
+	runJJ(t, dir, "commit", "-m", "first")
+	runJJ(t, dir, "bookmark", "create", "-r", "@-", "feature")
+
+	notice, err := client.Push(ctx, jj.PushOptions{Revisions: []string{"@-"}, DryRun: true})
+	if err != nil {
+		t.Fatalf("Push -r: %v", err)
+	}
+
+	names, remote := jj.NewRemoteBookmarks(notice)
+	if len(names) != 1 || names[0] != "feature" || remote != "origin" {
+		t.Fatalf("NewRemoteBookmarks = %v, %q from %q, want feature on origin", names, remote, notice)
+	}
+
+	notice, err = client.Push(ctx, jj.PushOptions{Bookmarks: names, DryRun: true})
+	if err != nil || !strings.Contains(notice, "bookmark: feature [add to") {
+		t.Errorf("Push --bookmark dry run = %q, %v, want it to add feature", notice, err)
+	}
+}
+
+// A revision with no bookmark reaches the remote under one jj generates, and a dry run creates none.
+func TestPush_ChangeGeneratesABookmarkOnlyWhenNotADryRun(t *testing.T) {
+	t.Parallel()
+
+	client, dir := repoWithRemote(t)
+	ctx := context.Background()
+
+	writeFile(t, dir, "a.txt", "a\n")
+	runJJ(t, dir, "commit", "-m", "first")
+
+	notice, err := client.Push(ctx, jj.PushOptions{Changes: []string{"@-"}, DryRun: true})
+	if err != nil || !strings.Contains(notice, "bookmark: push-") {
+		t.Fatalf("Push --change dry run = %q, %v, want a generated push- bookmark", notice, err)
+	}
+
+	marks, err := client.Bookmarks(ctx)
+	if err != nil {
+		t.Fatalf("Bookmarks: %v", err)
+	}
+
+	if len(marks) != 0 {
+		t.Errorf("the dry run left bookmarks behind: %v", marks)
 	}
 }

@@ -94,7 +94,7 @@ the handlers read. The ones worth knowing before you start:
 | `space` / `C` in the files of `@` | stage or unstage the file, or commit what is staged, with `@-` standing in for git's index |
 | `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it |
 | `c` | resolve the conflict, in the whole revision or one file of it |
-| `f` / `P` | fetch every remote, or push the revision's bookmarks |
+| `f` / `P` | fetch every remote, or push the revision's bookmarks; a bookmark new to the remote is pushed by name, which tracks it, and a revision with none goes up under jj's generated `push-<change id>` (`jj git push -c`), each shown in the confirmation first |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
 | `d` / `Alt+e` | describe in a prompt that holds the whole description, body and trailers included (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
 | `i` / `I` | squash hunks into the parent, or into any revision you pick |
