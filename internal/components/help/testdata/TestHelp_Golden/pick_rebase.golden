@@ -10,6 +10,7 @@ j/down   down a line
 k/up     up a line                                                  
 ctrl+d   half a page down                                           
 ctrl+u   half a page up                                             
+gt       jump to trunk()                                            jj log -r 'trunk()'
 @        jump to the working copy                                   
 ── Flags
 -r       the revision alone (-r)                                    

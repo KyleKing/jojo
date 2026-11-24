@@ -56,30 +56,36 @@ const pickScreens = PickRebase | PickSquash | PickDuplicate | PickNew | PickRest
 // Actions jojo adds to the shared vocabulary. Shared actions keep aragonite's names (keys.Action*),
 // so a [keys] rebind written for jj-diff or second-look means the same thing here.
 const (
-	ActionDiff           = "diff"
-	ActionPreview        = "preview"
-	ActionFiles          = "files"
-	ActionCompare        = "compare"
-	ActionNew            = "new"
-	ActionNewPlaced      = "new-placed"
-	ActionEdit           = "edit"
-	ActionDiffedit       = "diffedit"
-	ActionCommit         = "commit"
-	ActionSquash         = "squash"
-	ActionSplit          = "split"
-	ActionDuplicate      = "duplicate"
-	ActionRebase         = "rebase"
-	ActionRebaseSubtree  = "rebase-subtree"
-	ActionRestore        = "restore"
-	ActionAbandon        = "abandon"
-	ActionAbsorb         = "absorb"
-	ActionResolve        = "resolve"
-	ActionConverge       = "converge"
-	ActionArrange        = "arrange"
-	ActionOpLog          = "op-log"
-	ActionOpOlder        = "op-older"
-	ActionOpNewer        = "op-newer"
-	ActionFetch          = "fetch"
+	ActionDiff          = "diff"
+	ActionPreview       = "preview"
+	ActionFiles         = "files"
+	ActionCompare       = "compare"
+	ActionNew           = "new"
+	ActionNewPlaced     = "new-placed"
+	ActionEdit          = "edit"
+	ActionDiffedit      = "diffedit"
+	ActionCommit        = "commit"
+	ActionSquash        = "squash"
+	ActionSplit         = "split"
+	ActionDuplicate     = "duplicate"
+	ActionRebase        = "rebase"
+	ActionRebaseSubtree = "rebase-subtree"
+	ActionRestore       = "restore"
+	ActionAbandon       = "abandon"
+	ActionAbsorb        = "absorb"
+	ActionResolve       = "resolve"
+	ActionConverge      = "converge"
+	ActionArrange       = "arrange"
+	ActionOpLog         = "op-log"
+	ActionOpOlder       = "op-older"
+	ActionOpNewer       = "op-newer"
+	ActionFetch         = "fetch"
+	// ActionSync is a fetch that reports what moved and offers to restack onto a moved trunk, and
+	// ActionSyncTracked the same fetch of tracked bookmarks only.
+	ActionSync        = "sync"
+	ActionSyncTracked = "sync-tracked"
+	// ActionTrunk jumps to trunk(), in the log or as a picker's destination.
+	ActionTrunk          = "trunk"
 	ActionPush           = "push"
 	ActionBookmarks      = "bookmarks"
 	ActionBookmarkCreate = "bookmark-create"
@@ -351,6 +357,10 @@ func logBindings() []keys.Binding {
 			keys.Log|Travel),
 		withContexts(b(ActionOpNewer, GroupRepo, "the log one operation forward", "newer", "] o"), keys.Log|Travel),
 		b(ActionFetch, GroupRepo, "fetch", "fetch", "f"),
+		b(ActionSync, GroupRepo, "sync: fetch, say what moved, offer to restack onto trunk", "sync", "F"),
+		b(ActionSyncTracked, GroupRepo, "sync only the tracked bookmarks", "", []string{}...),
+		withContexts(b(ActionTrunk, keys.GroupMove, "jump to trunk()", "trunk", "g t"),
+			keys.Log|keys.Picker|pickScreens),
 		b(ActionPush, GroupRepo, "push the revision's bookmarks", "push", "P"),
 		b(ActionBookmarks, GroupRepo, "bookmarks: the list", "bookmarks", "b b"),
 		b(ActionBookmarkCreate, GroupRepo, "create a bookmark here", "", "b c"),

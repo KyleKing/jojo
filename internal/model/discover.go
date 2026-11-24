@@ -50,6 +50,8 @@ type logState struct {
 	wc     *jj.Revision
 	// below is the first local bookmark on the row right under the cursor, which b a tugs up.
 	below string
+	// restack is the first stack root a sync found left on the old trunk, "" when trunk did not move.
+	restack string
 	// checked counts the checked revisions, and empty says the revset matched nothing.
 	checked int
 	empty   bool
@@ -67,7 +69,7 @@ type logState struct {
 func (m Model) state() logState {
 	s := logState{cursor: m.log.Selected(), checked: len(m.log.Checked()), empty: m.loaded() && !m.anyRevision()}
 
-	s.below = m.bookmarkBelow()
+	s.below, s.restack = m.bookmarkBelow(), m.synced.restackRoot()
 
 	for _, row := range m.rows {
 		if row.Revision != nil && row.Revision.WorkingCopy {
@@ -253,6 +255,15 @@ func bookmarkRules() []coach.Rule[logState] {
 			Say:  says("a bookmark here moved both ways"),
 			Why:  says("pick the side it settles on"),
 			Cmd:  "jj bookmark set <name> -r <rev>",
+		},
+		{
+			ID: "jojo.restack", Action: help.ActionRebase, Tone: coach.Do, Priority: rankSecond,
+			When: func(s logState) bool { return s.restack != "" },
+			Say:  says("trunk moved on the sync"),
+			Why: func(s logState) string {
+				return "rebase the stack from " + s.restack + " onto it: r, - s, then gt (or F again and y)"
+			},
+			Cmd: "jj rebase -s <root> -o trunk()",
 		},
 		{
 			ID: "jojo.tug", Action: help.ActionBookmarkAdvance, Tone: coach.Could,

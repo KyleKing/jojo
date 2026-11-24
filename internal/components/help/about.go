@@ -26,6 +26,7 @@ const (
 	gitRevert  = "revert"
 	gitHistory = "history"
 	gitReflog  = "reflog"
+	gitPull    = "pull"
 )
 
 // submitWords find a stack submit: git's words for it, and the tools that made it a habit.
@@ -180,9 +181,26 @@ var abouts = map[string]about{
 		prose: "Shows the log one operation forward.",
 	},
 	ActionFetch: {
-		cmd: "jj git fetch --all-remotes", also: []string{"pull", "fetch"},
+		cmd: "jj git fetch --all-remotes", also: []string{gitPull, "fetch"},
 		prose: "Fetches every remote. jj never merges on fetch; a bookmark that moved both ways shows " +
 			"as conflicted.",
+	},
+	ActionSync: {
+		cmd:  "jj git fetch --all-remotes; jj rebase -s 'roots(trunk().. & mutable())' -o trunk()",
+		also: []string{gitPull, "pull --rebase", "sync", "update", "up", "restack"},
+		prose: "Fetches every remote, then lists what moved under you: bookmarks, changes that became " +
+			"immutable, conflicts that appeared, and trunk(). When trunk moved under a stack, y rebases " +
+			"every mutable stack onto it in one operation (git pull --rebase for all of them).",
+		related: []string{ActionFetch, ActionTrunk, ActionRebase},
+	},
+	ActionSyncTracked: {
+		cmd: "jj git fetch --tracked", also: []string{gitPull, "sync", "fetch tracked"},
+		prose: "Sync, fetching only the bookmarks already tracked.",
+	},
+	ActionTrunk: {
+		cmd: "jj log -r 'trunk()'", also: []string{"main", "master", "origin/main", "upstream"},
+		prose: "Jumps to trunk(), the main line jj finds on the remote. In a picker it makes trunk the " +
+			"destination, which is where a restack goes.",
 	},
 	ActionPush: {
 		cmd: "jj git push -r <revs>", also: []string{"push", "publish"},

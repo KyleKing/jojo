@@ -1,4 +1,4 @@
-  wkwyyxvq          (no description set)     ╭─ keys · 68 of 68 ───────────────────────────────────╮
+  wkwyyxvq          (no description set)     ╭─ keys · 70 of 70 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
   koopqtrk          refactor: split the reade│ ── General ──────────────────────────────────────── │
   twnsvwmr  parse*  test: cover the fallbacks│ ▌ ?       help                                      │
@@ -21,8 +21,8 @@
                                              │   k/up    up a line                                 │
                                              │   ctrl+d  half a page down                          │
                                              │   ctrl+u  half a page up                            │
+                                             │   gt      jump to trunk()                           │
                                              │   @       jump to the working copy                  │
-                                             │ ── Find ─────────────────────────────────────────── │
                                              │ ── General · ?  help ────────────────────────────── │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │

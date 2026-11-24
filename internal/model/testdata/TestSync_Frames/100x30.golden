@@ -1,0 +1,30 @@
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+            ╭──────────────────────────────────────────────────────────────────────────╮            
+            │                                                                          │            
+            │  fetched: 3 bookmarks moved                                              │            
+            │  jj git fetch --all-remotes                                              │            
+            │                                                                          │            
+            │  bookmarks                                                               │            
+            │    main  nptwozlo → qxlmrsvn                                             │            
+            │    main@origin  nptwozlo → qxlmrsvn                                      │            
+            │    parse@origin  new at twnsvwmr                                         │            
+            │                                                                          │            
+            │  trunk() moved: nptwozlo → qxlmrsvn  (gt jumps there)                    │            
+            │                                                                          │            
+            │  now immutable (on a remote's trunk)                                     │            
+            │    twnsvwmr                                                              │            
+            │                                                                          │            
+            │  y restacks 2 stacks onto the new trunk:                                 │            
+            │    jj rebase -s 'roots(trunk().. & mutable()) ~ trunk()+' -o 'trunk()'   │            
+            │  the restack rewrites every mutable stack in one operation; u undoes it  │            
+            │  [y]es  [n]o                                                             │            
+            │                                                                          │            
+            ╰──────────────────────────────────────────────────────────────────────────╯            
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    

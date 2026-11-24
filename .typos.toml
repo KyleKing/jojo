@@ -25,3 +25,6 @@ pn = "pn"
 # Half-typed revset function names, which is what the completion tests type.
 anc = "anc"
 tru = "tru"
+
+# The b menu's chords, written as a reader types them: `ba` advances a bookmark.
+ba = "ba"

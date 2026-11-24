@@ -92,3 +92,43 @@ func (c *Client) ghResolved(ctx context.Context) map[string]string {
 
 	return out
 }
+
+// FetchTracked runs `jj git fetch --tracked`: only the bookmarks this repository already tracks, from
+// the remotes git.fetch names, which is the narrower sync.
+func (c *Client) FetchTracked(ctx context.Context) (string, error) {
+	return c.mutate(ctx, "git", "fetch", "--tracked")
+}
+
+// Trunk is the change id trunk() resolves to, which jj makes the root commit when no remote bookmark
+// names a trunk.
+func (c *Client) Trunk(ctx context.Context) (string, error) {
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", "trunk()",
+		"-T", "change_id.shortest(8)")
+
+	return strings.TrimSpace(out), err
+}
+
+// RestackRevset is every mutable stack not already on trunk(), by its roots: what a sync moves onto
+// trunk once a fetch has moved it.
+const RestackRevset = "roots(trunk().. & mutable()) ~ trunk()+"
+
+// RestackArgs is the rebase a sync offers: each stack RestackRevset names, onto trunk().
+func RestackArgs() []string {
+	return []string{"rebase", "-s", RestackRevset, "-o", "trunk()"}
+}
+
+// StackRoots is the change ids of RestackRevset, the stacks a restack would move.
+func (c *Client) StackRoots(ctx context.Context) ([]string, error) {
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", RestackRevset,
+		"-T", `change_id.shortest(8) ++ "\n"`)
+	if err != nil {
+		return nil, err
+	}
+
+	return strings.Fields(out), nil
+}
+
+// Restack rebases every stack StackRoots names onto trunk(), as one operation.
+func (c *Client) Restack(ctx context.Context) (string, error) {
+	return c.mutate(ctx, RestackArgs()...)
+}

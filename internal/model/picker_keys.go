@@ -58,6 +58,8 @@ func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
 	}
 
 	switch action {
+	case help.ActionTrunk:
+		return m, m.gotoTrunk()
 	case keys.ActionQuit, keys.ActionCancel:
 		// The program is about to exit, so the sandbox goes now rather than in a command nobody runs.
 		if m.pick.sandbox != nil {

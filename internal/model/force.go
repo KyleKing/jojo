@@ -13,6 +13,7 @@ import (
 const (
 	confirmForce     = "force"
 	confirmPush      = "push"
+	confirmSync      = "sync"
 	confirmStale     = "stale"
 	confirmDivergent = "divergent"
 )
@@ -80,6 +81,11 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 		m.pushing = pendingPush{}
 
 		return m, m.push(pending)
+	case confirmSync:
+		m.synced = syncReport{}
+		cmd := m.restack()
+
+		return m, cmd
 	case confirmRestore:
 		return m.restoreConfirmed()
 	case confirmStale:

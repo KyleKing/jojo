@@ -283,6 +283,8 @@ func (m Model) repoAction(action string) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadBookmarks(), true
 	case help.ActionFetch:
 		return m, m.fetch(), true
+	case help.ActionSync, help.ActionSyncTracked, help.ActionTrunk:
+		return m.syncAction(action)
 	case help.ActionConverge:
 		return m, m.previewDivergent(), true
 	case help.ActionArrange:
