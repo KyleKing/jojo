@@ -105,6 +105,7 @@ the handlers read. The ones worth knowing before you start:
 | `w` | the workspace panel, with add and forget |
 | `p` | the forge pane |
 | <code>&#124;</code> `X` `B` | parallelize the checked revisions, `jj arrange`, bisect between two checked revisions |
+| `x` | converge divergent changes with `jj converge` (the one under the cursor when it is divergent), or `a` in its dialog to abandon the stale sides |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `!` | the full text of the last failure, when the footer only had room for one line of it |
 

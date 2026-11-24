@@ -36,7 +36,8 @@ readable.
    diverges the op heads; a stale working copy surfaces on any command's stderr and one
    confirmation runs `jj workspace update-stale`; a conflicted bookmark resolves to its
    remote-tracking side with `x`; and a divergent change shows on its row, with `x`
-   listing the stale sides before `jj abandon` takes them
+   listing the sides before `jj converge` (jj 0.45+) replaces them with one revision, or
+   `a` in the same dialog abandons the stale sides instead
 
 ## Decisions worth keeping
 

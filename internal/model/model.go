@@ -104,6 +104,8 @@ type Model struct {
 	message    string
 	// lastOutput is the full text of the last failure, which "!" shows.
 	lastOutput string
+	// converging is the divergent change the converge dialog is standing over, "" for all of them.
+	converging string
 	lastOp     string
 	rows       []jj.LogRow
 	log        logview.Model

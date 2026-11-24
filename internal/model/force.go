@@ -83,7 +83,14 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 	case confirmStale:
 		return m, m.run(undoHint, m.client.UpdateStaleWorkspace)
 	case confirmDivergent:
-		return m, m.run(undoHint, m.client.AbandonDivergent)
+		change := m.converging
+		m.converging = ""
+
+		if msg.Alt {
+			return m, m.run(undoHint, m.client.AbandonDivergent)
+		}
+
+		return m, m.converge(change)
 	}
 
 	return m, nil

@@ -130,6 +130,10 @@ func (c *Client) Abandon(ctx context.Context, revs []string) (string, error) {
 // keeps, so abandoning it never removes the live version of a pushed change.
 const DivergentRevset = "divergent() & ~::trunk()"
 
+// ConvergeRevset is every divergent revision jj converge would consider by default, so the dialog
+// lists the sides converge replaces.
+const ConvergeRevset = "mutable() & divergent()"
+
 // AbandonDivergent removes the divergent sides listing them left: rewriting a change after its
 // commit was pushed strands the pushed version's twin, and they accumulate silently.
 func (c *Client) AbandonDivergent(ctx context.Context) (string, error) {

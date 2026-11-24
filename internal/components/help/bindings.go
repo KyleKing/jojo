@@ -179,8 +179,8 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "B", What: "bisect between the two checked revisions"},
 	},
 	{
-		Layer: L3, Run: "x", Action: "abandon-divergent", Cmd: "jj abandon 'divergent() & ~::trunk()'",
-		Hint: keyhint.Hint{Key: "x", What: "abandon divergent sides"},
+		Layer: L3, Run: "x", Action: "abandon-divergent", Cmd: "jj converge [-r change_id(<rev>)]",
+		Hint: keyhint.Hint{Key: "x", What: "converge divergent changes"},
 	},
 	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
 

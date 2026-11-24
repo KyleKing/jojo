@@ -18,12 +18,18 @@ type Request struct {
 	Key    string
 	Title  string
 	Danger string
-	Detail []string
+	// AltKey and AltWhat offer a second answer besides yes, for an action with two ways through:
+	// AltKey confirms with Alt set, and AltWhat is its hint.
+	AltKey  string
+	AltWhat string
+	Detail  []string
 }
 
-// ConfirmedMsg is sent when y confirms the action named by Key.
+// ConfirmedMsg is sent when y, or the request's AltKey, confirms the action named by Key.
 type ConfirmedMsg struct {
 	Key string
+	// Alt says the second answer was chosen rather than yes.
+	Alt bool
 }
 
 // CancelledMsg is sent when esc, q, or n dismisses the dialog.
@@ -70,13 +76,18 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	switch key.String() {
-	case "y":
-		req := m.req
+	req := m.req
+
+	switch name := key.String(); {
+	case name == "y":
 		m.Close()
 
 		return func() tea.Msg { return ConfirmedMsg{Key: req.Key} }
-	case "n", "esc", "q":
+	case req.AltKey != "" && name == req.AltKey:
+		m.Close()
+
+		return func() tea.Msg { return ConfirmedMsg{Key: req.Key, Alt: true} }
+	case name == "n" || name == "esc" || name == "q":
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
@@ -106,10 +117,12 @@ func (m Model) View(width, height int) string {
 		lines = append(lines, m.skin.Error.Render(m.req.Danger))
 	}
 
-	hint := ui.FitHints(m.skin.KeyHintStyles(), []keyhint.Hint{
-		{Key: "y", What: "yes"},
-		{Key: "n", What: "no"},
-	}, contentWidth)
+	hints := []keyhint.Hint{{Key: "y", What: "yes"}}
+	if m.req.AltKey != "" {
+		hints = append(hints, keyhint.Hint{Key: m.req.AltKey, What: m.req.AltWhat})
+	}
+
+	hint := ui.FitHints(m.skin.KeyHintStyles(), append(hints, keyhint.Hint{Key: "n", What: "no"}), contentWidth)
 
 	lines = append(lines, hint)
 

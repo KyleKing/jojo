@@ -26,20 +26,24 @@ func (m *Model) openStale(err error) tea.Cmd {
 	})
 }
 
-// divergentPreviewMsg carries the rows an abandon would remove, which is what the confirmation
-// lists rather than asking the user to trust a count.
+// divergentPreviewMsg carries the divergent rows, which is what the confirmation lists rather than
+// asking the user to trust a count, and the change under the cursor when it is one of them.
 type divergentPreviewMsg struct {
 	err   error
+	focus string
 	sides []string
 }
 
 // previewDivergent lists the set first, because each abandoned side's live twin on the trunk is
 // what stays and the user should see that before agreeing.
 func (m Model) previewDivergent() tea.Cmd {
-	client, ctx := m.client, m.ctx
+	client, ctx, focus := m.client, m.ctx, ""
+	if rev := m.log.Selected(); rev != nil && rev.Divergent {
+		focus = rev.ChangeID
+	}
 
 	return func() tea.Msg {
-		rows, err := client.Log(ctx, jj.DivergentRevset, 0)
+		rows, err := client.Log(ctx, jj.ConvergeRevset, 0)
 		if err != nil {
 			return divergentPreviewMsg{err: err}
 		}
@@ -51,7 +55,7 @@ func (m Model) previewDivergent() tea.Cmd {
 			}
 		}
 
-		return divergentPreviewMsg{sides: sides}
+		return divergentPreviewMsg{sides: sides, focus: focus}
 	}
 }
 
@@ -69,11 +73,38 @@ func (m Model) offerDivergent(msg divergentPreviewMsg) (tea.Model, tea.Cmd) {
 		return m, m.say("no divergent revisions")
 	}
 
+	m.converging = msg.focus
+
+	what := "the divergent changes"
+	if msg.focus != "" {
+		what = msg.focus
+	}
+
 	cmd := m.confirm.Open(confirm.Request{
-		Key:    confirmDivergent,
-		Title:  "abandon the divergent sides?",
-		Detail: msg.sides,
+		Key:   confirmDivergent,
+		Title: "converge " + what + "?",
+		Detail: append(msg.sides, "",
+			"y runs jj converge, which replaces each change's sides with one revision and asks",
+			"in the terminal when it cannot choose a description or parents itself.",
+			"a abandons the sides the trunk does not keep instead."),
+		AltKey:  "a",
+		AltWhat: "abandon stale sides",
 	})
 
 	return m, cmd
+}
+
+// converge hands the terminal to jj converge, scoped to the change under the cursor when it is
+// divergent, since jj asks which change to work on when there are several and which description to
+// keep when the sides disagree.
+func (m Model) converge(change string) tea.Cmd {
+	return m.exec("converged"+undoHint, convergeArgs(change)...)
+}
+
+func convergeArgs(change string) []string {
+	if change == "" {
+		return []string{"converge"}
+	}
+
+	return []string{"converge", "-r", "change_id(" + change + ")"}
 }
