@@ -33,11 +33,11 @@ func TestParseLog(t *testing.T) {
 		{
 			name: "empty description and no bookmarks",
 			out: "◉ zzzzzzzz" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "0" + fieldSep + "0" +
-				fieldSep + "0" + fieldSep + "\n",
+				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "000000000000" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				Graph:       "◉ ",
 				ChangeID:    "zzzzzzzz",
+				CommitID:    "000000000000",
 				AuthorEmail: "a@b.com",
 				Age:         "1 hour ago",
 			}}},
@@ -45,15 +45,12 @@ func TestParseLog(t *testing.T) {
 		{
 			name: "flags combine immutable, conflict, empty, and working copy",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "1" + fieldSep + "2" +
-				fieldSep + "3" + fieldSep + "a change\n",
+				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep + "a change\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:    "abcdefgh",
+				CommitID:    "c0ffee",
 				AuthorEmail: "a@b.com",
 				Age:         "now",
-				Added:       1,
-				Removed:     2,
-				Files:       3,
 				Description: "a change",
 				Immutable:   true,
 				Conflict:    true,
@@ -65,9 +62,10 @@ func TestParseLog(t *testing.T) {
 			name: "bookmarks split on comma and the same name tracked at two remotes collapses to one",
 			out: "abcdefgh" + fieldSep + "main,feat" + fieldSep + "main,feat" +
 				fieldSep + "main,main" + fieldSep + "" + fieldSep + "a@b.com" + fieldSep +
-				"now" + fieldSep + "0" + fieldSep + "0" + fieldSep + "0" + fieldSep + "\n",
+				"now" + fieldSep + "c0ffee" + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:        "abcdefgh",
+				CommitID:        "c0ffee",
 				AuthorEmail:     "a@b.com",
 				Age:             "now",
 				Bookmarks:       []string{"main", "feat"},
@@ -78,10 +76,11 @@ func TestParseLog(t *testing.T) {
 		{
 			name: "a field adjacent to the separator byte in the ASCII table is not mistaken for it",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "0" + fieldSep + "0" +
-				fieldSep + "0" + fieldSep + "desc with \x1e and \x20 bytes\n",
+				"" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
+				"desc with \x1e and \x20 bytes\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:    "abcdefgh",
+				CommitID:    "c0ffee",
 				AuthorEmail: "a@b.com",
 				Age:         "now",
 				Description: "desc with \x1e and \x20 bytes",
@@ -98,6 +97,23 @@ func TestParseLog(t *testing.T) {
 				t.Errorf("parseLog(%q) = %#v, want %#v", tc.out, got, tc.want)
 			}
 		})
+	}
+}
+
+// Stats arrive after the graph, keyed by commit id, so a row whose read is still out shows nothing
+// rather than a wrong count, and a malformed line is skipped rather than zeroing a row.
+func TestParseStats(t *testing.T) {
+	t.Parallel()
+
+	out := fields("c0ffee", "1", "2", "3") + "garbage\n" + fields("beef01", "0", "0", "0")
+
+	want := map[string]Stats{
+		"c0ffee": {Added: 1, Removed: 2, Files: 3},
+		"beef01": {},
+	}
+
+	if got := parseStats(out); !reflect.DeepEqual(got, want) {
+		t.Errorf("parseStats = %#v, want %#v", got, want)
 	}
 }
 

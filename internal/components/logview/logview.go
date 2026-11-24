@@ -120,6 +120,21 @@ func (m Model) Checked() []string {
 	return ids
 }
 
+// Window is the revisions on screen plus the next ahead rows below them, which is what a caller
+// filling in per-row detail reads first so the first frame and the next scroll both have it.
+func (m Model) Window(ahead int) []*jj.Revision {
+	end := min(len(m.rows), m.top+max(m.height, 1)+ahead)
+	out := make([]*jj.Revision, 0, max(0, end-m.top))
+
+	for i := m.top; i < end; i++ {
+		if rev := m.rows[i].Revision; rev != nil {
+			out = append(out, rev)
+		}
+	}
+
+	return out
+}
+
 // ClearChecked unchecks every revision, which a finished batch action and Esc both do, so a check
 // never outlives the action it was made for.
 func (m *Model) ClearChecked() { clear(m.checked) }

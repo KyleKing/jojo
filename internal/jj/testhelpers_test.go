@@ -17,36 +17,36 @@ const (
 )
 
 // testRepo builds a temporary jj repository, skipping the test when no jj binary is installed.
-func testRepo(t *testing.T) (*jj.Client, string) {
-	t.Helper()
+func testRepo(tb testing.TB) (*jj.Client, string) {
+	tb.Helper()
 
 	if _, err := exec.LookPath("jj"); err != nil {
-		t.Skip("jj is not installed; skipping")
+		tb.Skip("jj is not installed; skipping")
 	}
 
-	dir := t.TempDir()
+	dir := tb.TempDir()
 
-	runJJ(t, dir, "git", "init", ".")
+	runJJ(tb, dir, "git", "init", ".")
 
 	configPath := filepath.Join(dir, ".jj", "repo", "config.toml")
 	config := "[user]\nname = \"Test User\"\nemail = \"test@example.com\"\n"
 
 	if err := os.WriteFile(configPath, []byte(config), fixtureFileMode); err != nil {
-		t.Fatalf("write config: %v", err)
+		tb.Fatalf("write config: %v", err)
 	}
 
 	return jj.NewClient(dir), dir
 }
 
-func runJJ(t *testing.T, dir string, args ...string) {
-	t.Helper()
+func runJJ(tb testing.TB, dir string, args ...string) {
+	tb.Helper()
 
 	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
 	cmd := exec.CommandContext(context.Background(), "jj", args...)
 	cmd.Dir = dir
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("jj %v failed: %v\n%s", args, err, out)
+		tb.Fatalf("jj %v failed: %v\n%s", args, err, out)
 	}
 }
 
@@ -68,11 +68,11 @@ func descriptionOf(t *testing.T, dir string) string {
 	return stdout.String()
 }
 
-func writeFile(t *testing.T, dir, name, content string) {
-	t.Helper()
+func writeFile(tb testing.TB, dir, name, content string) {
+	tb.Helper()
 
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), fixtureFileMode); err != nil {
-		t.Fatalf("write %s: %v", name, err)
+		tb.Fatalf("write %s: %v", name, err)
 	}
 }
 

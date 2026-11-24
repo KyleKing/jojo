@@ -111,6 +111,10 @@ type Model struct {
 	converging string
 	lastOp     string
 	rows       []jj.LogRow
+	// stats is every commit's size read so far, and statsAsked the commits a read is out for. Both
+	// are maps, so the copies Update makes of the model share them.
+	stats      statsCache
+	statsAsked map[string]bool
 	log        logview.Model
 	focus      focus
 	width      int
@@ -175,6 +179,8 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		usage:      opts.Usage,
 		revset:     revset,
 		logWindow:  logLimit,
+		stats:      statsCache{},
+		statsAsked: map[string]bool{},
 
 		diffPreference: opts.DiffTool,
 	}
@@ -215,15 +221,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetWidth(m.width)
 		m.resize()
 
-		return m, nil
+		return m, m.loadStats()
 	case revsetbox.ChangedMsg:
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
-		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(msg.Revision))
+		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(msg.Revision), m.loadStats())
 
 		return m, cmd
 	case logLoadedMsg:
 		return m.applyLog(msg)
+	case statsMsg:
+		return m.applyStats(msg)
 	case staleMsg:
 		cmd := m.openStale(msg.err)
 
@@ -311,7 +319,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 
 	// A write changes what the docked diff shows without moving the cursor, so it reads again.
 	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp(),
-		m.loadDock(m.log.Selected()))
+		m.loadDock(m.log.Selected()), m.loadStats())
 
 	return m, cmd
 }

@@ -7,7 +7,10 @@ import "errors"
 // Revision is one row of the log: everything a row renders plus the flags that
 // decide whether an action is allowed on it.
 type Revision struct {
-	ChangeID    string
+	ChangeID string
+	// CommitID names this exact content, which is what the stats a row shows are cached under: a
+	// rewrite gives the revision a new one, so a stale count is never served for it.
+	CommitID    string
 	Description string
 	AuthorEmail string
 	Age         string
@@ -22,11 +25,12 @@ type Revision struct {
 	// the "@remote" suffix dropped, so a revision that was pushed but never
 	// tracked locally can still be matched to a pull request.
 	RemoteBookmarks []string
-	Added           int
-	Removed         int
-	Files           int
-	Immutable       bool
-	Conflict        bool
+	// Added, Removed, and Files arrive after the graph (Stats), and stay zero until they do.
+	Added     int
+	Removed   int
+	Files     int
+	Immutable bool
+	Conflict  bool
 	// Divergent marks one side of a change a pushed rewrite left unreachable, which is the
 	// cleanup the abandon-divergent verb takes.
 	Divergent   bool

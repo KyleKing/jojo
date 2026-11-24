@@ -11,9 +11,10 @@ import (
 // appears in jj's own output, so a line splits unambiguously into fields.
 const fieldSep = "\x1f"
 
-// logTemplate renders one line per revision with change ID, commit ID, bookmarks, a flags string,
-// author email, age, added and removed line counts, file count, and the description's first line,
-// leaving the graph itself to jj since this runs without --no-graph.
+// logTemplate renders one line per revision with change ID, bookmarks, a flags string, author email,
+// age, commit ID, and the description's first line, leaving the graph itself to jj since this runs
+// without --no-graph. It carries no diff stats: computing them is about ten times the cost of the
+// whole graph, so Stats reads them afterwards for the rows on screen.
 const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`bookmarks.join(",") ++ "` + fieldSep + `" ++ ` +
 	`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
@@ -22,16 +23,64 @@ const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`if(empty,"E","") ++ if(current_working_copy,"@","")) ++ "` + fieldSep + `" ++ ` +
 	`author.email() ++ "` + fieldSep + `" ++ ` +
 	`committer.timestamp().ago() ++ "` + fieldSep + `" ++ ` +
+	`commit_id.short(12) ++ "` + fieldSep + `" ++ ` +
+	`description.first_line() ++ "\n"`
+
+// statsTemplate is the expensive part of a row, read only for the commits a caller names.
+const statsTemplate = `commit_id.short(12) ++ "` + fieldSep + `" ++ ` +
 	`diff.stat().total_added() ++ "` + fieldSep + `" ++ ` +
 	`diff.stat().total_removed() ++ "` + fieldSep + `" ++ ` +
-	`diff.files().len() ++ "` + fieldSep + `" ++ ` +
-	`description.first_line() ++ "\n"`
+	`diff.files().len() ++ "\n"`
+
+const statsFieldCount = 4
+
+// Stats is what a revision changes, the size column of its row.
+type Stats struct {
+	Added   int
+	Removed int
+	Files   int
+}
+
+// Stats reads the diff stats of the commits named, keyed by the commit IDs the log reported. It runs
+// against the operation the log was read at without snapshotting, so it never contends with a write.
+func (c *Client) Stats(ctx context.Context, commitIDs []string) (map[string]Stats, error) {
+	if len(commitIDs) == 0 {
+		return map[string]Stats{}, nil
+	}
+
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy",
+		"-r", strings.Join(commitIDs, "|"), "-T", statsTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseStats(out), nil
+}
+
+func parseStats(out string) map[string]Stats {
+	stats := map[string]Stats{}
+
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Split(line, fieldSep)
+		if len(fields) != statsFieldCount {
+			continue
+		}
+
+		stats[fields[0]] = Stats{
+			Added:   atoiOrZero(fields[1]),
+			Removed: atoiOrZero(fields[2]),
+			Files:   atoiOrZero(fields[3]),
+		}
+	}
+
+	return stats
+}
 
 // changeIDSuffix matches the change ID glued onto the end of the graph prefix jj draws, since jj's
 // change ID alphabet (lowercase k-z) never overlaps with the symbols and spaces that make up a graph.
 var changeIDSuffix = regexp.MustCompile(`[a-z]+$`)
 
-const logFieldCount = 11
+const logFieldCount = 9
 
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
@@ -94,16 +143,14 @@ func parseRevisionLine(line string) *Revision {
 
 	return &Revision{
 		ChangeID:        changeID,
-		Description:     fields[10],
+		CommitID:        fields[7],
+		Description:     fields[8],
 		AuthorEmail:     fields[5],
 		Age:             fields[6],
 		Graph:           graph,
 		Bookmarks:       splitList(fields[1]),
 		LocalBookmarks:  splitList(fields[2]),
 		RemoteBookmarks: dedupe(splitList(fields[3])),
-		Added:           atoiOrZero(fields[7]),
-		Removed:         atoiOrZero(fields[8]),
-		Files:           atoiOrZero(fields[9]),
 		Immutable:       strings.Contains(flags, "I"),
 		Conflict:        strings.Contains(flags, "C"),
 		Divergent:       strings.Contains(flags, "D"),

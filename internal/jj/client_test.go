@@ -116,9 +116,35 @@ func TestLogParsesRealRepoShapes(t *testing.T) {
 	if len(bookmarked.Bookmarks) != 1 || bookmarked.Bookmarks[0] != "main" {
 		t.Errorf("expected bookmarked revision to carry [main], got %v", bookmarked.Bookmarks)
 	}
+}
 
-	if bookmarked.Files != 1 || bookmarked.Added != 1 {
-		t.Errorf("expected 'second' to add 1 file/1 line, got files=%d added=%d", bookmarked.Files, bookmarked.Added)
+// The log leaves diff stats out, because they cost ten times the graph; Stats reads them for the
+// commits named, keyed by the commit id the log reported.
+func TestStats_ReadsTheSizeTheLogLeavesOut(t *testing.T) {
+	t.Parallel()
+
+	client, _ := seedRepo(t)
+	ctx := context.Background()
+
+	rows, err := client.Log(ctx, "::", 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	byDescription, _ := indexLogRows(t, rows)
+
+	second := byDescription["second"]
+	if second == nil || second.CommitID == "" || second.Files != 0 {
+		t.Fatalf("the log row is %+v, want a commit id and no stats yet", second)
+	}
+
+	stats, err := client.Stats(ctx, []string{second.CommitID})
+	if err != nil {
+		t.Fatalf("Stats: %v", err)
+	}
+
+	if got := stats[second.CommitID]; got.Files != 1 || got.Added != 1 {
+		t.Errorf("expected 'second' to add 1 file/1 line, got %+v", got)
 	}
 }
 
