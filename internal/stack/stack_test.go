@@ -34,8 +34,6 @@ func newFixture(t *testing.T) fixture {
 	dir, remote := t.TempDir(), filepath.Join(t.TempDir(), "remote.git")
 	run(t, "", "git", "init", "-q", "--bare", remote)
 	run(t, dir, "jj", "git", "init", ".")
-	run(t, dir, "jj", "config", "set", "--repo", "user.name", "Test User")
-	run(t, dir, "jj", "config", "set", "--repo", "user.email", "test@example.com")
 	run(t, dir, "jj", "git", "remote", "add", "origin", remote)
 
 	write(t, dir, "base.txt", "base\n")

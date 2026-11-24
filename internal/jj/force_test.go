@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/jojo/internal/hermetic"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -19,7 +20,7 @@ func immutableRepo(t *testing.T) (*jj.Client, string) {
 	writeFile(t, dir, "a.txt", "a\n")
 	runJJ(t, dir, "commit", "-m", "published")
 	runJJ(t, dir, "bookmark", "create", "-r", "@-", "main")
-	runJJ(t, dir, "config", "set", "--repo", `revset-aliases."immutable_heads()"`, "main")
+	hermetic.RepoConfig(t, dir, "[revset-aliases]\n\"immutable_heads()\" = \"main\"")
 	runJJ(t, dir, "describe", "-m", "local work")
 
 	return client, dir

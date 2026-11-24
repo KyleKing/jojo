@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kyleking/jojo/internal/hermetic"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -26,14 +27,8 @@ func testRepo(tb testing.TB) (*jj.Client, string) {
 
 	dir := tb.TempDir()
 
+	// hermetic.Main names the committer and keeps jj's per-repository config in the run's home.
 	runJJ(tb, dir, "git", "init", ".")
-
-	configPath := filepath.Join(dir, ".jj", "repo", "config.toml")
-	config := "[user]\nname = \"Test User\"\nemail = \"test@example.com\"\n"
-
-	if err := os.WriteFile(configPath, []byte(config), fixtureFileMode); err != nil {
-		tb.Fatalf("write config: %v", err)
-	}
 
 	return jj.NewClient(dir), dir
 }
@@ -113,22 +108,7 @@ func seedRepo(t *testing.T) (*jj.Client, string) {
 func allowLargeFiles(t *testing.T, dir string) {
 	t.Helper()
 
-	configPath := filepath.Join(dir, ".jj", "repo", "config.toml")
-
-	//nolint:gosec // G304: fixture helper appends to a config file this test's own testRepo wrote.
-	f, err := os.OpenFile(configPath, os.O_APPEND|os.O_WRONLY, fixtureFileMode)
-	if err != nil {
-		t.Fatalf("open %s: %v", configPath, err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			t.Fatalf("close %s: %v", configPath, err)
-		}
-	}()
-
-	if _, err := f.WriteString("[snapshot]\nmax-new-file-size = \"10MiB\"\n"); err != nil {
-		t.Fatalf("write snapshot config: %v", err)
-	}
+	hermetic.RepoConfig(t, dir, "[snapshot]\nmax-new-file-size = \"10MiB\"")
 }
 
 func readFile(t *testing.T, dir, name string) string {

@@ -1,12 +1,12 @@
 package jj_test
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/kyleking/jojo/internal/hermetic"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -104,15 +104,9 @@ func logOne(t *testing.T, dir, template string) string {
 	return string(out)
 }
 
-// setPushTemplate writes templates.git_push_bookmark into the repository's own config file, which
-// leaves the user's config directory alone.
+// setPushTemplate sets templates.git_push_bookmark in the repository's own config.
 func setPushTemplate(t *testing.T, dir, template string) {
 	t.Helper()
 
-	config := "[user]\nname = \"Test User\"\nemail = \"test@example.com\"\n" +
-		"[templates]\ngit_push_bookmark = '" + template + "'\n"
-
-	if err := os.WriteFile(filepath.Join(dir, ".jj", "repo", "config.toml"), []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	hermetic.RepoConfig(t, dir, "[templates]\ngit_push_bookmark = '"+template+"'")
 }

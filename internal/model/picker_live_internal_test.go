@@ -36,8 +36,6 @@ func liveRepo(t *testing.T) string {
 
 	dir := t.TempDir()
 	jjRun(t, dir, "git", "init", ".")
-	jjRun(t, dir, "config", "set", "--repo", "user.name", "Test User")
-	jjRun(t, dir, "config", "set", "--repo", "user.email", "test@example.com")
 
 	for _, name := range []string{"bottom", "middle", "top"} {
 		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(name+"\n"), 0o600); err != nil {

@@ -189,8 +189,6 @@ func remoteRepo(t *testing.T) string {
 	}
 
 	jjRun(t, dir, "git", "init", ".")
-	jjRun(t, dir, "config", "set", "--repo", "user.name", "Test User")
-	jjRun(t, dir, "config", "set", "--repo", "user.email", "test@example.com")
 	jjRun(t, dir, "git", "remote", "add", "origin", remote)
 
 	for i, name := range []string{"base", "bottom", "middle", "top"} {

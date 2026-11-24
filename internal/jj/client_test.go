@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kyleking/jojo/internal/hermetic"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -466,7 +467,7 @@ func TestDiffEditorConfigured_SeesARepoLevelSetting(t *testing.T) {
 	t.Parallel()
 
 	client, dir := testRepo(t)
-	runJJ(t, dir, "config", "set", "--repo", "ui.diff-editor", ":builtin")
+	hermetic.RepoConfig(t, dir, "[ui]\ndiff-editor = \":builtin\"")
 
 	set, err := client.DiffEditorConfigured(context.Background())
 	if err != nil || !set {

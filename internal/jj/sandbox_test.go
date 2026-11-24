@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/kyleking/jojo/internal/hermetic"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -308,7 +309,7 @@ func TestSandbox_CarriesRepositoryConfig(t *testing.T) {
 	t.Parallel()
 
 	client, dir := seedRepo(t)
-	runJJ(t, dir, "config", "set", "--repo", "revset-aliases.firstrev", "description(exact:'first\n')")
+	hermetic.RepoConfig(t, dir, "[revset-aliases]\nfirstrev = \"description(exact:'first\\n')\"")
 
 	sandbox := openSandbox(t, client)
 	third := changeOf(t, dir, "description(exact:'third\n')")
@@ -379,7 +380,7 @@ func TestSandbox_WritesNothingIntoTheUserConfig(t *testing.T) {
 	t.Setenv("JJ_CONFIG", "")
 
 	client, dir := seedRepo(t)
-	runJJ(t, dir, "config", "set", "--repo", "revset-aliases.mine2", "@")
+	hermetic.RepoConfig(t, dir, "[revset-aliases]\nmine2 = \"@\"")
 
 	list := func() string {
 		entries, _ := os.ReadDir(filepath.Join(config, "jj", "repos")) //nolint:errcheck // absent reads as empty.

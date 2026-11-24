@@ -15,6 +15,8 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
+
+	"github.com/kyleking/jojo/internal/hermetic"
 )
 
 // These drive the built binary on a pty with a terminal emulator reading what it writes, because a
@@ -170,8 +172,14 @@ func (s *screen) quit() {
 var binary string //nolint:gochecknoglobals // set once by TestMain, before any test runs
 
 func TestMain(m *testing.M) {
-	os.Exit(buildAndRun(m))
+	os.Exit(hermetic.Run(builder{m}))
 }
+
+// builder builds jojo before it runs the tests, inside the home hermetic made, so the build's temp
+// directory is the run's too.
+type builder struct{ m *testing.M }
+
+func (b builder) Run() int { return buildAndRun(b.m) }
 
 func buildAndRun(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "jojo-e2e")
