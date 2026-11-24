@@ -102,9 +102,7 @@ func (m *Model) openMoveHunks(rev jj.Revision) tea.Cmd {
 	id := rev.ChangeID
 	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
 		into := dest.Revision.ChangeID
-		args := append(jj.SquashArgs(id, into, nil), "--interactive")
-
-		return m, m.exec("moved part of "+id+" into "+into+undoHint, args...)
+		return m, m.exec("moved part of "+id+" into "+into+undoHint, m.squashHunkArgs(id, into)...)
 	}
 
 	return m.destPicker.Open("move part of "+id+" into", m.rows, id)

@@ -78,6 +78,20 @@ func (c *Client) DefaultRevset(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// DiffEditorConfigured reports whether the user's jj config sets ui.diff-editor, at any level. An
+// unset key comes back from jj as a failure, which is the answer rather than an error here.
+func (c *Client) DiffEditorConfigured(ctx context.Context) (bool, error) {
+	if _, err := c.executeJJ(ctx, "config", "get", "ui.diff-editor"); err != nil {
+		if strings.Contains(err.Error(), "Value not found") {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (c *Client) jjCommand(ctx context.Context, args ...string) *exec.Cmd {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.CommandContext(ctx, "jj", args...)

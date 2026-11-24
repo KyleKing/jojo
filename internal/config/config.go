@@ -21,6 +21,10 @@ type Config struct {
 	// Revsets are the expressions worth keeping, shown in the command palette by name.
 	Revsets map[string]string `toml:"revsets"`
 	Theme   string            `toml:"theme"`
+	// DiffTool is the diff editor jojo names when it hands hunk work to jj (split, squash -i, move
+	// hunks). Empty or "auto" names jj-diff when it is on PATH and jj's own ui.diff-editor is unset,
+	// "none" never names one so jj's configuration decides, and anything else is passed as --tool.
+	DiffTool string `toml:"diff_tool"`
 }
 
 // Path is where jojo looks: $XDG_CONFIG_HOME/jojo/config.toml, or ~/.config/jojo/config.toml. It

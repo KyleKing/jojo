@@ -67,7 +67,8 @@ about it second.
 
 Hunk-level and line-level diff work is not rebuilt here.
 [jj-diff](https://github.com/KyleKing/jj-diff) already does it, so jojo runs it as jj's
-configured diff editor the same way `jj split -i` does. Reading a diff happens inside
+diff editor the same way `jj split -i` does: when `jj-diff` is on PATH and jj's
+`ui.diff-editor` is unset, the hunk verbs pass `--tool jj-diff`. Reading a diff happens inside
 jojo, drawn by jj-diff's own `render` package, so a diff looks the same in both tools and
 neither one has its own idea of what a diff looks like.
 
@@ -145,6 +146,11 @@ Everything is optional and jojo runs with no config file at all. It reads
 ```toml
 # latte or light, macchiato or dark. Omit it to read the terminal's background.
 theme = "macchiato"
+
+# The diff editor split, squash -i and move-hunks hand the terminal to. Omitted or "auto"
+# names jj-diff when it is on PATH and jj's own ui.diff-editor is unset; "none" leaves it to
+# jj's config; any other name is passed as --tool.
+diff_tool = "auto"
 
 # Move an action to another key, naming it the way `?` names it.
 [keys]

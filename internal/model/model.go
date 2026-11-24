@@ -104,6 +104,9 @@ type Model struct {
 	message    string
 	// lastOutput is the full text of the last failure, which "!" shows.
 	lastOutput string
+	// diffPreference is config.toml's diff_tool, and diffTool what it resolved to.
+	diffPreference string
+	diffTool       string
 	// converging is the divergent change the converge dialog is standing over, "" for all of them.
 	converging string
 	lastOp     string
@@ -131,7 +134,9 @@ type Options struct {
 	Seen *keyusage.Usage
 	// Usage records this session's keys, nil when recording is off.
 	Usage *keyusage.Recorder
-	Keys  help.Keymap
+	// DiffTool is config.toml's diff_tool: "" or "auto", "none", or a tool name.
+	DiffTool string
+	Keys     help.Keymap
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -170,12 +175,14 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		usage:      opts.Usage,
 		revset:     revset,
 		logWindow:  logLimit,
+
+		diffPreference: opts.DiffTool,
 	}
 }
 
 // Init loads the log, so the first frame is an empty log rather than a blocked terminal.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init())
+	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool())
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {
@@ -227,6 +234,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.showMessage(msg)
 	case headOpMsg:
 		m.lastOp = msg.description
+
+		return m, nil
+	case diffToolMsg:
+		m.diffTool = msg.tool
 
 		return m, nil
 	case tea.KeyPressMsg:

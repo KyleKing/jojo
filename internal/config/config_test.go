@@ -51,7 +51,7 @@ func TestLoadWithoutAFileIsNotAnError(t *testing.T) {
 
 //nolint:paralleltest // t.Setenv forbids it.
 func TestLoadReadsEverySetting(t *testing.T) {
-	writeConfig(t, "theme = \"latte\"\n\n[keys]\ndescribe = \"M\"\n")
+	writeConfig(t, "theme = \"latte\"\ndiff_tool = \"none\"\n\n[keys]\ndescribe = \"M\"\n")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -60,6 +60,10 @@ func TestLoadReadsEverySetting(t *testing.T) {
 
 	if cfg.Theme != "latte" {
 		t.Errorf("Theme = %q, want latte", cfg.Theme)
+	}
+
+	if cfg.DiffTool != "none" {
+		t.Errorf("DiffTool = %q, want none", cfg.DiffTool)
 	}
 
 	if cfg.Keys["describe"] != "M" {

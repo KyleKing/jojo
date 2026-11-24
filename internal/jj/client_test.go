@@ -434,3 +434,16 @@ func TestClient_SerializesBehindTheQueueLock(t *testing.T) {
 		t.Fatal("jj did not run after the queue was released")
 	}
 }
+
+// A diff editor set in jj's config is the user's choice, which jojo must see before naming its own.
+func TestDiffEditorConfigured_SeesARepoLevelSetting(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	runJJ(t, dir, "config", "set", "--repo", "ui.diff-editor", ":builtin")
+
+	set, err := client.DiffEditorConfigured(context.Background())
+	if err != nil || !set {
+		t.Errorf("DiffEditorConfigured = %v, %v, want true", set, err)
+	}
+}
