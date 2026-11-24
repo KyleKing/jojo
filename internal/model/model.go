@@ -252,8 +252,33 @@ func (m Model) loadLog(revset string) tea.Cmd {
 	}
 }
 
-// Update routes messages. Keys go to handleKeyPress, the one place a binding is added.
+// Update routes messages, then asks for the colors of any diff the update drew plain, so no path
+// that re-draws a diff (a new revision, a resize, a layout toggle) has to remember to.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if colored, ok := msg.(diffpane.ColoredMsg); ok {
+		m.dock.Colored(colored)
+		m.diff.Colored(colored)
+
+		return m, nil
+	}
+
+	next, cmd := m.route(msg)
+
+	after, ok := next.(Model)
+	if !ok {
+		return next, cmd
+	}
+
+	if colorize := tea.Batch(after.dock.Colorize(), after.diff.Colorize()); colorize != nil {
+		return after, tea.Batch(cmd, colorize)
+	}
+
+	return after, cmd
+}
+
+// route sends a message to whatever handles it. Keys go to handleKeyPress, the one place a binding is
+// added.
+func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.handleModeMsg(msg); handled {
 		return next, cmd
 	}

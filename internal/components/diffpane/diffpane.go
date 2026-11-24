@@ -52,6 +52,10 @@ type Model struct {
 	// prefix is a held ] or [, waiting for the object it moves over, and last the motion n repeats.
 	prefix string
 	last   motion
+	// key is what the rows on show were drawn from, and plain that they were drawn without syntax
+	// colors, which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
+	colors *colorCache
+	key    drawKey
 	list   listview.Model[string]
 	width  int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
@@ -59,11 +63,12 @@ type Model struct {
 	// docked draws the pane flat beside the log rather than framed over it, so its lines take the
 	// whole width it is given.
 	docked bool
+	plain  bool
 }
 
 // New returns a closed pane drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin, list: listview.New[string](skin)}
+	return Model{skin: skin, list: listview.New[string](skin), colors: newColorCache()}
 }
 
 // NewDocked returns a closed pane that draws with DockView, beside the log rather than over it.
@@ -97,53 +102,24 @@ func (m *Model) SetWidth(width int) {
 	m.list.Open(m.title, m.list.Items(), cursor)
 }
 
+// render draws the diff for the pane's width: in color when a colored copy is already kept, and
+// otherwise plain, leaving the colors to Colorize so the update loop never waits on a lexer.
 func (m *Model) render() {
-	width := m.list.InnerWidth(m.width)
-	if m.docked {
-		width = m.width
+	p := m.Painter(m.width)
+	key := p.withText(m.text)
+
+	d, ok := m.colors.get(key)
+	if !ok {
+		var drawnOff bool
+		if d, drawnOff = m.colors.take(key); !drawnOff {
+			d = p.draw(key, false)
+		}
 	}
 
-	opts := render.Options{
-		Width:      width,
-		Palette:    paletteFor(m.skin),
-		Syntax:     true,
-		WordDiff:   true,
-		SideBySide: m.sideBySide,
-		SignBar:    m.skin.SignBar(),
-		HunkLabels: true,
-	}
-
-	var lines []string
-
-	m.files, m.paths, m.hunks = nil, nil, nil
-
-	for _, seg := range segments(m.text) {
-		if !seg.diff {
-			for _, line := range seg.lines {
-				lines = append(lines, m.prose(line, width))
-			}
-
-			continue
-		}
-
-		text := strings.Join(seg.lines, "\n") + "\n"
-		rendered := render.Lines(text, opts)
-		bounds, paths := fileHeaders(text, rendered)
-
-		for _, bound := range bounds {
-			m.files = append(m.files, bound+len(lines))
-		}
-
-		m.paths = append(m.paths, paths...)
-
-		for _, hunk := range hunkLabels(rendered, bounds) {
-			m.hunks = append(m.hunks, hunk+len(lines))
-		}
-
-		lines = append(lines, rendered...)
-	}
-
-	m.list.Open(m.title, lines, 0)
+	// A diff with no file in it has no code to color, only jj's prose.
+	m.key, m.plain = key, !ok && len(d.files) > 0
+	m.files, m.paths, m.hunks = d.files, d.paths, d.hunks
+	m.list.Open(m.title, d.lines, 0)
 }
 
 // segment is a run of lines that is either a git diff or the prose jj writes around one, which is
@@ -195,19 +171,19 @@ func inDiff(line string) bool {
 
 // prose draws a line jj wrote around a diff: a section heading, a commit added or removed by the
 // operation, or anything else as body text.
-func (m Model) prose(line string, width int) string {
+func prose(skin ui.Skin, line string, width int) string {
 	text := table.Truncate(line, width)
 
 	switch {
 	case strings.HasSuffix(line, ":") && !strings.HasPrefix(line, " "):
-		return m.skin.Heading.Render(text)
+		return skin.Heading.Render(text)
 	case strings.HasPrefix(line, "+ "):
-		return m.skin.Added.Render(text)
+		return skin.Added.Render(text)
 	case strings.HasPrefix(line, "- "):
-		return m.skin.Removed.Render(text)
+		return skin.Removed.Render(text)
 	}
 
-	return m.skin.Body.Render(text)
+	return skin.Body.Render(text)
 }
 
 // Show replaces the diff and lands on the header of keep when the new diff touches that file, else on

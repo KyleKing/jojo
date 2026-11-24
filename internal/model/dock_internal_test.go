@@ -243,3 +243,58 @@ func TestDock_FitsTheTerminalAtEverySize(t *testing.T) {
 		})
 	}
 }
+
+const dockGoDiff = `diff --git a/main.go b/main.go
+index 0000000..1111111 100644
+--- a/main.go
++++ b/main.go
+@@ -1,2 +1,2 @@
+ package main
+-func main() { println("old") }
++func main() { println("new") }
+`
+
+// A revision read with its colors drawn shows in color on its first frame, and one read without them
+// shows plain while the update that drew it asks for them, so the update loop never lexes.
+func TestDock_ColorsArriveWithTheReadOrRightAfterIt(t *testing.T) {
+	t.Parallel()
+
+	m := dockedModel(t, 120, 20)
+	m.dockSeq++
+	painted := dockLoadedMsg{
+		revision: "bbbb", text: dockGoDiff, seq: m.dockSeq, paint: m.dockPainter().Paint(dockGoDiff),
+	}
+	m = asModel(t, update(m, painted))
+	colored := strings.Join(m.dock.Lines(), "\n")
+
+	m.dockSeq++
+	m = asModel(t, update(m, dockLoadedMsg{revision: "aaaa", text: dockFirstDiff, seq: m.dockSeq}))
+	m.dockSeq++
+
+	next, cmd := m.Update(dockLoadedMsg{revision: "bbbb", text: dockGoDiff, seq: m.dockSeq})
+	m = asModel(t, next)
+
+	if cmd != nil {
+		t.Error("a return to a revision already drawn in color asked for its colors again")
+	}
+
+	if got := strings.Join(m.dock.Lines(), "\n"); got != colored {
+		t.Error("a return to a revision drew other rows than its colored ones")
+	}
+
+	m.dockSeq++
+	plainText := strings.ReplaceAll(dockGoDiff, "new", "newer")
+
+	next, cmd = m.Update(dockLoadedMsg{revision: "cccc", text: plainText, seq: m.dockSeq})
+	if cmd == nil {
+		t.Fatal("a revision drawn plain did not ask for its colors")
+	}
+
+	m = asModel(t, next)
+	plain := strings.Join(m.dock.Lines(), "\n")
+	m = asModel(t, update(m, cmd()))
+
+	if got := strings.Join(m.dock.Lines(), "\n"); got == plain || ansi.Strip(got) != ansi.Strip(plain) {
+		t.Error("the colors that landed did not replace the plain rows line for line")
+	}
+}
