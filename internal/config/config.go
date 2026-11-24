@@ -29,7 +29,8 @@ type Config struct {
 	// cursor. Empty reads what that revision sits on above trunk() and what is stacked on it.
 	OutlineRevset string `toml:"outline_revset"`
 	// StackBookmark names the bookmark a stack submit (P in the outline) gives a change that has none:
-	// {change} is its change id and {subject} its subject as a slug. Empty is jj's own push-{change}.
+	// {change} is its change id and {subject} its subject as a slug. Empty is jj's own name
+	// for it, templates.git_push_bookmark (push-<change id> by default), as `jj git push -c` gives it.
 	StackBookmark string `toml:"stack_bookmark"`
 	// CoachLayout is where the next step and tips are drawn: "inline" (the default) in the line over
 	// the footer, or "band" for a labeled band of every next step, why, and the jj command it runs.

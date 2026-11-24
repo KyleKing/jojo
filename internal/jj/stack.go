@@ -19,11 +19,62 @@ const pushedTemplate = `remote_bookmarks.filter(|b| b.remote() != "git").map(|b|
 const describedFields = 4
 
 // Described is a revision's whole description, the id a bookmark generated for it is named from, and
-// which of its bookmarks a remote already holds at this commit.
+// which of its bookmarks a remote already holds at this commit. PushName is the bookmark
+// `jj git push -c` would create for it, from templates.git_push_bookmark, "" when that could not be
+// read.
 type Described struct {
 	LongID      string
 	Description string
+	PushName    string
 	Pushed      []string
+}
+
+// defaultPushTemplate is jj's own templates.git_push_bookmark, used when the config cannot be read.
+const defaultPushTemplate = `"push-" ++ change_id.short()`
+
+// pushNameSep splits a change id from its push bookmark's name, a byte no template writes.
+const pushNameSep = "\x1f"
+
+// PushTemplate is templates.git_push_bookmark as jj resolves it, jj's own default when it cannot be
+// read. Since jj 0.47 ignores the older git.push-bookmark-prefix, this is the one name
+// `jj git push -c` gives a change.
+func (c *Client) PushTemplate(ctx context.Context) string {
+	out, err := c.executeJJ(ctx, "config", "get", "templates.git_push_bookmark")
+	if err != nil || strings.TrimSpace(out) == "" {
+		return defaultPushTemplate
+	}
+
+	return strings.TrimSpace(out)
+}
+
+// PushNames is the bookmark `jj git push -c` would create for each change named, keyed by the change
+// id the log reports. A template jj cannot evaluate answers jj's default names instead.
+func (c *Client) PushNames(ctx context.Context, changeIDs []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(changeIDs) == 0 {
+		return out, nil
+	}
+
+	names := func(template string) (string, error) {
+		return c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", strings.Join(changeIDs, "|"),
+			"-T", `change_id.shortest(8) ++ "`+pushNameSep+`" ++ (`+template+`) ++ "`+recordSep+`"`)
+	}
+
+	text, err := names(c.PushTemplate(ctx))
+	if err != nil {
+		if text, err = names(defaultPushTemplate); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, record := range strings.Split(text, recordSep) {
+		id, name, ok := strings.Cut(strings.TrimLeft(record, "\n"), pushNameSep)
+		if ok && name != "" {
+			out[id] = name
+		}
+	}
+
+	return out, nil
 }
 
 // Described reads the whole descriptions of the changes named, keyed by the change id the log
@@ -52,6 +103,17 @@ func (c *Client) Described(ctx context.Context, changeIDs []string) (map[string]
 		}
 
 		out[fields[0]] = d
+	}
+
+	// The names jj would push under are a nicety: without them a generated bookmark falls back to
+	// push-<change id>, which is jj's default anyway.
+	if names, err := c.PushNames(ctx, changeIDs); err == nil {
+		for id, name := range names {
+			if d, ok := out[id]; ok {
+				d.PushName = name
+				out[id] = d
+			}
+		}
 	}
 
 	return out, nil

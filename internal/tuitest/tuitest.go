@@ -153,3 +153,29 @@ func ColorsIn(line string) []string {
 
 	return out
 }
+
+// AttrsIn is every SGR attribute in line that is not a color: 1 bold, 2 faint, 3 italic, 4 underline,
+// 7 reverse, 9 strikethrough. A selected row that keeps these keeps what each cell's face says
+// beyond its color.
+func AttrsIn(line string) map[int]bool {
+	out := map[int]bool{}
+
+	for _, m := range sgr.FindAllStringSubmatch(line, -1) {
+		params := strings.FieldsFunc(m[1], func(r rune) bool { return r == ';' || r == ':' })
+		for i := 0; i < len(params); i++ {
+			n, err := strconv.Atoi(params[i])
+			if err != nil {
+				continue
+			}
+
+			switch {
+			case n == 38 || n == 48 || n == 58: // an extended color's own parameters follow
+				i = len(params)
+			case n >= 1 && n <= 9:
+				out[n] = true
+			}
+		}
+	}
+
+	return out
+}

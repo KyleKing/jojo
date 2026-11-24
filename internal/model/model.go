@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/coach"
@@ -280,6 +281,10 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		probe = func(ctx context.Context) jjdiff.Tool { return jjdiff.Probe(ctx, exec.LookPath, jjdiff.Exec) }
 	}
 
+	// The forge pane's polls run through the same gh as a submit, so gm lists them beside it.
+	ghCLI := gh.New(repoPath, log, append([]gh.Option{gh.WithRepo(ghRepo(client))}, opts.GH...)...)
+	pollCtx := github.WithRunner(ctx, ghCLI.Poll)
+
 	m := Model{
 		ctx:         ctx,
 		jjDiffProbe: probe,
@@ -288,7 +293,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		repoPath:    repoPath,
 		log:         logview.New(logview.StylesFrom(skin)),
 		revsetBox:   revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
-		forge:       forgepane.New(ctx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
+		forge:       forgepane.New(pollCtx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
 		prompt:      prompt.New(skin),
 		destPicker:  destpicker.New(skin),
 		opLog:       oplogview.New(skin),
@@ -296,7 +301,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		roundsBox:   roundsview.New(skin),
 		outline:     outlineState{view: outlineview.New(skin)},
 		submit: submitState{
-			view: planview.New(skin), gh: gh.New(repoPath, log, opts.GH...), prs: map[string]*gh.PR{},
+			view: planview.New(skin), gh: ghCLI, prs: map[string]*gh.PR{}, prAt: map[string]time.Time{},
 			template: opts.StackBookmark, draft: true,
 		},
 		rounds:     roundsState{at: -1},

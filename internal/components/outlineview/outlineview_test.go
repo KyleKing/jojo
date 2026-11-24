@@ -243,6 +243,51 @@ func TestView_SelectedChapterIsOneEvenBarIn16Colors(t *testing.T) {
 			if lipgloss.Width(selected) != width {
 				t.Errorf("the bar is %d wide, want the whole %d", lipgloss.Width(selected), width)
 			}
+
+			// The conflict's weight survives inside the bar, which drops only its color.
+			if attrs := tuitest.AttrsIn(selected); !attrs[1] || !attrs[7] {
+				t.Errorf("the selected chapter lost its bold or its reverse: %v\n%q", attrs, selected)
+			}
 		})
+	}
+}
+
+// The working copy's change id is bold and underlined, and keeps both under the 16-color bar.
+func TestView_SelectedWorkingCopyKeepsItsUnderlineIn16Colors(t *testing.T) {
+	t.Parallel()
+
+	m := outlineview.New(ui.ForProfile(ui.New(theme.Macchiato()), colorprofile.ANSI))
+	m.SetChapters(stack())
+	m.SetSize(80, 8)
+	m.Focus("yqosmzxt")
+
+	for _, line := range strings.Split(m.View(), "\n") {
+		if !strings.Contains(tuitest.StripANSI(line), "yqosmzxt") {
+			continue
+		}
+
+		if attrs := tuitest.AttrsIn(line); !attrs[1] || !attrs[4] || len(tuitest.ColorsIn(line)) > 0 {
+			t.Errorf("the selected working copy draws %v with colors %q", attrs, tuitest.ColorsIn(line))
+		}
+	}
+}
+
+func TestCompactForge(t *testing.T) {
+	t.Parallel()
+
+	//nolint:gosec // G101: forge summaries, not credentials.
+	for summary, want := range map[string]string{
+		"#41 · open · approved · CI pass": "#41 ○✓",
+		"#41 open · CI passing":           "#41 ○✓",
+		"#7 · draft":                      "#7 ◇",
+		"#3 · merged":                     "#3 ●",
+		"#3 closed":                       "#3 ×",
+		"#9 · open · changes · CI fail":   "#9 ○✗!",
+		"#9 open · CI pending":            "#9 ○…",
+		"pending":                         "pending",
+	} {
+		if got := outlineview.CompactForge(summary); got != want {
+			t.Errorf("CompactForge(%q) = %q, want %q", summary, got, want)
+		}
 	}
 }

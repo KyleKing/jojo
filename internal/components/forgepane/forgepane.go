@@ -55,6 +55,9 @@ const (
 // Model is the forge pane. The parent routes size, focus, bookmark changes,
 // and key presses to it and renders View in its place.
 type Model struct {
+	// ctx carries what every poll runs under: the program's lifetime and the gh runner the parent
+	// routes the pane's calls through (forge/github.WithRunner).
+	ctx       context.Context //nolint:containedctx // the pane's polls outlive no call of their own.
 	styles    Styles
 	detection forge.Detection
 	poller    *forge.Poller
@@ -69,7 +72,7 @@ type Model struct {
 func New(ctx context.Context, styles Styles, repoPath, bookmark string, opts ...forge.Option) Model {
 	detection := forge.Detect(ctx, repoPath)
 
-	m := Model{styles: styles, detection: detection, bookmark: bookmark}
+	m := Model{ctx: ctx, styles: styles, detection: detection, bookmark: bookmark}
 
 	if detection.Supported() {
 		allOpts := append([]forge.Option{forge.WithDiskCache(forge.UserDiskCache())}, opts...)
@@ -80,9 +83,10 @@ func New(ctx context.Context, styles Styles, repoPath, bookmark string, opts ...
 }
 
 // Init kicks off the pane's first fetch immediately, whatever the initial
-// focus state.
+// focus state, once it has a bookmark to ask about.
 func (m *Model) Init() tea.Cmd {
-	if m.poller == nil {
+	// With no bookmark yet there is nothing to ask; SetBookmark fetches once the log names one.
+	if m.poller == nil || m.bookmark == "" {
 		return nil
 	}
 
@@ -186,10 +190,14 @@ func (m *Model) SetBookmark(bookmark string) tea.Cmd {
 
 func (m *Model) fetchCmd() tea.Cmd {
 	m.fetching = true
-	poller := m.poller
+	poller, parent := m.poller, m.ctx
+
+	if parent == nil {
+		parent = context.Background()
+	}
 
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+		ctx, cancel := context.WithTimeout(parent, fetchTimeout)
 		defer cancel()
 
 		status, err := poller.Fetch(ctx)

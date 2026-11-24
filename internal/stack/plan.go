@@ -14,7 +14,8 @@ import (
 	"github.com/kyleking/jojo/internal/gh"
 )
 
-// DefaultTemplate names a bookmark for a change that has none: jj's own `jj git push -c` name.
+// DefaultTemplate names a bookmark for a change that has none when jj's own name for it is not known:
+// jj's default templates.git_push_bookmark, "push-" and the change id's short form.
 const DefaultTemplate = "push-{change}"
 
 // Change is one revision of the stack, parent first, with what a plan needs to know about it.
@@ -22,6 +23,9 @@ type Change struct {
 	// ID is the change id as the log prints it, LongID the one a generated bookmark is named from.
 	ID     string
 	LongID string
+	// PushName is the bookmark `jj git push -c` would create for the change (templates.git_push_bookmark),
+	// which a change with no bookmark is given when no stack_bookmark is configured.
+	PushName string
 	// Subject is the description's first line, the pull request's title; Body is the rest.
 	Subject string
 	Body    string
@@ -347,8 +351,13 @@ var unsafeRef = regexp.MustCompile(`[^a-z0-9]+`)
 // slugMax keeps a bookmark named from a subject short enough to read in a branch list.
 const slugMax = 40
 
-// BookmarkName fills template for c: {change} is its change id, {subject} its subject as a slug.
+// BookmarkName fills template for c: {change} is its change id, {subject} its subject as a slug. With
+// no template it is the name `jj git push -c` gives the change, so jojo and jj agree on it.
 func BookmarkName(template string, c Change) string {
+	if template == "" && c.PushName != "" {
+		return c.PushName
+	}
+
 	if template == "" {
 		template = DefaultTemplate
 	}

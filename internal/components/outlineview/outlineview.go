@@ -40,11 +40,13 @@ const (
 	colRead      = "read"
 )
 
-// Collapse order: what the outline is read for, the description and the read strip, holds longest.
+// Collapse order: what the outline is read for, the description and the read strip, holds longest,
+// then the pull request, which a compact form keeps to a few cells. A bookmark's name and a size go
+// first, and the inspector says them once their columns have gone.
 const (
-	prioForge = iota + 1
-	prioBookmarks
+	prioBookmarks = iota + 1
 	prioSize
+	prioForge
 	prioRead
 )
 
@@ -109,14 +111,31 @@ func (m Model) columns() []table.Column {
 		Key: colSize, Min: size, Max: size, Priority: prioSize, Align: table.AlignRight,
 	})
 
+	// The forge column falls back to its compact form ("#41 ○✓") before it cuts or drops, so its
+	// least is the widest compact cell.
 	if widest := m.widest(func(c Chapter) string { return c.Forge }); widest > 0 {
-		lo, hi := fitBounds(forgeMin, forgeMax, widest)
+		_, hi := fitBounds(forgeMin, forgeMax, widest)
+		lo := min(hi, m.widest(func(c Chapter) string { return CompactForge(c.Forge) }))
 		cols = append(cols, table.Column{Key: colForge, Min: lo, Max: hi, Weight: 1, Priority: prioForge})
 	}
 
 	read := max(readmark.Width, m.widest(readText))
+	least := min(read, m.widest(compactRead))
 
-	return append(cols, table.Column{Key: colRead, Min: read, Max: read, Priority: prioRead})
+	return append(cols, table.Column{Key: colRead, Min: least, Max: read, Priority: prioRead})
+}
+
+// compactRead is a chapter's read column with no room for the strip: the unread count, a check once
+// it is all read, a dot while it is unknown.
+func compactRead(c Chapter) string {
+	switch {
+	case !c.Read.Known():
+		return "·"
+	case c.Read.Unread() == 0:
+		return "✓"
+	}
+
+	return c.Read.Label()
 }
 
 // readText is a chapter's read column: the strip, then the unread count when anything is left.
@@ -461,24 +480,40 @@ func (m Model) Name() string {
 	return m.chapters[len(m.chapters)-1].Rev.ChangeID
 }
 
+// row draws chapter i. The cursor's row lays the selection under each cell's own face
+// (Skin.Selected) rather than over the finished line, so a cell's weight, slant, and underline
+// survive inside a 16-color reverse bar, which drops colors only.
 func (m Model) row(i int, layout table.Layout) string {
 	c := m.chapters[i]
 	cells := make([]string, 0, len(layout.Columns))
 
-	for _, col := range layout.Columns {
-		width := layout.Width(col.Key)
-		cells = append(cells, m.cell(i, c, col, width))
+	on := func(st lipgloss.Style) lipgloss.Style { return st }
+	if i == m.cursor {
+		on = m.skin.Skin.Selected
 	}
 
-	line := strings.Repeat(" ", table.Gutter) + table.Join(cells)
+	for _, col := range layout.Columns {
+		width := layout.Width(col.Key)
+		cells = append(cells, m.cell(i, c, col, width, on))
+	}
+
+	blank := on(lipgloss.NewStyle())
+	gutter := blank.Render(strings.Repeat(" ", table.Gutter))
+	line := gutter + strings.Join(cells, gutter)
+
 	if i == m.cursor {
-		return m.skin.Select(line, m.width)
+		if rest := m.width - lipgloss.Width(line); rest > 0 {
+			line += blank.Render(strings.Repeat(" ", rest))
+		}
 	}
 
 	return line
 }
 
-func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
+// face is a cell's style as its row draws it: itself, or under the selection on the cursor's row.
+type face func(lipgloss.Style) lipgloss.Style
+
+func (m Model) cell(i int, c Chapter, col table.Column, width int, on face) string {
 	rev := c.Rev
 	text, face := "", m.skin.Body
 
@@ -486,7 +521,7 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colNumber:
 		text, face = strconv.Itoa(i+1), m.skin.Muted
 	case colChange:
-		return m.change(rev, width)
+		return m.change(rev, width, on)
 	case colDesc:
 		text = glyph.Settle(rev.Description)
 		if text == "" {
@@ -495,23 +530,29 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colBookmarks:
 		text, face = glyph.Settle(bookmarkText(c)), m.skin.Bookmark
 	case colSize:
-		return m.size(rev, width)
+		return m.size(rev, width, on)
 	case colForge:
 		text, face = c.Forge, m.skin.Muted
+		if lipgloss.Width(text) > width {
+			text = CompactForge(text)
+		}
 	case colRead:
 		text, face = readText(c), m.readFace(c.Read)
+		if lipgloss.Width(text) > width {
+			text = compactRead(c)
+		}
 	}
 
 	if rev.Conflict && col.Key == colDesc {
 		face = m.skin.Conflicted
 	}
 
-	return face.Render(table.PadTrim(text, width, col.Align, table.TrimRight))
+	return on(face).Render(table.PadTrim(text, width, col.Align, table.TrimRight))
 }
 
 // change is the change id and, a space after it, the one glyph its state comes down to, so the flag
 // costs one cell rather than a column and its gutter.
-func (m Model) change(rev *jj.Revision, width int) string {
+func (m Model) change(rev *jj.Revision, width int, on face) string {
 	idFace := m.skin.ChangeIDPrefix
 	if rev.WorkingCopy {
 		idFace = m.skin.WorkingCopy
@@ -519,7 +560,7 @@ func (m Model) change(rev *jj.Revision, width int) string {
 
 	id := table.PadTrim(rev.ChangeID, max(0, width-len(" ")-1), table.AlignLeft, table.TrimRight)
 
-	return idFace.Render(id) + " " + m.flagFace(rev).Render(flags(rev))
+	return on(idFace).Render(id) + on(lipgloss.NewStyle()).Render(" ") + on(m.flagFace(rev)).Render(flags(rev))
 }
 
 // flags is the one glyph a chapter's state comes down to: a conflict outranks emptiness, which
@@ -560,9 +601,10 @@ func (m Model) readFace(s readmark.Strip) lipgloss.Style {
 	return m.skin.Muted
 }
 
-func (m Model) size(rev *jj.Revision, width int) string {
+func (m Model) size(rev *jj.Revision, width int, on face) string {
+	blank := on(lipgloss.NewStyle())
 	if rev.Files == 0 && rev.Added == 0 && rev.Removed == 0 {
-		return table.Pad("", width, table.AlignRight)
+		return blank.Render(table.Pad("", width, table.AlignRight))
 	}
 
 	files := strconv.Itoa(rev.Files) + "f"
@@ -570,11 +612,12 @@ func (m Model) size(rev *jj.Revision, width int) string {
 	plain := sizeText(rev)
 
 	if lipgloss.Width(plain) > width {
-		return m.skin.Muted.Render(table.PadTrim(plain, width, table.AlignRight, table.TrimRight))
+		return on(m.skin.Muted).Render(table.PadTrim(plain, width, table.AlignRight, table.TrimRight))
 	}
 
-	return strings.Repeat(" ", width-lipgloss.Width(plain)) +
-		m.skin.Muted.Render(files) + " " + m.skin.Added.Render(added) + " " + m.skin.Removed.Render(removed)
+	return blank.Render(strings.Repeat(" ", width-lipgloss.Width(plain))) +
+		on(m.skin.Muted).Render(files) + blank.Render(" ") + on(m.skin.Added).Render(added) + blank.Render(" ") +
+		on(m.skin.Removed).Render(removed)
 }
 
 // sizeText is a chapter's size as the row writes it, "3f +7 -3", or nothing for an empty change.
@@ -586,8 +629,69 @@ func sizeText(rev *jj.Revision) string {
 	return strconv.Itoa(rev.Files) + "f +" + strconv.Itoa(rev.Added) + " -" + strconv.Itoa(rev.Removed)
 }
 
+// The compact forge glyphs: the pull request's state, then its CI, then changes requested.
+const (
+	glyphOpen     = "○"
+	glyphDraft    = "◇"
+	glyphMerged   = "●"
+	glyphClosed   = "×"
+	glyphPass     = "✓"
+	glyphFail     = "✗"
+	glyphPending  = "…"
+	glyphChanges  = "!"
+	forgeWordsSep = " · "
+)
+
+// CompactForge is a forge summary ("#41 open · approved · CI pass", "#7 draft") as a number and a
+// glyph or two ("#41 ○✓", "#7 ◇"): the state (○ open, ◇ draft, ● merged, × closed), then CI (✓ ✗ …),
+// then a bang when changes were requested. The words stay in the inspector, which says the whole summary
+// whenever the row drew this instead.
+func CompactForge(summary string) string {
+	fields := strings.Fields(strings.ReplaceAll(strings.ToLower(summary), forgeWordsSep, " "))
+	if len(fields) == 0 || !strings.HasPrefix(fields[0], "#") {
+		return summary
+	}
+
+	state, ci, changes := "", "", ""
+
+	for i, word := range fields[1:] {
+		switch word {
+		case "open":
+			state = glyphOpen
+		case "draft":
+			state = glyphDraft
+		case "merged":
+			state = glyphMerged
+		case "closed":
+			state = glyphClosed
+		case "changes":
+			changes = glyphChanges
+		case "ci":
+			if i+2 < len(fields) {
+				ci = ciGlyph(fields[i+2])
+			}
+		}
+	}
+
+	return fields[0] + " " + state + ci + changes
+}
+
+func ciGlyph(word string) string {
+	switch word {
+	case "pass", "passing":
+		return glyphPass
+	case "fail", "failing":
+		return glyphFail
+	case "pending", "mixed":
+		return glyphPending
+	}
+
+	return ""
+}
+
 // Overflow is what the chapter under the cursor had no room for: its whole description when the
-// row cut it, and its bookmarks and forge state when their columns collapsed or cut them.
+// row cut it, and its bookmarks, size, and forge state when their columns collapsed or cut them (the
+// forge's compact form counts as cut).
 func (m Model) Overflow() []string {
 	rev := m.Selected()
 	if rev == nil {
@@ -598,11 +702,12 @@ func (m Model) Overflow() []string {
 	layout := m.layout()
 	whole := map[string]string{
 		colDesc: rev.Description, colBookmarks: strings.Join(rev.Bookmarks, " "), colForge: c.Forge,
+		colSize: sizeText(rev),
 	}
 
 	var out []string
 
-	for _, key := range []string{colDesc, colBookmarks, colForge} {
+	for _, key := range []string{colDesc, colBookmarks, colSize, colForge} {
 		text := whole[key]
 		if text != "" && lipgloss.Width(text) > layout.Width(key) {
 			out = append(out, text)

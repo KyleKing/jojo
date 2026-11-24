@@ -261,3 +261,49 @@ func TestSubmit_LiveOpensStackedPullRequests(t *testing.T) {
 		t.Errorf("a second P right after plans writes: %v", commandLines(m))
 	}
 }
+
+// Opening the outline asks the forge for each chapter's pull request behind the first frame, under
+// the name a submit would use, so the column says what GitHub holds before any plan; a second opening
+// within the TTL asks nothing.
+func TestSubmit_OutlineAsksTheForgeAsItOpens(t *testing.T) {
+	t.Parallel()
+
+	dir := remoteRepo(t)
+	forge := ghtest.New(t)
+
+	bottom := changeFor(t, dir, "bottom")
+	name := strings.TrimSpace(jjRun(t, dir, "log", "--no-graph", "-r", bottom, "-T", `"push-" ++ change_id.short()`))
+	forge.SetPRs(t, []ghtest.PR{
+		{Number: 5, State: gh.StateOpen, IsDraft: true, HeadRefName: name, BaseRefName: "main"},
+	})
+
+	opts := testOptions(t)
+	opts.Ticker = instantTicks
+	opts.GH = []gh.Option{gh.WithBinary(forge.Bin), gh.WithEnv(forge.Env())}
+
+	m := New(t.Context(), jj.NewClient(dir), ui.New(theme.Macchiato()), dir, "all()", opts)
+	m = asModel(t, update(m, tea.WindowSizeMsg{Width: 100, Height: 30}))
+	m = pump(t, m, m.loadLog("all()"))
+	m.log.Focus(changeFor(t, dir, "top"))
+
+	m = press(t, m, "I")
+
+	if got := m.outline.view.Chapters()[0].Forge; got != "#5 · draft" {
+		t.Errorf("the bottom chapter shows %q before any plan, want its draft pull request", got)
+	}
+
+	asked := len(forge.Calls(t))
+	if asked == 0 {
+		t.Fatal("opening the outline asked the forge nothing")
+	}
+
+	m = press(t, m, "esc", "I")
+
+	if again := len(forge.Calls(t)); again != asked {
+		t.Errorf("a second opening within the TTL asked %d more times", again-asked)
+	}
+
+	if !strings.Contains(tuitest.StripANSI(m.render()), "#5") {
+		t.Error("the outline does not draw the pull request")
+	}
+}

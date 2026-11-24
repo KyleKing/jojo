@@ -1,35 +1,35 @@
-Stack · 4 · parse-header                              │ version 2 of 3 · snapshot · 2 hours ago
-  1  kxqpmnzo    feat(parse): rea…  3f +120 -14  ···· │ M third.txt
-  2  vwtrlsqy ×  refactor: split …   2f +40 -38  ···· │ L1
-  3  nnzolpqr ∅  (no description …               ···· │ ▎old third                                                      
-  4  yqosmzxt @  test: cover the …               ···· │ ▎new third                                                      
-                                                      │ M second.txt
-                                                      │ L1
-                                                      │ ▎old second                                                     
-                                                      │ ▎new second                                                     
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
-                                                      │ 
- test: cover the fallbacks · stack (trunk()..@) | (@:: ~ ::trunk())                                            commit d4
+Stack · 4 · parse-header                               │ version 2 of 3 · snapshot · 2 hours ago
+  1  kxqpmnzo    feat(parse): read the new…  #41 ○✓  · │ M third.txt
+  2  vwtrlsqy ×  refactor: split the reader          · │ L1
+  3  nnzolpqr ∅  (no description set)                · │ ▎old third                                                     
+  4  yqosmzxt @  test: cover the fallbacks           · │ ▎new third                                                     
+                                                       │ M second.txt
+                                                       │ L1
+                                                       │ ▎old second                                                    
+                                                       │ ▎new second                                                    
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+                                                       │ 
+ stack (trunk()..@) | (@:: ~ ::trunk())                                                                        commit d4
 @  ]] chapter  [[ previous chapter  enter dock  space read  ]u unread  P submit  ]h hunk  ]r round  H rounds  …  ? help 

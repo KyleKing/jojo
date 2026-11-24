@@ -39,6 +39,9 @@ type Styles struct {
 	MarkMuted lipgloss.Style
 	// Unread draws a row's count of hunks not yet read, at the end of its description.
 	Unread lipgloss.Style
+	// Select lays the selection under one cell's face, keeping what the face says beyond color in
+	// reverse video; nil lays Selected over the finished row instead.
+	Select func(lipgloss.Style) lipgloss.Style
 }
 
 // Mark is a chip drawn ahead of a row's description, such as "◂ onto" on the destination a picker
@@ -456,15 +459,28 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 		return m.styles.Graph.Render(row.Graph.Graph)
 	}
 
-	graph := m.styles.Graph.Render(table.Pad(strings.TrimRight(row.Revision.Graph, " "), graphWidth, table.AlignLeft))
-	body := m.cells(*row.Revision, layout)
-	gutter := m.gutter(*row.Revision)
+	on := func(st lipgloss.Style) lipgloss.Style { return st }
+	if selected && m.styles.Select != nil {
+		on = m.styles.Select
+	}
 
-	// Every cell carries its own reset, so the row face is laid under each one rather than wrapped
-	// around the whole line, which would only reach the graph. skin.Lit is aragonite's selection
-	// policy: a tint keeps each cell's colors, and reverse video (16 colors, NO_COLOR) drops them so
-	// the row is one even bar rather than a white bar with colored blocks in it.
+	graph := on(m.styles.Graph).Render(
+		table.Pad(strings.TrimRight(row.Revision.Graph, " "), graphWidth, table.AlignLeft))
+	body := m.cells(*row.Revision, layout, on)
+	gutter := m.gutter(*row.Revision, on)
+
+	// The cursor's row lays the selection under each cell's own face (Styles.Select, aragonite's
+	// Skin.Selected), so a tint keeps each cell's colors and reverse video (16 colors, NO_COLOR) drops
+	// them while keeping weight, slant, and underline. A search match is laid over the finished line
+	// with skin.Lit, which keeps the colors on its band.
 	switch {
+	case selected && m.styles.Select != nil:
+		line := graph + gutter + body
+		if rest := m.width - lipgloss.Width(line); rest > 0 {
+			line += on(lipgloss.NewStyle()).Render(strings.Repeat(" ", rest))
+		}
+
+		return line
 	case selected:
 		return skin.Lit(graph+gutter+body, m.width, m.styles.Selected)
 	case m.searchPattern != "" && matchesSearch(*row.Revision, m.searchPattern):
@@ -476,15 +492,19 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 
 // gutter spends the space between the graph and the columns on the multi-select
 // marker, so a checked row reads without a column of its own.
-func (m Model) gutter(rev jj.Revision) string {
+func (m Model) gutter(rev jj.Revision, on face) string {
+	blank := on(lipgloss.NewStyle())
 	if !m.checked[rev.ChangeID] {
-		return strings.Repeat(" ", table.Gutter)
+		return blank.Render(strings.Repeat(" ", table.Gutter))
 	}
 
-	return m.styles.Checked.Render(CheckMark) + strings.Repeat(" ", table.Gutter-1)
+	return on(m.styles.Checked).Render(CheckMark) + blank.Render(strings.Repeat(" ", table.Gutter-1))
 }
 
-func (m Model) cells(rev jj.Revision, layout table.Layout) string {
+// face is a cell's style as its row draws it: itself, or under the selection on the cursor's row.
+type face func(lipgloss.Style) lipgloss.Style
+
+func (m Model) cells(rev jj.Revision, layout table.Layout, on face) string {
 	text := Cells(rev)
 	rendered := make([]string, 0, len(layout.Columns))
 
@@ -492,33 +512,33 @@ func (m Model) cells(rev jj.Revision, layout table.Layout) string {
 		width := layout.Width(col.Key)
 
 		if col.Key == ColSize && !rev.Conflict && !rev.Immutable {
-			rendered = append(rendered, m.sizeCell(rev, width))
+			rendered = append(rendered, m.sizeCell(rev, width, on))
 
 			continue
 		}
 
 		if mark, ok := m.marks[rev.ChangeID]; ok && col.Key == ColDesc {
-			rendered = append(rendered, m.markedCell(mark, text[col.Key], width, m.style(rev, col.Key)))
+			rendered = append(rendered, m.markedCell(mark, text[col.Key], width, m.style(rev, col.Key), on))
 
 			continue
 		}
 
 		if label := m.unread[rev.ChangeID]; label != "" && col.Key == ColDesc {
-			rendered = append(rendered, m.unreadCell(label, text[col.Key], width, m.style(rev, col.Key)))
+			rendered = append(rendered, m.unreadCell(label, text[col.Key], width, m.style(rev, col.Key), on))
 
 			continue
 		}
 
 		cell := table.PadTrim(text[col.Key], width, col.Align, col.Trim)
-		rendered = append(rendered, m.style(rev, col.Key).Render(cell))
+		rendered = append(rendered, on(m.style(rev, col.Key)).Render(cell))
 	}
 
-	return table.Join(rendered)
+	return strings.Join(rendered, on(lipgloss.NewStyle()).Render(strings.Repeat(" ", table.Gutter)))
 }
 
 // markedCell spends the start of the description on the chip, which survives a narrow row better
 // than the description does: at 80 columns the chip is the one thing a preview has to say.
-func (m Model) markedCell(mark Mark, desc string, width int, face lipgloss.Style) string {
+func (m Model) markedCell(mark Mark, desc string, width int, descFace lipgloss.Style, on face) string {
 	chipFace := m.styles.Mark
 	if mark.Muted {
 		chipFace = m.styles.MarkMuted
@@ -528,42 +548,46 @@ func (m Model) markedCell(mark Mark, desc string, width int, face lipgloss.Style
 	room := width - lipgloss.Width(chip) - 1
 
 	if room <= 0 {
-		return chipFace.Render(table.Pad(chip, width, table.AlignLeft))
+		return on(chipFace).Render(table.Pad(chip, width, table.AlignLeft))
 	}
 
-	return chipFace.Render(chip) + " " + face.Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight))
+	return on(chipFace).Render(chip) + on(lipgloss.NewStyle()).Render(" ") +
+		on(descFace).Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight))
 }
 
 // unreadCell ends the description with the row's unread count, which a narrow row keeps over the
 // description's tail: it is what ]u steps to.
-func (m Model) unreadCell(label, desc string, width int, face lipgloss.Style) string {
+func (m Model) unreadCell(label, desc string, width int, descFace lipgloss.Style, on face) string {
 	chip := table.Truncate(label, width)
 	room := width - lipgloss.Width(chip) - 1
 
 	if room <= 0 {
-		return m.styles.Unread.Render(table.Pad(chip, width, table.AlignRight))
+		return on(m.styles.Unread).Render(table.Pad(chip, width, table.AlignRight))
 	}
 
-	return face.Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight)) + " " + m.styles.Unread.Render(chip)
+	return on(descFace).Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight)) +
+		on(lipgloss.NewStyle()).Render(" ") + on(m.styles.Unread).Render(chip)
 }
 
 // sizeCell colors the added and removed counts apart from the file count,
 // then pads to width by display cells because the styled string carries escape
 // bytes that table.Pad would count.
-func (m Model) sizeCell(rev jj.Revision, width int) string {
+func (m Model) sizeCell(rev jj.Revision, width int, on face) string {
+	blank := on(lipgloss.NewStyle())
+
 	plain := size(rev)
 	if plain == "" || lipgloss.Width(plain) > width {
-		return table.PadTrim(plain, width, table.AlignRight, table.TrimRight)
+		return blank.Render(table.PadTrim(plain, width, table.AlignRight, table.TrimRight))
 	}
 
 	files, rest, _ := strings.Cut(plain, " ")
 	added, removed, _ := strings.Cut(rest, " ")
 
-	styled := m.styles.Files.Render(files) + " " +
-		m.styles.Added.Render(added) + " " +
-		m.styles.Removed.Render(removed)
+	styled := on(m.styles.Files).Render(files) + blank.Render(" ") +
+		on(m.styles.Added).Render(added) + blank.Render(" ") +
+		on(m.styles.Removed).Render(removed)
 
-	return strings.Repeat(" ", width-lipgloss.Width(plain)) + styled
+	return blank.Render(strings.Repeat(" ", width-lipgloss.Width(plain))) + styled
 }
 
 // style picks a cell's look from the revision's state first, because an

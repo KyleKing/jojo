@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -56,10 +57,11 @@ const viewFields = "number,state,isDraft,baseRefName,headRefName,url,title,body,
 
 // CLI runs gh in one checkout.
 type CLI struct {
-	trail *trail.Trail
-	dir   string
-	bin   string
-	env   []string
+	trail   *trail.Trail
+	resolve *repoOnce
+	dir     string
+	bin     string
+	env     []string
 }
 
 // Option configures a CLI.
@@ -93,6 +95,15 @@ func (c *CLI) Installed() error {
 // Run runs gh with args, stdin fed from stdin when it is not empty, and answers stdout. The trail
 // files it as a write when write is set.
 func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string) (string, error) {
+	repo, err := c.resolve.get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("finding the repository for gh: %w", err)
+	}
+
+	if repo != "" {
+		args = append(slices.Clone(args), "--repo", repo)
+	}
+
 	//nolint:gosec // G204: the binary is fixed at construction; only the arguments vary and no shell runs.
 	cmd := exec.CommandContext(ctx, c.bin, args...)
 	cmd.Dir = c.dir
@@ -107,7 +118,7 @@ func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 
 	c.trail.Add(trail.Call{
 		Argv: append([]string{"gh"}, args...), Dir: c.dir, Write: write, Start: start, Took: time.Since(start),
@@ -124,6 +135,45 @@ func (c *CLI) Run(ctx context.Context, write bool, stdin string, args ...string)
 	}
 
 	return stdout.String(), nil
+}
+
+// Poll runs one read the forge pane polls with, in dir with env added, the way aragonite's
+// forge/github runs gh: it is that package's Runner, so the pane's calls go through this CLI's binary
+// and land in the same trail as a submit's, as reads. A pull request call is pointed at the repository
+// WithRepo names when it is known; when it is not, gh is left to its own lookup, since the pane says
+// what gh answered either way.
+func (c *CLI) Poll(ctx context.Context, dir string, env []string, args ...string) ([]byte, error) {
+	if len(args) > 0 && args[0] == "pr" && !slices.Contains(args, "--repo") {
+		if repo, err := c.resolve.get(ctx); err == nil && repo != "" {
+			args = append(slices.Clone(args), "--repo", repo)
+		}
+	}
+
+	//nolint:gosec // G204: the binary is fixed at construction; only the arguments vary and no shell runs.
+	cmd := exec.CommandContext(ctx, c.bin, args...)
+	cmd.Dir = dir
+	cmd.Env = append(append(os.Environ(), c.env...), env...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+
+	start := time.Now()
+	err := cmd.Run()
+
+	c.trail.Add(trail.Call{
+		Argv: append([]string{"gh"}, args...), Dir: dir, Start: start, Took: time.Since(start),
+		Exit: trail.ExitCode(err), Stderr: stderr.String(),
+	})
+
+	if err != nil {
+		if said := strings.TrimSpace(stderr.String()); said != "" {
+			return nil, fmt.Errorf("running gh: %w: %s", err, said)
+		}
+
+		return nil, fmt.Errorf("running gh: %w", err)
+	}
+
+	return stdout.Bytes(), nil
 }
 
 // ViewArgs is the gh call that reads the pull request for branch.

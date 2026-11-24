@@ -32,7 +32,8 @@ func Changes(revs []jj.Revision, described map[string]jj.Described) []Change {
 		subject, body, _ := strings.Cut(d.Description, "\n")
 
 		c := Change{
-			ID: r.ChangeID, LongID: d.LongID, Subject: strings.TrimSpace(subject), Body: strings.TrimSpace(body),
+			ID: r.ChangeID, LongID: d.LongID, PushName: d.PushName,
+			Subject: strings.TrimSpace(subject), Body: strings.TrimSpace(body),
 			Empty: r.Empty, Immutable: r.Immutable, Conflict: r.Conflict, Divergent: r.Divergent,
 			WorkingCopy: r.WorkingCopy,
 		}

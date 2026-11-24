@@ -352,6 +352,7 @@ func TestSearchSurvivesSetRows(t *testing.T) {
 
 // Each cell ends in a reset, so a highlight wrapped around the whole row stopped at the graph and
 // left the change id, bookmarks, description, and stats unmarked. Every field has to sit on the face.
+// The 16-color bar keeps each cell's weight and underline too: the working copy's change id is both.
 func TestView_SelectionCoversTheWholeRow(t *testing.T) {
 	t.Parallel()
 
@@ -385,7 +386,10 @@ func assertOnFace(t *testing.T, row, field, open string) {
 	before := row[:at]
 	reset := max(strings.LastIndex(before, "\x1b[0m"), strings.LastIndex(before, "\x1b[m"))
 
-	if !strings.Contains(before[max(reset, 0):], open) {
+	// The face may open on its own or inside the cell's own sequence: what matters is that its
+	// background is set again after the last reset.
+	params := strings.TrimSuffix(strings.TrimPrefix(open, "\x1b["), "m")
+	if !strings.Contains(before[max(reset, 0):], params) {
 		t.Errorf("%q is drawn off the selection face: %q", field, before[max(reset, 0):])
 	}
 }
@@ -439,6 +443,28 @@ func TestUnreadCountEndsTheDescription(t *testing.T) {
 
 		if first := strings.SplitN(tuitest.StripANSI(m.View()), "\n", 2)[0]; strings.Contains(first, "◌") {
 			t.Errorf("at %d a cleared count still draws: %q", width, first)
+		}
+	}
+}
+
+// In 16 colors the selected row drops every color but keeps each cell's weight and underline, which
+// is all that tells the working copy's change id apart inside the bar.
+func TestView_SelectedRowKeepsBoldAndUnderlineIn16Colors(t *testing.T) {
+	t.Parallel()
+
+	m := logview.New(logview.StylesFrom(ui.ForProfile(ui.New(theme.Macchiato()), colorprofile.ANSI)))
+	m.SetRows(fixture())
+	m.SetSize(100, len(fixture()))
+	m.Focus("rnzxmskv")
+
+	for _, line := range strings.Split(m.View(), "\n") {
+		if !strings.Contains(tuitest.StripANSI(line), "rnzxmskv") {
+			continue
+		}
+
+		attrs := tuitest.AttrsIn(line)
+		if !attrs[1] || !attrs[7] || len(tuitest.ColorsIn(line)) > 0 {
+			t.Errorf("the selected row draws %v with colors %q:\n%q", attrs, tuitest.ColorsIn(line), line)
 		}
 	}
 }

@@ -168,7 +168,7 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 	// The stack's strips are counted behind the first frame, so ]u knows where to go before the dock
 	// has read each chapter.
 	if opening {
-		cmd = tea.Batch(cmd, m.countStack())
+		cmd = tea.Batch(cmd, m.countStack(), m.pollPRs())
 	}
 
 	if m.submit.afterOutline {

@@ -26,7 +26,14 @@ to one.
 that runs `gh` for a write. `stack.Read` gathers what a plan needs (whole descriptions, trunk's
 branch, and `gh pr view` per bookmark), `stack.Build` works out the plan as exact commands without
 writing, and `stack.Run` carries it out through `jj.Client.Apply` and `gh.CLI`. Both runners file
-into the one `trail`, so `gm` lists a submit's gh calls beside its jj ones.
+into the one `trail`, so `gm` lists a submit's gh calls beside its jj ones, and the forge pane's polls
+go through the same `gh.CLI` (`Poll`, installed as aragonite's `forge/github` runner on the pane's
+context), so they are listed too, as reads. Every pull request call carries `--repo`, the repository
+the jj repository's git remotes name (`gh.PickRepo`): gh's own default (`remote.<name>.gh-resolved`)
+when it has one, else the one the remotes agree on; remotes naming two repositories with no default
+refuse with `gh repo set-default` as the fix rather than letting gh guess. A bookmark a submit makes
+for a change with none is the name `jj git push -c` would give it (`templates.git_push_bookmark`,
+evaluated by jj), unless `stack_bookmark` says otherwise.
 
 `internal/tuitest` and `scripts/pty.sh` drive the app: golden frames in process, tmux for
 a real terminal. [docs/dogfooding.md](docs/dogfooding.md) has the commands.
@@ -190,7 +197,12 @@ eight colored diffs, so stepping back to a revision just left draws it in color 
 default what the revision sits on above `trunk()` and what is stacked on it) and draws it in the
 log's place, parent first, docking the diff beside it on the chapter under the cursor. The outline
 is one background read: the graph, the stats of every chapter, and whatever the forge pane's caches
-already hold for each bookmark (`forge.Poller.Known`, which never reaches the network). `]]` and
+already hold for each bookmark (`forge.Poller.Known`, which never reaches the network). Behind the
+first frame it then asks gh for each chapter's pull request under the name a submit would use, once
+a minute at most per chapter, so the forge column is current without a plan. The column draws a
+summary whole when it fits and compact otherwise (`#41 ○✓`: state, then CI), and the inspector says
+the whole summary whenever the row drew less; the read column likewise falls back from the strip to
+the count. `]]` and
 `[[` step chapters from the outline or the dock, and `]h` steps hunks in the dock without taking
 the focus. The outline reads and never writes, so a verb pressed there says where the verbs are.
 

@@ -1,8 +1,11 @@
 package model
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -26,8 +29,10 @@ type submitState struct {
 	// gate draws.
 	ghMissing error
 	// prs is the pull request each change of the last plan read had, by change id, which the outline
-	// shows and the coach reads.
-	prs map[string]*gh.PR
+	// shows and the coach reads, and prAt when each change's was last asked, which keeps opening the
+	// outline from asking the forge again within prPollTTL.
+	prs  map[string]*gh.PR
+	prAt map[string]time.Time
 	// template names a bookmark for a change that has none; draft is the -d flag.
 	template string
 	revs     []jj.Revision
@@ -54,6 +59,105 @@ type (
 
 // submitPRsMsg is the stack's pull requests read again after a submit, for the outline alone.
 type submitPRsMsg struct{ in stack.Input }
+
+// prPollTTL is how long a chapter's pull request, read when the outline opened, is trusted before the
+// next opening asks the forge again.
+const prPollTTL = time.Minute
+
+// outlinePRsMsg is the pull requests of the chapters the outline asked about as it opened, by change
+// id, nil for a chapter with none.
+type outlinePRsMsg struct {
+	at    time.Time
+	prs   map[string]*gh.PR
+	asked []string
+}
+
+// pollPRs asks the forge for the pull request of each chapter not asked within prPollTTL, behind the
+// first frame: a chapter's own bookmark, else the name a submit would give it. A forge that cannot be
+// asked (no gh, no remote) leaves the column to what the forge pane already knew.
+func (m Model) pollPRs() tea.Cmd {
+	if m.submit.ghMissing != nil {
+		return nil
+	}
+
+	now := time.Now()
+
+	var revs []jj.Revision
+
+	for _, c := range m.outline.view.Chapters() {
+		if at, ok := m.submit.prAt[c.Rev.ChangeID]; ok && now.Sub(at) < prPollTTL {
+			continue
+		}
+
+		if c.Rev.Immutable || (c.Rev.Empty && c.Rev.Description == "") {
+			continue
+		}
+
+		revs = append(revs, *c.Rev)
+	}
+
+	if len(revs) == 0 {
+		return nil
+	}
+
+	client, forge, ctx, template := m.client, m.submit.gh, m.ctx, m.submit.template
+
+	return func() tea.Msg {
+		return askPRs(ctx, client, forge, template, revs, now)
+	}
+}
+
+// askPRs reads each revision's pull request, stopping at the first the forge refuses.
+func askPRs(
+	ctx context.Context, client stack.Reader, forge stack.Asker, template string, revs []jj.Revision, at time.Time,
+) outlinePRsMsg {
+	msg := outlinePRsMsg{at: at, prs: map[string]*gh.PR{}}
+
+	ids := make([]string, 0, len(revs))
+	for k := range revs {
+		ids = append(ids, revs[k].ChangeID)
+	}
+
+	described, err := client.Described(ctx, ids)
+	if err != nil {
+		return msg
+	}
+
+	for _, c := range stack.Changes(revs, described) {
+		name := c.Bookmark
+		if name == "" {
+			name = stack.BookmarkName(template, c)
+		}
+
+		pr, err := forge.PRFor(ctx, name)
+		if err != nil {
+			break
+		}
+
+		msg.prs[c.ID] = pr
+		msg.asked = append(msg.asked, c.ID)
+	}
+
+	return msg
+}
+
+// ghRepo is the repository gh is pointed at: the one the jj repository's git remotes name, gh's
+// default among them when it has one.
+func ghRepo(client *jj.Client) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		remotes, err := client.GitRemotes(ctx)
+		if err != nil {
+			return "", fmt.Errorf("listing the git remotes: %w", err)
+		}
+
+		picks := make([]gh.Remote, 0, len(remotes))
+		for _, r := range remotes {
+			picks = append(picks, gh.Remote{Name: r.Name, URL: r.URL, Resolved: r.GHResolved})
+		}
+
+		return gh.PickRepo(picks)
+	}
+}
 
 // submitGate refuses a submit of the outline's stack, naming every change that blocks it.
 func (m Model) submitGate() keys.Availability {
@@ -99,6 +203,12 @@ func (m Model) readSubmit() tea.Cmd {
 	revs, template, draft := m.submit.revs, m.submit.template, m.submit.draft
 
 	return func() tea.Msg {
+		// Which repository gh asks is settled first, so a refusal says so rather than naming the
+		// first pull request it could not read.
+		if _, err := forge.Repo(ctx); err != nil {
+			return submitReadMsg{err: err, seq: seq}
+		}
+
 		in, err := stack.Read(ctx, revs, client, forge, template, draft)
 
 		return submitReadMsg{in: in, err: err, seq: seq}
@@ -157,6 +267,18 @@ func (m Model) handleSubmitMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		m.notePRs(msg.in)
 
 		return m, nil, true
+	case outlinePRsMsg:
+		for _, id := range msg.asked {
+			m.submit.prAt[id] = msg.at
+
+			if pr := msg.prs[id]; pr != nil {
+				m.submit.prs[id] = pr
+			}
+		}
+
+		m.showPRs()
+
+		return m, nil, true
 	}
 
 	return m, nil, false
@@ -182,6 +304,7 @@ func (m *Model) notePRs(in stack.Input) {
 		}
 
 		m.submit.prs[c.ID] = pr
+		m.submit.prAt[c.ID] = time.Now()
 	}
 
 	m.showPRs()

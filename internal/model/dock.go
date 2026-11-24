@@ -167,7 +167,7 @@ func (m *Model) showDockText(title, text, keep string) {
 func (m Model) dockSize() (int, int) {
 	logHeight := m.logHeight()
 	if m.width >= dockMinSideBySide && m.outline.active {
-		return m.width - m.outlineWidth(), logHeight
+		return m.width - m.outlineWidth() - besideMargin, logHeight
 	}
 
 	if m.width >= dockMinSideBySide {

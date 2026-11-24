@@ -407,6 +407,22 @@ func TestBookmarkName_FillsTheTemplate(t *testing.T) {
 	}
 }
 
+// With no template of jojo's own, a change takes the name jj's git push -c would give it, whatever
+// templates.git_push_bookmark says; a configured stack_bookmark still wins.
+func TestBookmarkName_DefaultsToJJsPushName(t *testing.T) {
+	t.Parallel()
+
+	c := stack.Change{LongID: "qpvuntsmwlqt", PushName: "me/qpvunt", Subject: "fix: it"}
+
+	if got := stack.BookmarkName("", c); got != "me/qpvunt" {
+		t.Errorf("no template gave %q, want jj's own me/qpvunt", got)
+	}
+
+	if got := stack.BookmarkName("kk/{subject}", c); got != "kk/fix-it" {
+		t.Errorf("a configured template gave %q, want kk/fix-it", got)
+	}
+}
+
 func TestCompose_ReplacesOnlyBetweenTheMarkers(t *testing.T) {
 	t.Parallel()
 
