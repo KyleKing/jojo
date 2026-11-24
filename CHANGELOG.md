@@ -1,3 +1,9 @@
+## v0.19.0 (2026-11-24)
+
+### Feat
+
+- **stack**: name bookmarks as jj does, point gh at the remote, poll PRs as the outline opens
+
 ## v0.18.0 (2026-11-24)
 
 ### Feat
