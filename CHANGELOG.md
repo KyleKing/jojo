@@ -1,3 +1,9 @@
+## v0.22.0 (2026-11-24)
+
+### Feat
+
+- **sync**: F fetches and reports what moved, offering a restack onto trunk; gt jumps to trunk
+
 ## v0.21.0 (2026-11-24)
 
 ### Feat
