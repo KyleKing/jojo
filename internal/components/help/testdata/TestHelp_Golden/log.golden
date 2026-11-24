@@ -12,6 +12,9 @@ tab      next pane
 !        shell in the repository root                               
 K        what is this                                               jj log -r <rev> -T ...
 Y        yank a reference                                           
+'        jump to a labeled row                                      
+ctrl+o   jump list back                                             
+ctrl+i   jump list forward                                          
 gm       messages and the last failure                              
 ── Move
 gg       top                                                        

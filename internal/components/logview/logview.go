@@ -37,6 +37,8 @@ type Styles struct {
 	// (the destination, what moves), MarkMuted for what it touches on the way (a rewritten descendant).
 	Mark      lipgloss.Style
 	MarkMuted lipgloss.Style
+	// Label draws the hint label a label jump (') puts in a row's gutter.
+	Label lipgloss.Style
 	// Unread draws a row's count of hunks not yet read, at the end of its description.
 	Unread lipgloss.Style
 	// Select lays the selection under one cell's face, keeping what the face says beyond color in
@@ -63,6 +65,7 @@ type Model struct {
 	styles        Styles
 	checked       map[string]bool
 	marks         map[string]Mark
+	labels        map[string]string
 	unread        map[string]string
 	searchPattern string
 	rows          []jj.LogRow
@@ -117,6 +120,21 @@ func (m *Model) SetRows(rows []jj.LogRow) {
 
 	m.recomputeMatches()
 	m.scrollIntoView()
+}
+
+// SetLabels draws a label jump's hints in the gutter of each row named, by change id. Nil clears them.
+func (m *Model) SetLabels(labels map[string]string) { m.labels = labels }
+
+// Visible is the change ids of the revisions on screen, top to bottom, which a label jump labels.
+func (m Model) Visible() []string {
+	window := m.Window(0)
+	out := make([]string, 0, len(window))
+
+	for _, rev := range window {
+		out = append(out, rev.ChangeID)
+	}
+
+	return out
 }
 
 // SetMarks pins chips on rows by change id, replacing whatever was pinned before. Nil clears them.
@@ -494,6 +512,10 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 // marker, so a checked row reads without a column of its own.
 func (m Model) gutter(rev jj.Revision, on face) string {
 	blank := on(lipgloss.NewStyle())
+	if label, ok := m.labels[rev.ChangeID]; ok {
+		return m.styles.Label.Render(label) + blank.Render(strings.Repeat(" ", max(0, table.Gutter-len(label))))
+	}
+
 	if !m.checked[rev.ChangeID] {
 		return blank.Render(strings.Repeat(" ", table.Gutter))
 	}

@@ -78,6 +78,10 @@ func (m Model) routeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.messageKey(msg)
 	}
 
+	if m.labelsShown() {
+		return m.labelKey(msg)
+	}
+
 	if ctx := m.openModal(); ctx != "" && ctx != ctxDiff && ctx != ctxFiles {
 		cmd := m.routeToModal(ctx, msg)
 
@@ -158,7 +162,18 @@ func (m Model) dispatch(screen keys.Context, action string) (tea.Model, tea.Cmd)
 
 // dispatchLog runs an action pressed in the log.
 func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
+	walking := m.jumps.walking
+	m.jumps.walking = false
+
+	if next, cmd, handled := m.jumpAction(action, walking); handled {
+		return next, cmd
+	}
+
 	if key, ok := navKey(action); ok {
+		if jumpKeys[action] {
+			m.noteJump(m.log.Selected())
+		}
+
 		return m.moveLog(key)
 	}
 
@@ -175,6 +190,32 @@ func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
 	}
 
 	return m.revisionAction(action)
+}
+
+// jumpKeys are the movement keys that count as a jump, which the jump list remembers the row of.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var jumpKeys = map[string]bool{keys.ActionTop: true, keys.ActionBottom: true, help.ActionWorkingCopy: true}
+
+// jumpAction runs the label jump and the jump list. Tab walks forward too right after ctrl+o, which is
+// how vim reads one key two terminals send differently.
+func (m Model) jumpAction(action string, walking bool) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case action == keys.ActionLabelJump:
+		next, cmd := m.startLabels()
+
+		return next, cmd, true
+	case action == keys.ActionJumpBack:
+		next, cmd := m.walkJumps(true)
+
+		return next, cmd, true
+	case action == keys.ActionJumpForward, action == keys.ActionSwitchPane && walking:
+		next, cmd := m.walkJumps(false)
+
+		return next, cmd, true
+	}
+
+	return m, nil, false
 }
 
 // moveLog moves the log's cursor, reading further back once it reaches the last row loaded.

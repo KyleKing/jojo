@@ -176,9 +176,12 @@ type Model struct {
 	submit submitState
 	// synced is the last sync's report while its restack is still on offer, which the coach reads.
 	synced syncReport
-	// last is the write . repeats.
+	// last is the write the repeat key runs again.
 	last repeatable
-	log  logview.Model
+	// jumps is the jump list ctrl+o and ctrl+i walk, and labels a label jump waiting for its label.
+	jumps  jumpList
+	labels labeling
+	log    logview.Model
 	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
 	// Each takes the keys while it is active.
 	travel travelState

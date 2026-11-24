@@ -291,6 +291,9 @@ func logTips() []coach.Suggestion {
 		tip("outline", keys.ActionOutline, "opens the stack under the cursor as chapters"),
 		tip("oplog", help.ActionOpLog, "shows the operation log, and the log as it stood at each"),
 		tip("absorb", help.ActionAbsorb, "moves each changed line into the revision that last touched it"),
+		tip("label", keys.ActionLabelJump, "labels every row on screen; type a label to land there"),
+		tip("jumps", keys.ActionJumpBack, "goes back to where the last jump left from"),
+		tip("repeat", keys.ActionRepeat, "runs the last write again on the cursor, same flags"),
 	}
 }
 
@@ -352,6 +355,10 @@ func (m Model) gate(action string) keys.Availability {
 
 	if m.screen() != keys.Log {
 		return keys.Allow()
+	}
+
+	if a, ok := m.jumpGate(action); ok {
+		return a
 	}
 
 	rev := m.log.Selected()

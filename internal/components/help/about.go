@@ -364,6 +364,19 @@ var abouts = map[string]about{
 			"parent. In the outline and the dock it is the next chapter of the stack.",
 	},
 	keys.PrevAction(keys.ObjChapter): {cmd: "jj log -r 'first_parent(<rev>)'", also: []string{"parent", "HEAD~"}},
+	keys.ActionLabelJump: {
+		also: []string{"hop", "flash", "easymotion", "leap", "jump", "go to row"},
+		prose: "Labels every revision on screen with a letter or two; typing one lands the cursor there " +
+			"(in a picker, the destination). esc puts the labels away.",
+		related: []string{keys.ActionJumpBack, keys.ActionSearch},
+	},
+	keys.ActionJumpBack: {
+		also: []string{"jump list", "go back", "previous location", "ctrl-o"},
+		prose: "Goes back to the row the last jump left from: gg, G, @, gt, a ] or [ motion, or a label. " +
+			"ctrl+i (or tab, right after) goes forward again.",
+		related: []string{keys.ActionJumpForward, keys.ActionLabelJump},
+	},
+	keys.ActionJumpForward: {also: []string{"jump list", "go forward", "ctrl-i"}},
 	ActionTravelRestore: {
 		cmd: "jj op restore <op>", also: []string{"reset --hard", gitReflog},
 		prose: "Restores the whole repository to the operation on screen. u undoes that too.",

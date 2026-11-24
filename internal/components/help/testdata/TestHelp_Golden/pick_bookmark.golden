@@ -3,6 +3,7 @@
 q        close, or quit at the root                                 
 esc      back out one level                                         
 ctrl+c   cancel the running command, else quit                      
+'        jump to a labeled row                                      
 ── Move
 gg       top                                                        
 G        bottom                                                     

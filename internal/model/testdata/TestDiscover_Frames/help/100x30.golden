@@ -1,4 +1,4 @@
-  wkwyyxvq          (no description set)     ╭─ keys · 77 of 77 ───────────────────────────────────╮
+  wkwyyxvq          (no description set)     ╭─ keys · 80 of 80 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
   koopqtrk          refactor: split the reade│ ── General ──────────────────────────────────────── │
   twnsvwmr  parse*  test: cover the fallbacks│ ▌ ?       help                                      │
@@ -14,15 +14,15 @@
                                              │   !       shell in the repository root              │
                                              │   K       what is this                              │
                                              │   Y       yank a reference                          │
+                                             │   '       jump to a labeled row                     │
+                                             │   ctrl+o  jump list back · no jump to go back to y… │
+                                             │   ctrl+i  jump list forward · nothing to go forwar… │
                                              │   gm      messages and the last failure             │
                                              │ ── Move ─────────────────────────────────────────── │
                                              │   gg      top                                       │
                                              │   G       bottom                                    │
                                              │   j/down  down a line                               │
                                              │   k/up    up a line                                 │
-                                             │   ctrl+d  half a page down                          │
-                                             │   ctrl+u  half a page up                            │
-                                             │   gt      jump to trunk()                           │
                                              │ ── General · ?  help ────────────────────────────── │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │

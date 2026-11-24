@@ -153,7 +153,6 @@ const (
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var unsupported = []string{
-	keys.ActionLabelJump, keys.ActionJumpBack, keys.ActionJumpForward,
 	keys.ActionOpenFile, keys.ActionDefinition, keys.ActionReferences, keys.ActionCalls,
 	keys.ActionPageDown, keys.ActionPageUp, keys.ActionScrollDown, keys.ActionScrollUp,
 	keys.ActionSideOld, keys.ActionSideNew, keys.ActionFilter,
@@ -293,6 +292,9 @@ func sharedContexts(b keys.Binding) keys.Context {
 	case keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
 		// In the log and its pickers a chapter is the graph's edge: ]] a child, [[ the first parent.
 		return keys.Diff&^PickBookmark | Outline | keys.Log | keys.Picker | pickScreens
+	case keys.ActionLabelJump:
+		// Labels go on the log's rows, which a picker walks too.
+		return keys.Log | keys.Picker | pickScreens
 	case keys.NextAction(keys.ObjConflict), keys.PrevAction(keys.ObjConflict):
 		// jojo's diffs draw no conflict regions of their own (x hands them to jj-diff), so ]x steps the
 		// log's conflicted revisions.

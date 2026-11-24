@@ -106,6 +106,10 @@ func (m Model) pickExtra(action string) (Model, tea.Cmd, bool) {
 		return m, cmd, true
 	case help.ActionTrunk:
 		return m, m.gotoTrunk(), true
+	case keys.ActionLabelJump:
+		next, cmd := m.startLabels()
+
+		return next, cmd, true
 	case keys.FlagAction(keys.VerbSquash, "m"), keys.FlagAction(keys.VerbNew, "m"):
 		next, cmd := m.toggleMessage()
 

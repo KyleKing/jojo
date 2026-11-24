@@ -285,9 +285,12 @@ func (m Model) landTrunk(msg gotoTrunkMsg) (Model, tea.Cmd) {
 
 // jumpTo puts the log's cursor on id, or says why it cannot when the revset does not show it.
 func (m Model) jumpTo(id, what string) (Model, tea.Cmd) {
+	from := m.log.Selected()
 	if !m.log.Focus(id) {
 		return m, m.say(what + " is " + id + ", which this revset does not show; L edits it")
 	}
+
+	m.noteJump(from)
 
 	return m, m.followSelected()
 }

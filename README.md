@@ -122,6 +122,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `]x` / `[x`, `]b` / `[b`, `]]` / `[[` | step to the next or previous conflicted revision, bookmarked revision, or along the graph's edge (`]]` a child, up the screen; `[[` the first parent). `]b`, `]]`, `[[`, and `gt` also move a picker's destination |
 | `.` | repeat the last write on the cursor with the same flags: a picker destination left on jj's default (the parent) follows the new revision, one you chose stays put |
+| `'` / `Ctrl+o` / `Ctrl+i` | label jump: every revision on screen gets a letter (or two) in its gutter, and typing one lands the cursor there (in a picker, the destination); the jump list walks back and forward through where `gg`, `G`, `@`, `gt`, the `]`/`[` motions, and labels jumped from (`Tab` right after `Ctrl+o` walks forward too) |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
 
 `S` and `x` hand the terminal to jj-diff v0.10.0 or newer, then read the log again and say in the
