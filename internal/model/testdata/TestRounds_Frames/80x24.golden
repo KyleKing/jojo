@@ -1,6 +1,6 @@
 Stack · 4 · parse-header
-  1  kxqpmnzo    feat(parse): read the new head…  parse…  3f +120 -14  #41 ○✓  ·
-  2  vwtrlsqy ×  refactor: split the reader                2f +40 -38          ·
+  1  kxqpmnzo    feat(parse): read the new header format       parse…  #41 ○✓  ·
+  2  vwtrlsqy ×  refactor: split the reader                                    ·
   3  nnzolpqr ∅  (no description set)                                          ·
   4  yqosmzxt @  test: cover the fallbacks                                     ·
 

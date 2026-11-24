@@ -571,7 +571,6 @@ func (m *Model) resize() {
 	m.revsetShown = m.revsetRow()
 	m.bandShown = len(m.bandLines())
 	// The outline's columns depend on whether it shares the width, and the dock's share on them.
-	m.outline.view.SetBeside(m.docked && m.dockSideBySide())
 
 	width, height := m.width, m.logHeight()
 

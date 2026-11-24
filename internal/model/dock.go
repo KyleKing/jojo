@@ -178,11 +178,18 @@ func (m Model) dockSize() (int, int) {
 }
 
 // outlineWidth is the outline's share of a wide terminal beside the dock: its own width, up to the
-// cap, past which its rows cut descriptions before they drop a column.
+// cap, past which its rows drop a size, then a bookmark, before a description goes under its least.
+// The share stretches toward half the terminal to keep every column, or failing that the description
+// and the read strip whole, since a dropped column is nowhere else on screen.
 func (m Model) outlineWidth() int {
-	share := m.width * outlineMaxShare / percent
-	if least := m.outline.view.MinWidth(); least > share && least <= m.width*outlineStretchShare/percent {
-		share = least
+	share, most := m.width*outlineMaxShare/percent, m.width*outlineStretchShare/percent
+
+	for _, least := range []int{m.outline.view.MinWidth(), m.outline.view.EssentialWidth()} {
+		if least > share && least <= most {
+			share = least
+
+			break
+		}
 	}
 
 	return min(m.outline.view.ContentWidth(), share)

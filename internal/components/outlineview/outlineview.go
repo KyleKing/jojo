@@ -41,23 +41,27 @@ const (
 )
 
 // Collapse order: what the outline is read for, the description and the read strip, holds longest,
-// then the pull request, which a compact form keeps to a few cells. A bookmark's name and a size go
-// first, and the inspector says them once their columns have gone.
+// then the pull request, which a compact form keeps to a few cells. A size goes first, since the
+// dock beside the outline shows the change itself, then a bookmark's name; the inspector says both
+// once their columns have gone.
 const (
-	prioBookmarks = iota + 1
-	prioSize
+	prioSize = iota + 1
+	prioBookmarks
 	prioForge
 	prioRead
 )
 
 // Column widths, in display cells: the change id is pinned the way the log pins it, with its flag
 // glyph a space after it, and the rest bound how much a row's metadata may take before it collapses.
+// The description keeps descMin cells, beside the dock too, before a metadata column takes one from
+// it: a subject cut to a dozen cells names nothing. Where the pull request and the read strip fit
+// beside it, it is drawn whole up to descRoomy cells before the size or the bookmarks take a cell.
 // No metadata column is ever wider than its widest cell, so every cell it would pad goes to the
 // description instead.
 const (
 	changeWidth  = 8 + len(" ") + 1
 	descMin      = 24
-	descBeside   = 14
+	descRoomy    = 40
 	descWeight   = 4
 	bookmarksMin = 6
 	bookmarksMax = 18
@@ -76,7 +80,6 @@ type Model struct {
 	top        int
 	width      int
 	height     int
-	beside     bool
 }
 
 // SetEmptyHints is the keys an empty outline's card offers, named by the parent's keymap so a
@@ -94,7 +97,7 @@ func (m Model) columns() []table.Column {
 	cols := []table.Column{
 		{Key: colNumber, Min: digits, Max: digits, Align: table.AlignRight},
 		{Key: colChange, Min: changeWidth, Max: changeWidth},
-		{Key: colDesc, Min: m.descMin(), Weight: descWeight},
+		{Key: colDesc, Min: m.descLeast(), Weight: descWeight},
 	}
 
 	if widest := m.widest(bookmarkText); widest > 0 {
@@ -153,7 +156,7 @@ func readText(c Chapter) string {
 func (m Model) layout() table.Layout {
 	width := m.width - table.Gutter
 	cols := m.columns()
-	whole := max(m.descMin(), m.widest(description))
+	whole := max(m.descLeast(), m.widest(description))
 
 	first := slices.Clone(cols)
 	for i := range first {
@@ -165,6 +168,10 @@ func (m Model) layout() table.Layout {
 
 	l := table.FitCompact(first, width)
 	if l.Width(colDesc) < whole || l.Total() >= width {
+		if roomy, ok := m.roomy(width); ok {
+			return spread(roomy, width)
+		}
+
 		return l
 	}
 
@@ -175,14 +182,45 @@ func (m Model) layout() table.Layout {
 		}
 	}
 
-	l = table.FitCompact(second, width)
+	return spread(table.FitCompact(second, width), width)
+}
 
+// roomy is the layout that keeps the description whole, up to descRoomy cells, by dropping the size
+// and then the bookmarks, when the pull request and the read strip still fit beside it. It answers
+// false when they do not, or when the description needs no more than its least anyway.
+func (m Model) roomy(width int) (table.Layout, bool) {
+	want := min(m.widest(description), descRoomy)
+	if want <= m.descLeast() {
+		return table.Layout{}, false
+	}
+
+	cols := m.columns()
+	for i := range cols {
+		cols[i].Weight = 0
+		if cols[i].Key == colDesc {
+			cols[i].Min, cols[i].Max = want, want
+		}
+	}
+
+	l := table.FitCompact(cols, width)
+
+	for _, c := range cols {
+		if (c.Priority == 0 || c.Priority >= prioForge) && l.Width(c.Key) == 0 {
+			return l, false
+		}
+	}
+
+	return l, true
+}
+
+// spread gives the cells l leaves over to the description, so a row spans the width.
+func spread(l table.Layout, width int) table.Layout {
 	spare := width - l.Total()
 	if spare <= 0 {
 		return l
 	}
 
-	third := make([]table.Column, 0, len(l.Columns))
+	cols := make([]table.Column, 0, len(l.Columns))
 	for _, c := range l.Columns {
 		w := l.Width(c.Key)
 		if c.Key == colDesc {
@@ -190,10 +228,10 @@ func (m Model) layout() table.Layout {
 		}
 
 		c.Min, c.Max, c.Weight = w, w, 0
-		third = append(third, c)
+		cols = append(cols, c)
 	}
 
-	return table.FitCompact(third, width)
+	return table.FitCompact(cols, width)
 }
 
 // fitBounds caps a column's bounds at the widest cell it holds, so it never pads past its content:
@@ -203,6 +241,10 @@ func fitBounds(least, most, widest int) (int, int) {
 
 	return min(least, most), most
 }
+
+// descLeast is the narrowest the description goes before a metadata column is dropped: descMin, or
+// the widest description when every one is shorter, which needs no room past its own text.
+func (m Model) descLeast() int { return min(descMin, max(1, m.widest(description))) }
 
 // bookmarkText is a chapter's bookmarks as its row writes them.
 func bookmarkText(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }
@@ -216,20 +258,6 @@ func (m Model) widest(text func(Chapter) string) int {
 
 	return w
 }
-
-// descMin is the narrowest the description goes before a column is dropped. Beside the docked diff
-// it gives way sooner, since the inspector carries a cut description whole and nothing carries a
-// dropped size or bookmark.
-func (m Model) descMin() int {
-	if m.beside {
-		return descBeside
-	}
-
-	return descMin
-}
-
-// SetBeside says whether the outline shares the terminal's width with the docked diff.
-func (m *Model) SetBeside(beside bool) { m.beside = beside }
 
 // ContentWidth is how wide the outline is when no row is cut: each column as wide as its widest
 // cell, within its bounds, and the title. A caller laying the outline beside something else gives
@@ -266,9 +294,26 @@ func (m Model) ContentWidth() int {
 // MinWidth is the narrowest the outline draws every column it has at, each at its least, so a
 // caller squeezing it can tell where its rows would start to lose a column.
 func (m Model) MinWidth() int {
+	return sumWidth(m.columns())
+}
+
+// EssentialWidth is the narrowest the outline draws what it is read for at: the number, the change,
+// the description, the pull request, and the read strip, each at its least, with the size and the
+// bookmarks dropped. A caller squeezing it below this cuts the description short or loses a column
+// nothing else on screen carries.
+func (m Model) EssentialWidth() int {
+	cols := slices.DeleteFunc(m.columns(), func(c table.Column) bool {
+		return c.Priority > 0 && c.Priority < prioForge
+	})
+
+	return sumWidth(cols)
+}
+
+// sumWidth is how wide cols draw, each at its least, with the gutters around them.
+func sumWidth(cols []table.Column) int {
 	total := table.Gutter
 
-	for i, col := range m.columns() {
+	for i, col := range cols {
 		if i > 0 {
 			total += table.Gutter
 		}

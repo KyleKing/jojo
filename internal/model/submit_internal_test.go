@@ -309,6 +309,6 @@ func TestSubmit_OutlineAsksTheForgeAsItOpens(t *testing.T) {
 	}
 
 	if !strings.Contains(tuitest.StripANSI(m.render()), "#5") {
-		t.Error("the outline does not draw the pull request")
+		t.Error("the outline does not draw the pull request\n" + tuitest.StripANSI(m.render()))
 	}
 }

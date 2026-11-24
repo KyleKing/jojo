@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -376,5 +377,63 @@ func TestOutline_TakesItsContentWidthAndTheDockTheRest(t *testing.T) {
 				t.Errorf("at %d row %d is %d cells", width, i, w)
 			}
 		}
+	}
+}
+
+// Beside the dock the outline's description keeps at least 24 cells before a metadata column takes
+// one, the size going first, and once the pull request and the read strip fit it is drawn whole.
+func TestOutline_BesideTheDockKeepsTheDescription(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		width int
+		whole bool
+	}{{100, false}, {120, false}, {160, true}} {
+		t.Run(strconv.Itoa(tc.width), func(t *testing.T) {
+			t.Parallel()
+
+			m := outlineFrame(t, tc.width, 12)
+			if !m.docked || !m.dockSideBySide() {
+				t.Fatal("the dock is not beside the outline")
+			}
+
+			assertDescription(t, outlineRow(m, "kxqpmnzo"), tc.whole)
+		})
+	}
+}
+
+// outlineRow is the outline's part of the row naming change, the dock beside it cut off.
+func outlineRow(m Model, change string) string {
+	for _, line := range strings.Split(tuitest.StripANSI(m.render()), "\n") {
+		if strings.Contains(line, change) {
+			row, _, _ := strings.Cut(line, "│")
+
+			return row
+		}
+	}
+
+	return ""
+}
+
+func assertDescription(t *testing.T, row string, whole bool) {
+	t.Helper()
+
+	const subject = "feat(parse): read the new header format"
+
+	_, desc, _ := strings.Cut(row, "kxqpmnzo")
+	desc = strings.TrimSpace(desc)
+	isWhole := strings.HasPrefix(desc, subject)
+
+	shown, _, _ := strings.Cut(desc, "…")
+	if cells := len([]rune(shown)); cells < 23 && !isWhole {
+		t.Errorf("the description is cut to %d cells: %q", cells, row)
+	}
+
+	if whole != isWhole {
+		t.Errorf("whole description = %v, want %v: %q", isWhole, whole, row)
+	}
+
+	if strings.Contains(row, "+120") && !isWhole {
+		t.Errorf("the size holds while the description is cut: %q", row)
 	}
 }
