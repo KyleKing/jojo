@@ -426,7 +426,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
 		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
-		m.handleBookmarkMsg, m.handleExternalMsg, m.handleReadMsg,
+		m.handleBookmarkMsg, m.bookmarkMenuMsg, m.handleExternalMsg, m.handleReadMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd

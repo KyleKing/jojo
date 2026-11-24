@@ -1,0 +1,18 @@
+── General
+?        help                                                       
+q        close, or quit at the root                                 
+esc      back out one level                                         
+ctrl+c   cancel the running command, else quit                      
+── Move
+gg       top                                                        
+G        bottom                                                     
+j/down   down a line                                                
+k/up     up a line                                                  
+ctrl+d   half a page down                                           
+ctrl+u   half a page up                                             
+@        jump to the working copy                                   
+── Picking
+enter    run it                                                     
+p        show the graph before / after the command                  
+── Flags
+-B       allow moving it backwards or sideways (--allow-backwards)  jj bookmark set --allow-backwards

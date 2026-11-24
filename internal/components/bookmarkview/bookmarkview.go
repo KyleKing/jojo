@@ -77,8 +77,18 @@ type ResolveMsg struct {
 	Ref  string
 }
 
+// keyEsc closes the panel.
+const keyEsc = "esc"
+
 // CancelledMsg is sent when the panel is dismissed without an action.
 type CancelledMsg struct{}
+
+// ChosenMsg is sent when Enter picks a row of a panel opened with Choose, carrying the action the
+// parent asked a bookmark for.
+type ChosenMsg struct {
+	Verb     string
+	Bookmark jj.Bookmark
+}
 
 // remoteOnlyWarning explains why s, c, d, and r refuse a remote row: those
 // verbs are local-only in jj.
@@ -89,7 +99,9 @@ const remoteOnlyWarning = "that is a remote bookmark, act on the local one"
 type Model struct {
 	skin   ui.Skin
 	target string
-	list   listview.Model[jj.Bookmark]
+	// choosing is the verb a panel opened with Choose picks a bookmark for, "" for the full panel.
+	choosing string
+	list     listview.Model[jj.Bookmark]
 }
 
 // New returns a closed panel drawn in skin.
@@ -103,10 +115,17 @@ func New(skin ui.Skin) Model {
 //
 //nolint:unparam // matches destpicker.Model.Open's signature; nothing here needs a command yet.
 func (m *Model) Open(marks []jj.Bookmark, target string) tea.Cmd {
-	m.target = target
+	m.target, m.choosing = target, ""
 	m.list.Open(titleText(target), marks, 0)
 
 	return nil
+}
+
+// Choose shows marks under title for the one question a b-menu verb asks when the revision carries
+// more than one bookmark: which. Enter answers ChosenMsg for verb, and no other verb key acts.
+func (m *Model) Choose(verb, title string, marks []jj.Bookmark) {
+	m.target, m.choosing = "", verb
+	m.list.Open(title, marks, 0)
 }
 
 // Close hides the panel.
@@ -131,6 +150,10 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
+	if m.choosing != "" {
+		return m.chooseKey(name)
+	}
+
 	switch name {
 	case "s":
 		return m.set()
@@ -150,7 +173,29 @@ func (m *Model) handleKey(key tea.KeyPressMsg) tea.Cmd {
 		return m.push()
 	case "x":
 		return m.resolve()
-	case "esc", "q", "b":
+	case keyEsc, "q", "b":
+		m.Close()
+
+		return func() tea.Msg { return CancelledMsg{} }
+	}
+
+	return nil
+}
+
+// chooseKey answers a key in a panel opened with Choose: Enter picks the row, Esc and q close.
+func (m *Model) chooseKey(name string) tea.Cmd {
+	switch name {
+	case "enter":
+		mark, ok := m.list.Selected()
+		if !ok {
+			return nil
+		}
+
+		verb := m.choosing
+		m.Close()
+
+		return func() tea.Msg { return ChosenMsg{Verb: verb, Bookmark: mark} }
+	case keyEsc, "q":
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
@@ -328,6 +373,12 @@ func (m *Model) resolve() tea.Cmd {
 // set, one row per bookmark, a scroll-position footer when clipped, and a key
 // hint line, centered in a width by height frame.
 func (m Model) View(width, height int) string {
+	if m.choosing != "" {
+		return m.list.View(width, height, m.row, []keyhint.Hint{
+			{Key: "enter", What: "choose"}, {Key: "j/k", What: "move"}, {Key: keyEsc, What: "close"},
+		})
+	}
+
 	hints := []keyhint.Hint{
 		{Key: "s", What: "set"},
 		{Key: "a", What: "advance"},
@@ -348,7 +399,7 @@ func (m Model) View(width, height int) string {
 		}
 	}
 
-	return m.list.View(width, height, m.row, append(hints, keyhint.Hint{Key: "esc", What: "close"}))
+	return m.list.View(width, height, m.row, append(hints, keyhint.Hint{Key: keyEsc, What: "close"}))
 }
 
 func titleText(target string) string {

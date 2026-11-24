@@ -129,6 +129,10 @@ func (m Model) openAction(action string, rev jj.Revision) (tea.Model, tea.Cmd) {
 		}), nil
 	}
 
+	if next, cmd, handled := m.bookmarkMenu(action, rev); handled {
+		return next, cmd
+	}
+
 	cmd := m.openVerb(action, rev)
 
 	return m, cmd

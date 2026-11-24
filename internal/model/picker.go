@@ -23,23 +23,30 @@ const (
 	pickDuplicate
 	pickNew
 	pickRestore
+	// The pickBookmark verb moves one bookmark (pickState.bookmark) onto the destination.
+	pickBookmark
 )
 
 var pickVerbNames = map[pickVerb]string{
 	pickRebase: "rebase", pickSquash: "squash", pickDuplicate: "duplicate", pickNew: "new", pickRestore: "restore",
+	pickBookmark: "bookmark set",
 }
 
 // pickScreens is the keymap screen of each verb's picker, which is where its flags are live.
 var pickScreens = map[pickVerb]keys.Context{
 	pickRebase: help.PickRebase, pickSquash: help.PickSquash, pickDuplicate: help.PickDuplicate,
-	pickNew: help.PickNew, pickRestore: help.PickRestore,
+	pickNew: help.PickNew, pickRestore: help.PickRestore, pickBookmark: help.PickBookmark,
 }
 
 // pickFlagVerbs is the aragonite verb whose flags each picker toggles.
 var pickFlagVerbs = map[pickVerb]string{
 	pickRebase: keys.VerbRebase, pickSquash: keys.VerbSquash, pickDuplicate: keys.VerbDuplicate,
-	pickNew: keys.VerbNew, pickRestore: keys.VerbRestore,
+	pickNew: keys.VerbNew, pickRestore: keys.VerbRestore, pickBookmark: verbBookmark,
 }
+
+// verbBookmark is the bookmark picker's verb, which aragonite's flag table does not have: its one
+// flag, -B, is pickState.backwards.
+const verbBookmark = "bookmark"
 
 // pickDebounce is how long the destination must stay put before the preview runs, so holding j
 // costs one preview at the row it stops on rather than one per row it passes.
@@ -54,7 +61,9 @@ type pickState struct {
 	sandboxErr error
 	previewErr error
 	// flags are the verb's jj flags as the - keys left them, spelled as jj spells them.
-	flags     keys.FlagSet
+	flags keys.FlagSet
+	// bookmark is the name a bookmark picker moves, and backwards its -B (--allow-backwards).
+	bookmark  string
 	dest      string
 	shownFor  string
 	sources   []string
@@ -68,6 +77,7 @@ type pickState struct {
 	inPlace   bool
 	unchanged bool
 	before    bool
+	backwards bool
 }
 
 // placement is where the radio group of -o, -A, and -B puts what the command makes or moves.
@@ -151,6 +161,8 @@ func (p *pickState) args(forPreview bool) []string {
 		}
 
 		return jj.NewArgs(jj.PlaceOptions{Destination: parents, Mode: p.placement()}, p.flags.On("n"))
+	case pickBookmark:
+		return jj.BookmarkSetArgs(p.bookmark, p.dest, p.backwards)
 	case pickRebase:
 	}
 
@@ -213,7 +225,7 @@ func (m *Model) initialDest() string {
 		}
 
 		return cursor
-	case pickDuplicate:
+	case pickDuplicate, pickBookmark:
 		return cursor
 	case pickRebase, pickSquash, pickRestore:
 	}
@@ -428,7 +440,7 @@ var destWords = map[jj.RebaseDestinationMode]string{
 // sourceWords is the chip on what the command is about, before it runs.
 var sourceWords = map[pickVerb]string{
 	pickRebase: "moving", pickSquash: "squashing", pickDuplicate: "copying", pickNew: "parent",
-	pickRestore: "restoring",
+	pickRestore: "restoring", pickBookmark: "was here",
 }
 
 // pickMarks labels the rows the command is about. Before it runs that is what moves and where to;
@@ -451,6 +463,8 @@ func pickMarks(p *pickState, after bool) map[string]logview.Mark {
 		marks[p.dest] = logview.Mark{Text: "◂ into"}
 	case p.verb == pickRestore:
 		marks[p.dest] = logview.Mark{Text: "◂ from"}
+	case p.verb == pickBookmark:
+		marks[p.dest] = logview.Mark{Text: "◂ " + p.bookmark}
 	case p.verb == pickDuplicate && p.inPlace:
 	default:
 		marks[p.dest] = logview.Mark{Text: destWords[p.placement()]}

@@ -47,6 +47,7 @@ var screens = []struct {
 	{"pick_duplicate", keys.Picker | help.PickDuplicate},
 	{"pick_new", keys.Picker | help.PickNew},
 	{"pick_restore", keys.Picker | help.PickRestore},
+	{"pick_bookmark", keys.Picker | help.PickBookmark},
 	{"submit", help.Submit},
 }
 

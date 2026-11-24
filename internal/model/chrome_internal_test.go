@@ -40,7 +40,7 @@ func TestNextStep_FollowsTheWhatNextTable(t *testing.T) {
 		},
 		{
 			name: "bookmark moved both ways", cursor: &jj.Revision{ChangeID: "bbbb", Bookmarks: []string{"main??"}},
-			want: help.ActionBookmarks,
+			want: help.ActionBookmarkResolve, key: "bx",
 		},
 		{name: "@ dirty and undescribed", cursor: dirtyWC, want: keys.ActionDescribe, key: "d"},
 		{

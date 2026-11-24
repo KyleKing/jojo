@@ -14,6 +14,7 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
+	"github.com/kyleking/jojo/internal/jj"
 )
 
 // pickRows is the picker's footer: the command line and its flags, one row more than the log's.
@@ -33,6 +34,13 @@ const (
 // dispatchPick owns every key while the picker is open, so a verb pressed by habit cannot run
 // against the log underneath. A flag is "- letter" as jj spells it.
 func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
+	if action == help.ActionBookmarkBackwards {
+		m.pick.backwards = !m.pick.backwards
+		cmd := m.changed()
+
+		return m, cmd
+	}
+
 	if letter, ok := strings.CutPrefix(action, pickFlagVerbs[m.pick.verb]+"-flag-"); ok {
 		if !m.pick.flags.Toggle(letter) {
 			return m, nil
@@ -158,6 +166,8 @@ func (m Model) previewState() (string, lipgloss.Style) {
 		return "· no preview: " + oneLineErr(m.pick.sandboxErr), m.skin.Error
 	case m.pick.shownFor != m.pick.command():
 		return "· previewing…", m.skin.Muted
+	case m.pick.previewErr != nil && m.pick.verb == pickBookmark && jj.IsBackwards(m.pick.previewErr):
+		return "· jj refuses: " + m.pick.bookmark + " would move backwards or sideways; -B allows it", m.skin.Error
 	case m.pick.previewErr != nil:
 		return "· jj would refuse: " + oneLineErr(m.pick.previewErr), m.skin.Error
 	case m.pick.unchanged:
@@ -224,6 +234,13 @@ func (m Model) pickChips() string {
 		}
 
 		hints = append(hints, h)
+	}
+
+	if p.verb == pickBookmark {
+		if h, ok := m.keys.Hint(help.ActionBookmarkBackwards); ok {
+			h.What, h.Off, h.Priority = "allow backwards", !p.backwards, prioPlace
+			hints = append(hints, h)
+		}
 	}
 
 	if p.verb == pickDuplicate {

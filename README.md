@@ -112,6 +112,8 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |
 | `bb` / `bc` | the bookmark list (set, advance, create, rename, delete, forget, track, push), or create one on the revision |
+| `bs` / `ba` | move a bookmark to the revision in the picker, the graph previewed before `Enter` moves it (`-B` is `--allow-backwards`, which jj needs for a move backwards or sideways), or tug the nearest bookmark below up to it (`jj bookmark advance`) |
+| `br` / `bd` / `bf` / `bt` / `bx` | rename, delete, or forget a bookmark on the revision (asking which when it has several), track or untrack its remote bookmark, or settle a conflicted one in the picker |
 | `o` | the operation log, drawing the log as it stood at the operation under the cursor: `Enter` restores (after a confirmation), `u` reverts that operation, `p` shows its diff |
 | `[o` / `]o` | step the log back or forward one operation, read-only: `Enter` restores to it, `o` opens the op log there, `Esc` comes back to now |
 | `gh` / `gw` / `gm` | the forge pane, the workspaces, or every jj and gh command this session ran: the exact line, how it ended, `Enter` for all of its stderr, `Y` to copy it as a shell line, `u` to undo a write, `r` for the reads too |

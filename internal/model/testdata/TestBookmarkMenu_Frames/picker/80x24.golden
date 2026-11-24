@@ -1,0 +1,24 @@
+  wkwyyxvq          (no description set)               2f +14 -3                
+  rnzxmskv  parse*  ◂ parse parse: read the new h…      6f +0 -0                
+  koopqtrk          refactor: split the reader                                  
+  twnsvwmr          test: cover the fallbacks                                   
+  nptwozlo          release 0.13.0                                              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ parse: read the new header format                                              
+jj bookmark set parse -r rnzxmskv · preview                                     
+-B allow backwards  p show before  enter bookmark set  esc cancel               

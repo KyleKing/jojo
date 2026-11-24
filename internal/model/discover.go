@@ -48,6 +48,8 @@ const (
 type logState struct {
 	cursor *jj.Revision
 	wc     *jj.Revision
+	// below is the first local bookmark on the row right under the cursor, which b a tugs up.
+	below string
 	// checked counts the checked revisions, and empty says the revset matched nothing.
 	checked int
 	empty   bool
@@ -64,6 +66,8 @@ type logState struct {
 // state is the log as the coach's rules read it.
 func (m Model) state() logState {
 	s := logState{cursor: m.log.Selected(), checked: len(m.log.Checked()), empty: m.loaded() && !m.anyRevision()}
+
+	s.below = m.bookmarkBelow()
 
 	for _, row := range m.rows {
 		if row.Revision != nil && row.Revision.WorkingCopy {
@@ -87,6 +91,33 @@ func (m Model) state() logState {
 	}
 
 	return s
+}
+
+// bookmarkBelow is the first local bookmark on the revision drawn right under the cursor, "" when it
+// has none: the bookmark a commit on top of it has left behind.
+func (m Model) bookmarkBelow() string {
+	cursor := m.log.Selected()
+	if cursor == nil {
+		return ""
+	}
+
+	for i, row := range m.rows {
+		if row.Revision == nil || row.Revision.ChangeID != cursor.ChangeID {
+			continue
+		}
+
+		for _, next := range m.rows[i+1:] {
+			if next.Revision != nil {
+				if len(next.Revision.LocalBookmarks) > 0 && !next.Revision.Immutable {
+					return next.Revision.LocalBookmarks[0]
+				}
+
+				return ""
+			}
+		}
+	}
+
+	return ""
 }
 
 // loaded reports whether a log read has landed, so an empty log before the first is not taken for a
@@ -125,7 +156,7 @@ func logRules() []coach.Rule[logState] {
 	}
 	says := func(text string) func(logState) string { return func(logState) string { return text } }
 
-	return append(readRules(), []coach.Rule[logState]{
+	return append(append(readRules(), bookmarkRules()...), []coach.Rule[logState]{
 		{
 			ID: "jojo.resolve", Action: help.ActionResolve, Tone: coach.Do, Priority: rankFirst,
 			When: cursorIs(func(r *jj.Revision) bool { return r.Conflict }),
@@ -155,13 +186,6 @@ func logRules() []coach.Rule[logState] {
 			},
 			Why: says("rebase what is stacked on it onto trunk (-s, then gt), then submit again"),
 			Cmd: "jj rebase -s <child> -o trunk()",
-		},
-		{
-			ID: "jojo.bookmark-split", Action: help.ActionBookmarks, Tone: coach.Do,
-			When: func(s logState) bool { return s.split },
-			Say:  says("a bookmark here moved both ways"),
-			Why:  says("the bookmark list resolves it to one side"),
-			Cmd:  "jj bookmark list",
 		},
 		{
 			ID: "jojo.empty-log", Action: help.ActionRevset, Tone: coach.Do,
@@ -215,6 +239,34 @@ func logRules() []coach.Rule[logState] {
 			Cmd: "jj abandon <rev>",
 		},
 	}...)
+}
+
+// bookmarkRules are the next steps a bookmark under the cursor suggests: settling one that moved
+// both ways, and tugging one a commit on top has left behind.
+func bookmarkRules() []coach.Rule[logState] {
+	says := func(text string) func(logState) string { return func(logState) string { return text } }
+
+	return []coach.Rule[logState]{
+		{
+			ID: "jojo.bookmark-split", Action: help.ActionBookmarkResolve, Tone: coach.Do,
+			When: func(s logState) bool { return s.split },
+			Say:  says("a bookmark here moved both ways"),
+			Why:  says("pick the side it settles on"),
+			Cmd:  "jj bookmark set <name> -r <rev>",
+		},
+		{
+			ID: "jojo.tug", Action: help.ActionBookmarkAdvance, Tone: coach.Could,
+			When: func(s logState) bool {
+				r := s.cursor
+
+				return s.below != "" && r != nil && len(r.LocalBookmarks) == 0 && !r.Immutable && !r.Empty &&
+					r.Description != ""
+			},
+			Say: func(s logState) string { return s.below + " sits just below " + shortID(s.cursor) },
+			Why: says("tug it up to here before you push"),
+			Cmd: "jj bookmark advance --to <rev>",
+		},
+	}
 }
 
 // logTips are keys worth knowing that a reader may not reach for, in the order to teach them: the
@@ -283,6 +335,10 @@ func (m Model) gate(action string) keys.Availability {
 		return m.submitGate()
 	}
 
+	if m.pick.active {
+		return m.pickGate(action)
+	}
+
 	if m.screen() != keys.Log {
 		return keys.Allow()
 	}
@@ -294,6 +350,10 @@ func (m Model) gate(action string) keys.Availability {
 		}
 
 		return keys.Allow()
+	}
+
+	if a, ok := bookmarkGate(action, rev); ok {
+		return a
 	}
 
 	return m.revisionGate(action, rev)
@@ -358,7 +418,10 @@ var revisionVerbs = map[string]bool{
 	keys.ActionDescribeEditor: true, help.ActionCommit: true, help.ActionSquash: true, help.ActionSplit: true,
 	help.ActionDuplicate: true, help.ActionRebase: true, help.ActionRebaseSubtree: true, help.ActionRestore: true,
 	help.ActionAbandon: true, help.ActionAbsorb: true, help.ActionResolve: true, help.ActionPush: true,
-	help.ActionBookmarkCreate: true, keys.ActionInspect: true, keys.ActionYank: true, help.ActionCheck: true,
+	help.ActionBookmarkCreate: true, help.ActionBookmarkSet: true, help.ActionBookmarkAdvance: true,
+	help.ActionBookmarkRename: true, help.ActionBookmarkDelete: true, help.ActionBookmarkForget: true,
+	help.ActionBookmarkTrack: true, help.ActionBookmarkResolve: true,
+	keys.ActionInspect: true, keys.ActionYank: true, help.ActionCheck: true,
 }
 
 // refuse answers a press of action that the gate refuses, reporting whether it did: the status line
@@ -529,7 +592,7 @@ func (m Model) openWithFlags(action string, letters []string) (tea.Model, tea.Cm
 		sources = []string{rev.ChangeID}
 	case pickNew:
 		sources = m.log.Checked()
-	case pickRebase, pickSquash, pickDuplicate:
+	case pickRebase, pickSquash, pickDuplicate, pickBookmark:
 	}
 
 	if action == help.ActionRebaseSubtree {

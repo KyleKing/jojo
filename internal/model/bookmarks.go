@@ -83,9 +83,14 @@ func (m Model) handleBookmarkMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 // askBookmarkName collects a name for a bookmark verb the panel cannot supply one for.
 func (m Model) askBookmarkName(title string, then submitted) Model {
+	return m.askBookmarkNameFrom(title, "", then)
+}
+
+// askBookmarkNameFrom is askBookmarkName with the field seeded, which a rename seeds with the old name.
+func (m Model) askBookmarkNameFrom(title, initial string, then submitted) Model {
 	m.bookmarks.Close()
 	m.onSubmit = then
-	m.prompt.Open(title, "")
+	m.prompt.Open(title, initial)
 
 	return m
 }

@@ -65,6 +65,13 @@ f        fetch                                                      jj git fetch
 P        push the revision's bookmarks                              jj git push -r <revs>
 bb       bookmarks: the list                                        jj bookmark list
 bc       create a bookmark here                                     jj bookmark create <name> -r <rev>
+bs       set: move a bookmark here, previewed (-B: backwards)       jj bookmark set <name> -r <rev> [--allow-backwards]
+ba       advance: tug the nearest bookmark below up to here         jj bookmark advance --to <rev>
+br       rename a bookmark here                                     jj bookmark rename <old> <new>
+bd       delete a bookmark here (the remote's on the next push)     jj bookmark delete <name>
+bf       forget a bookmark here (nothing to push)                   jj bookmark forget <name>
+bt       track or untrack a remote bookmark here                    jj bookmark track/untrack <name>@<remote>
+bx       resolve a conflicted bookmark: pick where it goes          jj bookmark set <name> -r <rev>
 L        edit the revset                                            jj log -r <revset>
 gh       forge pane: pull requests and CI                           
 gw       workspaces                                                 jj workspace list

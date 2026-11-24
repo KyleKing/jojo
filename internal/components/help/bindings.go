@@ -30,6 +30,12 @@ const (
 	Submit
 )
 
+// PickBookmark is the in-log picker moving a bookmark (b s, b x). Aragonite's sixteen context bits
+// are all spoken for, eight by the family and eight by the screens above, so it borrows Select: a
+// screen choosing hunks inside a diff, which jojo hands to jj-diff and never reports itself.
+// The help's sharedContexts keeps the diff vocabulary off it, so the borrowed bit answers only the picker's keys.
+const PickBookmark = keys.Select
+
 // PickVerbs maps each picker screen to the aragonite verb whose flags it offers.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
@@ -45,7 +51,7 @@ var PickVerbs = map[keys.Context]string{
 const keyEnter = "enter"
 
 // pickScreens is every picker screen.
-const pickScreens = PickRebase | PickSquash | PickDuplicate | PickNew | PickRestore
+const pickScreens = PickRebase | PickSquash | PickDuplicate | PickNew | PickRestore | PickBookmark
 
 // Actions jojo adds to the shared vocabulary. Shared actions keep aragonite's names (keys.Action*),
 // so a [keys] rebind written for jj-diff or second-look means the same thing here.
@@ -77,13 +83,24 @@ const (
 	ActionPush           = "push"
 	ActionBookmarks      = "bookmarks"
 	ActionBookmarkCreate = "bookmark-create"
-	ActionRevset         = "revset"
-	ActionCheck          = "check"
-	ActionParallelize    = "parallelize"
-	ActionBisect         = "bisect"
-	ActionWorkingCopy    = "working-copy"
-	ActionForge          = "forge"
-	ActionWorkspaces     = "workspaces"
+	// The b menu's verbs on the revision under the cursor.
+	ActionBookmarkSet     = "bookmark-set"
+	ActionBookmarkAdvance = "bookmark-advance"
+	ActionBookmarkRename  = "bookmark-rename"
+	ActionBookmarkDelete  = "bookmark-delete"
+	ActionBookmarkForget  = "bookmark-forget"
+	ActionBookmarkTrack   = "bookmark-track"
+	ActionBookmarkResolve = "bookmark-resolve"
+	// ActionBookmarkBackwards is the bookmark picker's -B, jj's --allow-backwards, spelled as a flag
+	// action so it reads like every other picker's.
+	ActionBookmarkBackwards = "bookmark-flag-B"
+	ActionRevset            = "revset"
+	ActionCheck             = "check"
+	ActionParallelize       = "parallelize"
+	ActionBisect            = "bisect"
+	ActionWorkingCopy       = "working-copy"
+	ActionForge             = "forge"
+	ActionWorkspaces        = "workspaces"
 
 	ActionPickApply   = "pick-apply"
 	ActionPickClear   = "pick-clear"
@@ -259,7 +276,7 @@ func sharedContexts(b keys.Binding) keys.Context {
 		ctx |= Outline
 	case keys.ActionAgain, keys.ActionReverse:
 		// The repeats step a diff's motions; nowhere else in jojo has one to repeat.
-		return keys.Diff
+		return keys.Diff &^ PickBookmark
 	case keys.NextAction(keys.ObjHunk), keys.PrevAction(keys.ObjHunk),
 		keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
 		ctx |= Outline
@@ -279,6 +296,12 @@ func sharedContexts(b keys.Binding) keys.Context {
 		if b.Contexts == 0 && !slices.Contains(only.actions, b.Action) {
 			ctx &^= only.screen
 		}
+	}
+
+	// The bookmark picker's bit is borrowed from Select (see PickBookmark), which every diff binding
+	// names, so only the picker's own keys keep it.
+	if !slices.Contains(pickerOnly, b.Action) {
+		ctx &^= PickBookmark
 	}
 
 	return ctx
@@ -331,6 +354,13 @@ func logBindings() []keys.Binding {
 		b(ActionPush, GroupRepo, "push the revision's bookmarks", "push", "P"),
 		b(ActionBookmarks, GroupRepo, "bookmarks: the list", "bookmarks", "b b"),
 		b(ActionBookmarkCreate, GroupRepo, "create a bookmark here", "", "b c"),
+		b(ActionBookmarkSet, GroupRepo, "set: move a bookmark here, previewed (-B: backwards)", "", "b s"),
+		b(ActionBookmarkAdvance, GroupRepo, "advance: tug the nearest bookmark below up to here", "", "b a"),
+		b(ActionBookmarkRename, GroupRepo, "rename a bookmark here", "", "b r"),
+		b(ActionBookmarkDelete, GroupRepo, "delete a bookmark here (the remote's on the next push)", "", "b d"),
+		b(ActionBookmarkForget, GroupRepo, "forget a bookmark here (nothing to push)", "", "b f"),
+		b(ActionBookmarkTrack, GroupRepo, "track or untrack a remote bookmark here", "", "b t"),
+		b(ActionBookmarkResolve, GroupRepo, "resolve a conflicted bookmark: pick where it goes", "", "b x"),
 		b(ActionRevset, GroupRepo, "edit the revset", "revset", "L"),
 		withContexts(b(ActionWorkingCopy, keys.GroupMove, "jump to the working copy", "@", "@"),
 			keys.Log|keys.Picker|pickScreens),
@@ -351,6 +381,11 @@ func modeBindings() []keys.Binding {
 		{
 			Action: ActionPickApply, Keys: []string{keyEnter}, What: "run it", Group: GroupPicker,
 			Contexts: keys.Picker | pickScreens,
+		},
+		{
+			Action: ActionBookmarkBackwards, Keys: []string{"- B"},
+			What: "allow moving it backwards or sideways (--allow-backwards)", Short: "--allow-backwards",
+			Group: "Flags", Contexts: PickBookmark,
 		},
 		{
 			Action: ActionPickClear, Keys: []string{"backspace"}, What: "back to jj's default destination",

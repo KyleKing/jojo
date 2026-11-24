@@ -221,6 +221,53 @@ var abouts = map[string]about{
 		cmd: "jj bookmark create <name> -r <rev>", also: []string{"branch", "checkout -b", "tag"},
 		prose: "Names the revision with a new bookmark, jj's word for a branch.",
 	},
+	ActionBookmarkSet: {
+		cmd:  "jj bookmark set <name> -r <rev> [--allow-backwards]",
+		also: []string{"branch -f", "move branch", "reset branch", "update-ref", "point branch"},
+		prose: "Moves a bookmark onto the revision under the cursor, in the picker, so the graph shows " +
+			"where it lands before enter moves it. jj refuses to move one backwards or sideways; -B " +
+			"(--allow-backwards) says you mean it.",
+		related: []string{ActionBookmarkAdvance, ActionBookmarkCreate},
+	},
+	ActionBookmarkAdvance: {
+		cmd: "jj bookmark advance --to <rev>", also: []string{"tug", "fast-forward", "merge --ff-only", "branch -f"},
+		prose: "Pulls the nearest bookmark below the cursor up to it: the tug a stack's branch needs " +
+			"after you commit on top of it, since a bookmark never moves by itself.",
+		related: []string{ActionBookmarkSet, ActionPush},
+	},
+	ActionBookmarkRename: {
+		cmd: "jj bookmark rename <old> <new>", also: []string{"branch -m", "rename branch"},
+		prose: "Renames a bookmark on the revision. The remote keeps the old name until the next push.",
+	},
+	ActionBookmarkDelete: {
+		cmd: "jj bookmark delete <name>", also: []string{"branch -d", "delete branch", "push --delete"},
+		prose:   "Deletes a bookmark here; the next push deletes it on the remote too.",
+		related: []string{ActionBookmarkForget},
+	},
+	ActionBookmarkForget: {
+		cmd: "jj bookmark forget <name>", also: []string{"branch -D", "forget branch"},
+		prose:   "Forgets a bookmark here, its remote-tracking refs with it, without a deletion to push.",
+		related: []string{ActionBookmarkDelete},
+	},
+	ActionBookmarkTrack: {
+		cmd:  "jj bookmark track/untrack <name>@<remote>",
+		also: []string{"branch --set-upstream-to", "branch -u", "--unset-upstream", "upstream"},
+		prose: "Tracks a remote bookmark on the revision, so fetch moves the local one with it, or stops " +
+			"tracking one already tracked.",
+		related: []string{ActionFetch},
+	},
+	ActionBookmarkResolve: {
+		cmd: "jj bookmark set <name> -r <rev>", also: []string{"diverged branch", "conflicted bookmark", "conflict"},
+		prose: "A bookmark that moved both ways (here and on a remote, or in two workspaces) is " +
+			"conflicted until something sets it. This opens the picker on it: move the cursor to the " +
+			"side to keep and press enter.",
+		related: []string{ActionBookmarkSet, ActionFetch},
+	},
+	ActionBookmarkBackwards: {
+		cmd: "jj bookmark set --allow-backwards", also: []string{"force", "branch --force"},
+		prose: "Lets the bookmark move to a revision that is not a descendant of where it is: backwards, " +
+			"or onto another branch.",
+	},
 	ActionRevset: {
 		cmd: "jj log -r <revset>", also: []string{"filter", "query", "log"},
 		prose: "Edits which revisions the log shows, in jj's revset language; tab completes.",

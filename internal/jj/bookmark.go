@@ -82,7 +82,28 @@ func (b Bookmark) Ref() string {
 
 // BookmarkSet creates name or moves it onto rev, which is the one verb that covers both.
 func (c *Client) BookmarkSet(ctx context.Context, name, rev string) (string, error) {
-	return c.mutate(ctx, "bookmark", "set", name, "-r", rev)
+	return c.mutate(ctx, BookmarkSetArgs(name, rev, false)...)
+}
+
+// BookmarkSetArgs is the invocation moving name onto rev. A move to anything but a descendant
+// (backwards or sideways) is refused by jj unless backwards says --allow-backwards, which is what the
+// bookmark picker's -B adds.
+func BookmarkSetArgs(name, rev string, backwards bool) []string {
+	args := []string{"bookmark", "set", name, "-r", rev}
+	if backwards {
+		args = append(args, "--allow-backwards")
+	}
+
+	return args
+}
+
+// backwardsRefusal is jj's words refusing to move a bookmark backwards or sideways, which --allow-backwards
+// overrides.
+const backwardsRefusal = "backwards or sideways"
+
+// IsBackwards reports whether err is jj refusing to move a bookmark backwards or sideways.
+func IsBackwards(err error) bool {
+	return err != nil && strings.Contains(FullOutput(err), backwardsRefusal)
 }
 
 // BookmarkRename renames a local bookmark, leaving its remote counterparts alone until the next push.
