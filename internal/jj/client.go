@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 )
 
 // defaultRevsetFallback is jj's own built-in default for revsets.log, used when the config key
@@ -20,8 +21,11 @@ type Client struct {
 	// queue serializes every jj invocation, including the reads, because a snapshot taken while a
 	// write is still running diverges the op heads and strands the checkout. A channel rather than
 	// a mutex, so the copy IgnoringImmutable returns shares the one queue with its source.
-	queue   chan struct{}
-	baseDir string
+	queue chan struct{}
+	// linksUnsafe is set once a preview sandbox has seen a file it hard-linked change, after which
+	// this client's sandboxes copy instead. A pointer, so IgnoringImmutable's copy shares it.
+	linksUnsafe *atomic.Bool
+	baseDir     string
 	// ignoreImmutable adds --ignore-immutable to every write. jj refuses to rewrite immutable
 	// revisions for a reason, so only a client built by IgnoringImmutable sets it.
 	ignoreImmutable bool
@@ -39,7 +43,7 @@ func (c *Client) IgnoringImmutable() *Client {
 // NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
 // call acts on.
 func NewClient(baseDir string) *Client {
-	return &Client{baseDir: baseDir, queue: make(chan struct{}, 1)}
+	return &Client{baseDir: baseDir, queue: make(chan struct{}, 1), linksUnsafe: &atomic.Bool{}}
 }
 
 // CheckInstalled reports whether a jj binary is on PATH. It deliberately does not run jj: every

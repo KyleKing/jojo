@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,17 +30,34 @@ import (
 // preview writes lands in the sandbox. The original's op heads, refs, working copy, and user config
 // stay byte for byte what they were.
 type Sandbox struct {
+	// unsafe is the client's record that a link has been seen to change, and linked every file the
+	// copy shares with the repository by hard link, as it stood when linked.
+	unsafe *atomic.Bool
 	dir    string
 	ws     string
 	config string
 	// base is the operation the sandbox was copied at, which the restore fallback returns to.
-	base string
-	mu   sync.Mutex
+	base   string
+	linked []linkedFile
+	mu     sync.Mutex
 	// integrates is set once jj has refused --no-integrate-operation, which only jj 0.47 and later
 	// accept. Each preview is then undone with op restore instead.
 	integrates bool
 	closed     bool
 }
+
+// linkedFile is a repository file the sandbox shares by hard link, with the size and modification
+// time it had then. A write through either name changes both, which is how Verify sees one.
+type linkedFile struct {
+	mod  time.Time
+	path string
+	size int64
+}
+
+// ErrLinkRewritten is what Verify and Close report when a file the sandbox shares with the
+// repository by hard link changed: some jj wrote one of them in place, which this package assumes no
+// jj does, so a preview may have written into the repository. The client's later sandboxes copy.
+var ErrLinkRewritten = errors.New("a file the preview sandbox hard-linked from the repository changed in place")
 
 // Preview is the log a write would leave behind.
 type Preview struct {
@@ -93,7 +111,7 @@ func (c *Client) OpenSandbox(ctx context.Context) (*Sandbox, error) {
 	parent := sandboxParent()
 	sweepSandboxes(parent, time.Now())
 
-	return buildSandbox(ctx, strings.TrimSpace(root), parent, config)
+	return buildSandbox(ctx, strings.TrimSpace(root), parent, config, c.linksUnsafe)
 }
 
 // scopedConfig is the repository's and the workspace's own settings as one TOML document. The
@@ -114,7 +132,7 @@ func (c *Client) scopedConfig(ctx context.Context) (string, error) {
 	return out.String(), nil
 }
 
-func buildSandbox(ctx context.Context, root, parent, config string) (*Sandbox, error) {
+func buildSandbox(ctx context.Context, root, parent, config string, unsafe *atomic.Bool) (*Sandbox, error) {
 	repo, err := repoDir(root)
 	if err != nil {
 		return nil, err
@@ -134,7 +152,9 @@ func buildSandbox(ctx context.Context, root, parent, config string) (*Sandbox, e
 		return nil, fmt.Errorf("preview sandbox: %w", err)
 	}
 
-	s := &Sandbox{dir: dir, ws: filepath.Join(dir, "ws"), config: filepath.Join(dir, "config.toml")}
+	s := &Sandbox{
+		dir: dir, ws: filepath.Join(dir, "ws"), config: filepath.Join(dir, "config.toml"), unsafe: unsafe,
+	}
 
 	if err := s.populate(root, repo, objects, config); err != nil {
 		_ = os.RemoveAll(dir) //nolint:errcheck // the populate failure is the error worth reporting.
@@ -163,9 +183,13 @@ func (s *Sandbox) populate(root, repo, objects, config string) error {
 	}
 
 	sandboxRepo := filepath.Join(s.ws, ".jj", "repo")
-	if err := copyTree(repo, sandboxRepo); err != nil {
+
+	linked, err := copyTree(repo, sandboxRepo, !s.unsafe.Load())
+	if err != nil {
 		return fmt.Errorf("preview sandbox: %w", err)
 	}
+
+	s.linked = linked
 
 	target := filepath.Join(sandboxRepo, "store", "git_target")
 	if err := os.Remove(target); err != nil {
@@ -329,8 +353,11 @@ var skipped = map[string]bool{"config-id": true, "config.toml": true, "lock": tr
 var copied = map[string]bool{"op_heads": true, filepath.Join("store", "extra", "heads"): true}
 
 // copyTree mirrors src under dst. Content-addressed files are hard linked, which costs no space and
-// no time on a large op log, and fall back to a copy across filesystems.
-func copyTree(src, dst string) error {
+// no time on a large op log, and fall back to a copy across filesystems or once a link has been seen
+// to change (link false). It returns the files it linked, for Verify.
+func copyTree(src, dst string, link bool) ([]linkedFile, error) {
+	var linked []linkedFile
+
 	//nolint:gosec // G122: src is jj's own .jj/repo and dst a directory this process just created.
 	err := filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -352,18 +379,43 @@ func copyTree(src, dst string) error {
 			return nil
 		}
 
-		if copied[filepath.Dir(rel)] || filepath.Dir(rel) == "." || filepath.Dir(rel) == "store" {
+		if copied[filepath.Dir(rel)] || filepath.Dir(rel) == "." || filepath.Dir(rel) == "store" || !link {
 			return copyFile(path, target)
 		}
 
-		if os.Link(path, target) == nil {
-			return nil
+		info, err := entry.Info()
+		if err != nil || os.Link(path, target) != nil {
+			return copyFile(path, target)
 		}
 
-		return copyFile(path, target)
+		linked = append(linked, linkedFile{path: path, size: info.Size(), mod: info.ModTime()})
+
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("copying %s: %w", src, err)
+		return nil, fmt.Errorf("copying %s: %w", src, err)
+	}
+
+	return linked, nil
+}
+
+// Verify checks that no file the sandbox shares with the repository by hard link has changed since
+// it was linked. The sandbox is only safe because jj adds its content-addressed files beside the old
+// ones and never rewrites one, and this is the check that a jj release has not started to. It costs
+// a stat per linked file, so it runs once per sandbox, at Close, rather than per preview.
+func (s *Sandbox) Verify() error {
+	for _, file := range s.linked {
+		info, err := os.Stat(file.path)
+		if err != nil {
+			// jj never deletes these either, but a deleted file wrote nothing through the link.
+			continue
+		}
+
+		if info.Size() != file.size || !info.ModTime().Equal(file.mod) {
+			s.unsafe.Store(true)
+
+			return fmt.Errorf("%w: %s", ErrLinkRewritten, file.path)
+		}
 	}
 
 	return nil
@@ -425,7 +477,8 @@ func sweepSandboxes(parent string, now time.Time) {
 // Dir is where the sandbox lives, which a test reads to prove Close removed it.
 func (s *Sandbox) Dir() string { return s.dir }
 
-// Close removes the sandbox. It waits for a preview already running, and every later preview fails.
+// Close removes the sandbox, first checking that no preview wrote through a hard link (Verify). It
+// waits for a preview already running, and every later preview fails.
 func (s *Sandbox) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -435,12 +488,13 @@ func (s *Sandbox) Close() error {
 	}
 
 	s.closed = true
+	verified := s.Verify()
 
 	if err := os.RemoveAll(s.dir); err != nil {
-		return fmt.Errorf("removing the preview sandbox: %w", err)
+		return errors.Join(verified, fmt.Errorf("removing the preview sandbox: %w", err))
 	}
 
-	return nil
+	return verified
 }
 
 // uncommitted is how jj names the operation --no-integrate-operation left out of the op log.

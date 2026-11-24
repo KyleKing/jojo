@@ -110,6 +110,15 @@ lands in the sandbox's git repository. Each preview runs the write with
 `jj log --at-op` the operation it printed. A jj without that flag falls back to `op restore`
 inside the sandbox.
 
+That safety rests on jj never rewriting a content-addressed file in place, which is jj's
+behavior rather than its promise, so it is checked twice. The sandbox records the size and
+modification time of every file it linked, and `Close` compares them when the picker closes: a
+change says a preview may have written into the repository, the footer says so, and that
+client's later sandboxes copy instead of link. And
+`TestSandbox_EveryPreviewVerbLeavesTheLinkedFilesAlone` runs each picker verb against the
+installed jj and fails on a jj newer than `linkVerifiedJJ` (0.47) until someone has re-checked
+the op store and index and bumped it.
+
 The alternatives each wrote to the repository. Applying the command and then `jj op restore`
 leaves both operations in the log, so the next `u` undoes the restore and brings the preview
 back, and a restore would also discard anything another process wrote in between.

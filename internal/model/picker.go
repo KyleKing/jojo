@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -210,11 +211,7 @@ func (m *Model) closePicker() tea.Cmd {
 		return nil
 	}
 
-	return func() tea.Msg {
-		_ = sandbox.Close() //nolint:errcheck // a sandbox that will not delete is swept on a later start.
-
-		return nil
-	}
+	return closeSandbox(sandbox)
 }
 
 // handleModeMsg covers the background work of the picker and of time travel.
@@ -298,7 +295,11 @@ func closeSandbox(sandbox *jj.Sandbox) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		_ = sandbox.Close() //nolint:errcheck // a sandbox that will not delete is swept on a later start.
+		// A sandbox that will not delete is swept on a later start, so only a link that changed is
+		// worth the footer: a preview may have written into the repository, and jj op log says.
+		if err := sandbox.Close(); errors.Is(err, jj.ErrLinkRewritten) {
+			return messageMsg{text: err.Error() + "; check jj op log", output: err.Error()}
+		}
 
 		return nil
 	}
