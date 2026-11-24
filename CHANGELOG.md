@@ -1,3 +1,16 @@
+## v0.20.0 (2026-11-24)
+
+### Feat
+
+- **reads**: keep read marks in the full-screen diff too
+
+### Fix
+
+- **reads**: file read marks under the full change id, not the shortest prefix
+- **outline**: keep 24 cells of description beside the dock, dropping the size first
+- **stack**: list each gh call of a submit plan exactly as it runs, --repo included
+- **test**: run every test in a home of its own and fail a run that reaches the real one
+
 ## v0.19.0 (2026-11-24)
 
 ### Feat
