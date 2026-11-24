@@ -50,9 +50,7 @@ type dockLoadedMsg struct {
 	prose    string
 	cacheKey string
 	hunks    []readmark.Hunk
-	// paint is the diff already drawn in color off the loop, or on its way.
-	paint diffpane.Paint
-	seq   int
+	seq      int
 }
 
 // toggleDock opens the diff beside the log, reading the revision under the cursor at once, or closes
@@ -86,7 +84,7 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 
 	m.dockSeq++
 	m.rounds.at = -1
-	client, ctx, seq, id, painter := m.client, m.ctx, m.dockSeq, rev.ChangeID, m.dockPainter()
+	client, ctx, seq, id := m.client, m.ctx, m.dockSeq, rev.ChangeID
 
 	return func() tea.Msg {
 		text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: id})
@@ -94,9 +92,7 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 			return dockLoadedMsg{revision: id, err: err, seq: seq}
 		}
 
-		return dockLoadedMsg{
-			revision: id, text: text, seq: seq, hunks: readmark.Hunks(text), paint: painter.Paint(text),
-		}
+		return dockLoadedMsg{revision: id, text: text, seq: seq, hunks: readmark.Hunks(text)}
 	}
 }
 
@@ -123,20 +119,18 @@ func (m Model) handleDockMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, cmd, true
 	case dockLoadedMsg:
-		next, cmd := m.showDock(msg)
-
-		return next, cmd, true
+		return m.showDock(msg), nil, true
 	}
 
 	return m, nil, false
 }
 
 // showDock keeps the file the reader was in when the new revision touches it, and drops a read the
-// cursor has already moved past, which would otherwise flash an old revision over the new one. The
-// command delivers the diff's colors when they were not ready by the time it was read.
-func (m Model) showDock(msg dockLoadedMsg) (Model, tea.Cmd) {
+// cursor has already moved past, which would otherwise flash an old revision over the new one. Its
+// colors follow through Colorize, which Update asks for after every update.
+func (m Model) showDock(msg dockLoadedMsg) Model {
 	if msg.seq != m.dockSeq || !m.docked {
-		return m, nil
+		return m
 	}
 
 	if msg.err != nil {
@@ -144,29 +138,20 @@ func (m Model) showDock(msg dockLoadedMsg) (Model, tea.Cmd) {
 			m.fail(msg.err)
 		}
 
-		return m, nil
+		return m
 	}
 
 	if msg.cacheKey != "" {
 		m.interdiffs[msg.cacheKey] = msg.text
 		m.showDockText(msg.title, msg.prose+msg.text, "")
 
-		return m, nil
+		return m
 	}
-
-	cmd := m.dock.Accept(msg.paint)
 
 	m.noteRead(msg.revision, msg.hunks)
 	m.showDockText("diff "+msg.revision, msg.text, m.dock.CurrentPath())
 
-	return m, cmd
-}
-
-// dockPainter is how the dock would draw a diff at its current size, for a read to draw off the loop.
-func (m Model) dockPainter() diffpane.Painter {
-	width, _ := m.dockSize()
-
-	return m.dock.Painter(diffpane.DockWidth(width))
+	return m
 }
 
 // showDockText draws text in the dock under title, landing on keep's file when the text has it.

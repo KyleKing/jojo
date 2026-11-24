@@ -55,9 +55,11 @@ type Model struct {
 	// key is what the rows on show were drawn from, and plain that they were drawn without syntax
 	// colors, which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
 	colors *colorCache
-	key    drawKey
-	list   listview.Model[string]
-	width  int
+	// sheet is the diff on show as documents, while it is drawn plain and its colors are to come.
+	sheet *sheet
+	key   drawKey
+	list  listview.Model[string]
+	width int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
 	sideBySide bool
 	// docked draws the pane flat beside the log rather than framed over it, so its lines take the
@@ -102,22 +104,27 @@ func (m *Model) SetWidth(width int) {
 	m.list.Open(m.title, m.list.Items(), cursor)
 }
 
-// render draws the diff for the pane's width: in color when a colored copy is already kept, and
-// otherwise plain, leaving the colors to Colorize so the update loop never waits on a lexer.
+// render draws the diff for the pane's width: in color when a colored copy is already kept, or when
+// every file it touches was lexed before, and otherwise plain, leaving the colors to Colorize so the
+// update loop never waits on a lexer.
 func (m *Model) render() {
-	p := m.Painter(m.width)
-	key := p.withText(m.text)
+	key := m.keyFor(m.text)
+	m.key, m.sheet = key, nil
 
 	d, ok := m.colors.get(key)
 	if !ok {
-		var drawnOff bool
-		if d, drawnOff = m.colors.take(key); !drawnOff {
-			d = p.draw(key, false)
+		sh := m.parse(key)
+		d, ok = m.drawSheet(sh)
+
+		if ok {
+			m.colors.put(key, d)
+		} else {
+			m.sheet = sh
 		}
 	}
 
 	// A diff with no file in it has no code to color, only jj's prose.
-	m.key, m.plain = key, !ok && len(d.files) > 0
+	m.plain = !ok && len(d.files) > 0
 	m.files, m.paths, m.hunks = d.files, d.paths, d.hunks
 	m.list.Open(m.title, d.lines, 0)
 }

@@ -58,6 +58,8 @@ github.com/kyleking/jj-diff v0.8.0 h1:P9VlIoP1WRh6B9gyfefRy5gp0G5wtYiZTM0Eb8AM+2
 github.com/kyleking/jj-diff v0.8.0/go.mod h1:TSLKES+PvEuvLGiOPV2mLEiPJmydtuIHj8X75ok2WOk=
 github.com/kyleking/jj-diff v0.10.0 h1:86TVIG5yuq3yIIuwxcY20Bhx2tzoJhZyRD7Evi+hzkM=
 github.com/kyleking/jj-diff v0.10.0/go.mod h1:DNZN1vYqnVFe0ezQ4y5YBcipGttdvOAWPfb33wpv2o0=
+github.com/kyleking/jj-diff v0.10.1 h1:Re3flYDX5uvzhcBpdtJ2BeQK+wYIdG3sPxndHVV1hJg=
+github.com/kyleking/jj-diff v0.10.1/go.mod h1:bCdt9ec1icbRcKY+sHsMgbNi4ld//Q6pVq7N7VgkZXg=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-runewidth v0.0.31 h1:1oCV4ReTlosDBc6rYRw5cL8S/4y8iv5oRl4SJ5IBgwo=

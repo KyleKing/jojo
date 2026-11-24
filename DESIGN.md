@@ -167,9 +167,10 @@ think in git never presses the keys.
 below 100 columns) and the log keeps the keys. Every cursor move bumps a sequence number and waits
 120ms before reading, so holding `j` costs one jj call rather than one per row, and a read the
 cursor has already left is dropped when it lands. The new diff opens on the file the reader was in
-when the revision touches it, else on its first file. Syntax colors never cost the update loop: the
-read that fetches a diff also draws it, in color when the lexer finishes within 60ms and plain
-otherwise, with the colored rows swapped in on the same lines once they land. The pane keeps the last
+when the revision touches it, else on its first file. The lexer never runs on the update loop: a
+diff is a jj-diff `render.Document`, drawn with `Peek` (plain where a file is not lexed yet), and
+`Colorize` starts the lexers and returns a command that only waits for them, after which the rows
+are drawn again in color on the same lines. The pane keeps the last
 eight colored diffs, so stepping back to a revision just left draws it in color at once.
 
 **A stack is reviewed as chapters.** `I` reads the stack at the cursor (`outline_revset`, by

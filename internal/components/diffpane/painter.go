@@ -2,33 +2,26 @@ package diffpane
 
 import (
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/jj-diff/render"
-
-	"github.com/kyleking/jojo/internal/ui"
 )
 
 // Syntax colors cost a lexer pass over every file a diff touches, which is tens of milliseconds for
-// a small revision and over a second for a large one. The pane never pays that on the update loop:
-// it draws a diff plain, asks for the colored rows in the background, and swaps them in when they
-// land. A loader that reads a diff off the loop already can draw it there too (Painter.Paint), so a
-// small diff arrives colored and the pane never shows it plain at all.
-
-// colorBudget is how long Paint waits for the colored rows before handing over plain ones. It is
-// short enough that a diff waiting on it still lands within a frame or two of its read finishing,
-// and long enough that an ordinary revision never flashes plain before its colors.
-const colorBudget = 60 * time.Millisecond
+// a small revision and over a second for a large one. The pane never pays that on the update loop: a
+// diff is a render.Document per git segment, drawn with Peek, which never lexes and draws a file
+// plain until Start has lexed it. Colorize starts the lexers and answers a command that only waits
+// for them; Colored then draws the same documents again, on the loop, now in color. Peek draws the
+// same rows in the same places either way, so a cursor kept across the swap stays on its line.
 
 // coloredKeep is how many colored diffs a pane remembers, so stepping back to a revision the cursor
 // just left draws it in color at once rather than plain and then again.
 const coloredKeep = 8
 
-// ColoredMsg carries a diff drawn with syntax colors, lexed off the update loop. Docked names which
-// pane asked, since the full-screen pane and the dock can each be waiting.
+// ColoredMsg says the lexers of a diff a pane drew plain have finished, so its rows can be drawn
+// again in color. Docked names which pane asked, since the full-screen pane and the dock can each be
+// waiting.
 type ColoredMsg struct {
-	drawn  drawn
 	key    drawKey
 	docked bool
 }
@@ -48,31 +41,28 @@ type drawn struct {
 	hunks []int
 }
 
-// colorCache is the colored diffs a pane has, most recent last, and the ones still being drawn. It is
-// shared by every copy of the pane and only touched on the update loop.
-type colorCache struct {
-	order    []drawKey
-	rows     map[drawKey]drawn
-	inflight map[drawKey]bool
-	// plain is the one diff drawn plain off the loop while its colors are drawn, waiting for Show.
-	plain    drawn
-	plainKey drawKey
+// sheet is a diff parsed for drawing: its git segments as documents, and jj's prose between them as
+// lines, in order. A segment's doc is nil for prose.
+type sheet struct {
+	parts []part
 }
 
-// take returns the plain rows drawn off the loop for key, once, since only the next Show wants them.
-func (c *colorCache) take(key drawKey) (drawn, bool) {
-	if c.plainKey != key || c.plain.lines == nil {
-		return drawn{}, false
-	}
+type part struct {
+	doc   *render.Document
+	text  string
+	lines []string
+}
 
-	d := c.plain
-	c.plain, c.plainKey = drawn{}, drawKey{}
-
-	return d, true
+// colorCache is the colored diffs a pane has, most recent last, and the sheets still being lexed. It
+// is shared by every copy of the pane and only touched on the update loop.
+type colorCache struct {
+	rows     map[drawKey]drawn
+	inflight map[drawKey]*sheet
+	order    []drawKey
 }
 
 func newColorCache() *colorCache {
-	return &colorCache{rows: map[drawKey]drawn{}, inflight: map[drawKey]bool{}}
+	return &colorCache{rows: map[drawKey]drawn{}, inflight: map[drawKey]*sheet{}}
 }
 
 func (c *colorCache) get(key drawKey) (drawn, bool) {
@@ -82,8 +72,6 @@ func (c *colorCache) get(key drawKey) (drawn, bool) {
 }
 
 func (c *colorCache) put(key drawKey, d drawn) {
-	delete(c.inflight, key)
-
 	if _, ok := c.rows[key]; !ok {
 		c.order = append(c.order, key)
 	}
@@ -96,150 +84,122 @@ func (c *colorCache) put(key drawKey, d drawn) {
 	}
 }
 
-// Painter is what drawing a diff needs from a pane, copied out of it so a command can draw off the
-// update loop without reading the model.
-type Painter struct {
-	skin   ui.Skin
-	key    drawKey
-	docked bool
-}
-
-// Painter returns how this pane would draw a diff at width, which is what Show and Open take.
-func (m Model) Painter(width int) Painter {
-	lineWidth := m.list.InnerWidth(width)
+// keyFor is how this pane draws text at its width.
+func (m *Model) keyFor(text string) drawKey {
+	width := m.list.InnerWidth(m.width)
 	if m.docked {
-		lineWidth = width
+		width = m.width
 	}
 
-	return Painter{skin: m.skin, key: drawKey{width: lineWidth, sideBySide: m.sideBySide}, docked: m.docked}
+	return drawKey{text: text, width: width, sideBySide: m.sideBySide}
 }
 
-// Paint is a diff drawn by Painter.Paint: its colored rows if they were ready within the budget, else
-// its plain rows and a command that delivers the colored ones as a ColoredMsg once they are.
-type Paint struct {
-	plain drawn
-	later tea.Cmd
-	msg   ColoredMsg
-	ready bool
-}
+// Colorize starts lexing the diff on show when it is drawn plain and nothing is lexing it yet, and
+// answers a command that waits for the lexers and nothing else, since a Document is not safe to
+// draw from off the update loop. The parent calls it after every update, so whatever re-drew the pane
+// (a new diff, a resize, the side-by-side toggle) is colored without each path asking.
+func (m *Model) Colorize() tea.Cmd {
+	if !m.plain || !m.list.IsOpen() || m.sheet == nil {
+		return nil
+	}
 
-// Paint draws gitDiff in color, waiting up to the color budget for it. It is meant for a command
-// that has just read the diff in the background, so the wait never holds the update loop.
-func (p Painter) Paint(gitDiff string) Paint {
-	done := make(chan ColoredMsg, 1)
+	if _, waiting := m.colors.inflight[m.key]; waiting {
+		return nil
+	}
 
-	go func() { done <- p.colored(gitDiff) }()
+	m.colors.inflight[m.key] = m.sheet
 
-	timer := time.NewTimer(colorBudget)
-	defer timer.Stop()
+	var done []<-chan struct{}
 
-	select {
-	case msg := <-done:
-		return Paint{msg: msg, ready: true}
-	case <-timer.C:
-		key := p.withText(gitDiff)
-
-		return Paint{
-			msg:   ColoredMsg{key: key, docked: p.docked},
-			plain: p.draw(key, false),
-			later: func() tea.Msg { return <-done },
+	for _, p := range m.sheet.parts {
+		if p.doc != nil {
+			done = append(done, p.doc.Start())
 		}
 	}
+
+	msg := ColoredMsg{key: m.key, docked: m.docked}
+
+	return func() tea.Msg {
+		for _, ch := range done {
+			<-ch
+		}
+
+		return msg
+	}
 }
 
-// Accept takes a Paint for a diff about to be shown, so Show draws nothing itself: it finds the
-// colored rows, or the plain ones with the colors on their way. The command it returns delivers
-// colors that were not ready yet.
-func (m *Model) Accept(p Paint) tea.Cmd {
-	if p.ready {
-		m.colors.put(p.msg.key, p.msg.drawn)
-
-		return nil
-	}
-
-	if p.later == nil {
-		return nil
-	}
-
-	m.colors.inflight[p.msg.key] = true
-	m.colors.plain, m.colors.plainKey = p.plain, p.msg.key
-
-	return p.later
-}
-
-// Colorize asks for the colored rows of the diff on show, when it is drawn plain and nothing is
-// drawing them yet. The parent calls it after every update, so whatever re-drew the pane (a new
-// diff, a resize, the side-by-side toggle) is colored without each path asking.
-func (m *Model) Colorize() tea.Cmd {
-	if !m.plain || !m.list.IsOpen() || m.colors.inflight[m.key] {
-		return nil
-	}
-
-	m.colors.inflight[m.key] = true
-	p := Painter{skin: m.skin, key: m.key, docked: m.docked}
-
-	return func() tea.Msg { return p.colored(p.key.text) }
-}
-
-// Colored swaps in colored rows when they are for the diff on show, keeping the cursor, and keeps
-// them either way for a return to that diff.
+// Colored draws a diff whose lexers finished in color, swapping the rows in when it is the one on
+// show, keeping the cursor, and keeps them either way for a return to that diff.
 func (m *Model) Colored(msg ColoredMsg) {
 	if msg.docked != m.docked {
 		return
 	}
 
-	m.colors.put(msg.key, msg.drawn)
+	sh, ok := m.colors.inflight[msg.key]
+	if !ok {
+		return
+	}
+
+	delete(m.colors.inflight, msg.key)
+
+	d, _ := m.drawSheet(sh)
+	m.colors.put(msg.key, d)
 
 	if !m.plain || msg.key != m.key || !m.list.IsOpen() {
 		return
 	}
 
-	m.plain = false
-	m.files, m.paths, m.hunks = msg.drawn.files, msg.drawn.paths, msg.drawn.hunks
-	m.list.Open(m.title, msg.drawn.lines, m.list.Cursor())
+	m.plain, m.sheet = false, nil
+	m.files, m.paths, m.hunks = d.files, d.paths, d.hunks
+	m.list.Open(m.title, d.lines, m.list.Cursor())
 }
 
-func (p Painter) withText(text string) drawKey {
-	key := p.key
-	key.text = text
-
-	return key
-}
-
-func (p Painter) colored(text string) ColoredMsg {
-	key := p.withText(text)
-
-	return ColoredMsg{drawn: p.draw(key, true), key: key, docked: p.docked}
-}
-
-// draw renders key's diff, with syntax colors or without. Both draw the same rows in the same
-// places, since highlighting only colors what a row already holds, so a cursor kept across the swap
-// stays on the same line.
-func (p Painter) draw(key drawKey, syntax bool) drawn {
+// parse splits key's diff into documents and prose, rendering nothing yet.
+func (m *Model) parse(key drawKey) *sheet {
 	opts := render.Options{
 		Width:      key.width,
-		Palette:    paletteFor(p.skin),
-		Syntax:     syntax,
+		Palette:    paletteFor(m.skin),
+		Syntax:     true,
 		WordDiff:   true,
 		SideBySide: key.sideBySide,
-		SignBar:    p.skin.SignBar(),
+		SignBar:    m.skin.SignBar(),
 		HunkLabels: true,
 	}
 
-	var d drawn
+	sh := &sheet{}
 
 	for _, seg := range segments(key.text) {
 		if !seg.diff {
-			for _, line := range seg.lines {
-				d.lines = append(d.lines, prose(p.skin, line, key.width))
-			}
+			sh.parts = append(sh.parts, part{lines: seg.lines})
 
 			continue
 		}
 
 		text := strings.Join(seg.lines, "\n") + "\n"
-		rendered := render.Lines(text, opts)
-		bounds, paths := fileHeaders(text, rendered)
+		sh.parts = append(sh.parts, part{doc: render.New(text, opts), text: text})
+	}
+
+	return sh
+}
+
+// drawSheet draws every row of sh without lexing, and reports whether every file came out colored.
+func (m *Model) drawSheet(sh *sheet) (drawn, bool) {
+	var d drawn
+
+	colored := true
+
+	for _, p := range sh.parts {
+		if p.doc == nil {
+			for _, line := range p.lines {
+				d.lines = append(d.lines, prose(m.skin, line, m.keyWidth()))
+			}
+
+			continue
+		}
+
+		rendered, ok := p.doc.Peek(0, p.doc.Len())
+		colored = colored && ok
+		bounds, paths := fileHeaders(p.text, rendered)
 
 		for _, bound := range bounds {
 			d.files = append(d.files, bound+len(d.lines))
@@ -254,5 +214,8 @@ func (p Painter) draw(key drawKey, syntax bool) drawn {
 		d.lines = append(d.lines, rendered...)
 	}
 
-	return d
+	return d, colored
 }
+
+// keyWidth is the width prose lines are cut to, the same the documents draw at.
+func (m *Model) keyWidth() int { return m.keyFor("").width }

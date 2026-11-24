@@ -251,17 +251,20 @@ index 0000000..1111111 100644
 +func main() { println("new") }
 `
 
-// A revision read with its colors drawn shows in color on its first frame, and one read without them
-// shows plain while the update that drew it asks for them, so the update loop never lexes.
+// A revision shows plain while the update that drew it asks for its colors, which only wait for the
+// lexers, so the update loop never lexes; a return to it draws in color at once.
 func TestDock_ColorsArriveWithTheReadOrRightAfterIt(t *testing.T) {
 	t.Parallel()
 
 	m := dockedModel(t, 120, 20)
 	m.dockSeq++
-	painted := dockLoadedMsg{
-		revision: "bbbb", text: dockGoDiff, seq: m.dockSeq, paint: m.dockPainter().Paint(dockGoDiff),
+
+	next, lex := m.Update(dockLoadedMsg{revision: "bbbb", text: dockGoDiff, seq: m.dockSeq})
+	if lex == nil {
+		t.Fatal("a revision drawn plain did not ask for its colors")
 	}
-	m = asModel(t, update(m, painted))
+
+	m = asModel(t, update(asModel(t, next), lex()))
 	colored := strings.Join(m.dock.Lines(), "\n")
 
 	m.dockSeq++

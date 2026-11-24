@@ -83,21 +83,55 @@ func BenchmarkDock_Frame(b *testing.B) {
 	}
 }
 
-// BenchmarkDock_ShowRead times what the update loop pays for a revision the dock read in the
-// background, which draws it there too: in color when that fit the budget, else plain with the colors
-// following. Paint itself runs off the loop, so it is drawn once, outside the timer.
-func BenchmarkDock_ShowRead(b *testing.B) {
+// BenchmarkDock_ToColor times a revision from its text to its colored rows on show: drawn on the
+// update loop, colored by the command Colorize returns, and swapped in by Colored. It is the whole
+// wait a reader sees before the colors land.
+func BenchmarkDock_ToColor(b *testing.B) {
 	for _, size := range benchSizes {
 		text := benchDiff(size.files, size.lines)
-		paint := diffpane.NewDocked(ui.New(theme.Macchiato())).Painter(100).Paint(text)
 
 		b.Run(size.name, func(b *testing.B) {
 			b.ReportAllocs()
 
 			for i := range b.N {
 				m := diffpane.NewDocked(ui.New(theme.Macchiato()))
-				_ = m.Accept(paint)
 				m.Show(fmt.Sprintf("diff %d", i), text, 100, "")
+
+				if cmd := m.Colorize(); cmd != nil {
+					if msg, ok := cmd().(diffpane.ColoredMsg); ok {
+						m.Colored(msg)
+					}
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkDock_ToColorLoop is BenchmarkDock_ToColor less the command, which runs off the update loop:
+// what showing a revision and swapping its colors in costs the loop.
+func BenchmarkDock_ToColorLoop(b *testing.B) {
+	for _, size := range benchSizes {
+		text := benchDiff(size.files, size.lines)
+
+		b.Run(size.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for i := range b.N {
+				m := diffpane.NewDocked(ui.New(theme.Macchiato()))
+				m.Show(fmt.Sprintf("diff %d", i), text, 100, "")
+
+				cmd := m.Colorize()
+				if cmd == nil {
+					continue
+				}
+
+				b.StopTimer()
+				msg, ok := cmd().(diffpane.ColoredMsg)
+				b.StartTimer()
+
+				if ok {
+					m.Colored(msg)
+				}
 			}
 		})
 	}

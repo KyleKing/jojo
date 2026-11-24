@@ -141,34 +141,6 @@ func TestShow_ReturningToADiffDrawsItInColorAtOnce(t *testing.T) {
 	}
 }
 
-func TestPaint_ShowsColorsWithoutAskingTwice(t *testing.T) {
-	t.Parallel()
-
-	m := docked()
-	paint := m.Painter(80).Paint(goDiff)
-	later := m.Accept(paint)
-
-	m.Show("diff a", goDiff, 80, "")
-
-	// Within the budget the colors come with the diff; past it they come from Accept's command. In
-	// neither case does the pane start a second lex of its own.
-	if m.Colorize() != nil {
-		t.Error("Colorize() asked again for colors Paint is already drawing")
-	}
-
-	if later != nil {
-		m.Colored(coloredMsg(t, later))
-	}
-
-	fresh := docked()
-	fresh.Show("diff a", goDiff, 80, "")
-	colorize(t, &fresh)
-
-	if !slices.Equal(fresh.Lines(), m.Lines()) {
-		t.Error("a painted diff drew different rows than one colored on show")
-	}
-}
-
 func TestSetWidth_RedrawsPlainAndColorsAgain(t *testing.T) {
 	t.Parallel()
 
