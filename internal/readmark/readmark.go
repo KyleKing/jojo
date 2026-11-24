@@ -40,7 +40,7 @@ func (s Strip) String() string {
 		filled = stripCells - 1
 	}
 
-	return strings.Repeat("▰", filled) + strings.Repeat("▱", stripCells-filled)
+	return strings.Repeat("▰", filled) + strings.Repeat("▱", max(0, stripCells-filled))
 }
 
 // Unread is how many hunks are left to read, 0 while the strip is unknown.

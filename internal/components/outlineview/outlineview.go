@@ -660,7 +660,7 @@ func (m Model) size(rev *jj.Revision, width int, on face) string {
 		return on(m.skin.Muted).Render(table.PadTrim(plain, width, table.AlignRight, table.TrimRight))
 	}
 
-	return blank.Render(strings.Repeat(" ", width-lipgloss.Width(plain))) +
+	return blank.Render(strings.Repeat(" ", max(0, width-lipgloss.Width(plain)))) +
 		on(m.skin.Muted).Render(files) + blank.Render(" ") + on(m.skin.Added).Render(added) + blank.Render(" ") +
 		on(m.skin.Removed).Render(removed)
 }

@@ -163,7 +163,7 @@ func TestViewReportsPosition(t *testing.T) {
 			want := left
 
 			if tc.status != "" {
-				want = left + strings.Repeat(" ", testWidth-len(left)-len(tc.status)) + tc.status
+				want = left + strings.Repeat(" ", max(0, testWidth-len(left)-len(tc.status))) + tc.status
 			}
 
 			if got := tuitest.StripANSI(m.View(testWidth)); got != want {

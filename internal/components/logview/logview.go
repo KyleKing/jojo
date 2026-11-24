@@ -520,7 +520,7 @@ func (m Model) gutter(rev jj.Revision, on face) string {
 		return blank.Render(strings.Repeat(" ", table.Gutter))
 	}
 
-	return on(m.styles.Checked).Render(CheckMark) + blank.Render(strings.Repeat(" ", table.Gutter-1))
+	return on(m.styles.Checked).Render(CheckMark) + blank.Render(strings.Repeat(" ", max(0, table.Gutter-1)))
 }
 
 // face is a cell's style as its row draws it: itself, or under the selection on the cursor's row.
@@ -609,7 +609,7 @@ func (m Model) sizeCell(rev jj.Revision, width int, on face) string {
 		on(m.styles.Added).Render(added) + blank.Render(" ") +
 		on(m.styles.Removed).Render(removed)
 
-	return blank.Render(strings.Repeat(" ", width-lipgloss.Width(plain))) + styled
+	return blank.Render(strings.Repeat(" ", max(0, width-lipgloss.Width(plain)))) + styled
 }
 
 // style picks a cell's look from the revision's state first, because an

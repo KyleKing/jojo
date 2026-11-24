@@ -14,6 +14,7 @@ require (
 	github.com/kyleking/aragonite v1.30.0
 	github.com/kyleking/jj-diff v0.12.1
 	github.com/pelletier/go-toml/v2 v2.4.3
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 )
 
 require (
