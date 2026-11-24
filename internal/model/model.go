@@ -252,6 +252,21 @@ func (m Model) loadLog(revset string) tea.Cmd {
 	}
 }
 
+// fullMargins gives a resized terminal back its whole height to scroll in, then repaints. The
+// renderer confines a scroll with DECSTBM and restores the margins by number, as the height it last
+// drew at. A frame flushed just before the resize reaches the terminal after it, so a window that
+// grew keeps the old height as its bottom margin, and every newline the repaint writes at that row
+// scrolls the page up instead of moving down: the log sits rows above the revset line until
+// something redraws it. The margins are reset without numbers, which means the whole screen at any
+// size, around a saved cursor since DECSTBM homes it, and the repaint follows because the one the
+// resize asked for may already have drawn inside the stale margins.
+func fullMargins() tea.Cmd {
+	return tea.Sequence(
+		tea.Raw(ansi.SaveCursor+ansi.SetTopBottomMargins(0, 0)+ansi.RestoreCursor),
+		tea.ClearScreen,
+	)
+}
+
 // Update routes messages, then asks for the colors of any diff the update drew plain, so no path
 // that re-draws a diff (a new revision, a resize, a layout toggle) has to remember to.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -301,7 +316,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetWidth(m.width)
 		m.resize()
 
-		return m, m.loadStats()
+		return m, tea.Batch(m.loadStats(), fullMargins())
 	case revsetbox.ChangedMsg:
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
