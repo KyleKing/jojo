@@ -1,3 +1,15 @@
+## v0.26.0 (2026-11-24)
+
+### Feat
+
+- **log**: . repeats a description and the b verbs; ' and the jump list in the file list and op log
+- **coach**: a welcome card on the first launch
+- **log**: * shows a file's history, following its renames
+
+### Fix
+
+- **test**: await the repaired page after a resize instead of sleeping 300ms
+
 ## v0.25.0 (2026-11-24)
 
 ### Feat
