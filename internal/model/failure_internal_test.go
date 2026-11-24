@@ -59,7 +59,7 @@ func TestBang_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 	}
 
 	m = failed(t, m)
-	if !strings.Contains(tuitest.StripANSI(m.render()), "[!] full error") {
+	if !strings.Contains(tuitest.StripANSI(m.render()), "! full error") {
 		t.Error("the footer does not offer the full error")
 	}
 

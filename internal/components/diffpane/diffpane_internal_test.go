@@ -47,22 +47,134 @@ func TestFileKeysStepBetweenHeaders(t *testing.T) {
 		t.Fatalf("fileBoundaries = %v, want one per file", bounds)
 	}
 
-	m.Update(key("]"))
+	press(&m, "]", "f")
 
 	if m.list.Cursor() != bounds[1] {
-		t.Errorf("cursor = %d after ], want the second header at %d", m.list.Cursor(), bounds[1])
+		t.Errorf("cursor = %d after ]f, want the second header at %d", m.list.Cursor(), bounds[1])
 	}
 
-	m.Update(key("]"))
+	press(&m, "]", "f")
 
 	if m.list.Cursor() != bounds[1] {
-		t.Error("] at the last file should clamp, not wrap")
+		t.Error("]f at the last file should clamp, not wrap")
 	}
 
-	m.Update(key("["))
+	press(&m, "[", "f")
 
 	if m.list.Cursor() != bounds[0] {
 		t.Errorf("cursor = %d after [, want the first header at %d", m.list.Cursor(), bounds[0])
+	}
+}
+
+func press(m *Model, keys ...string) []tea.Msg {
+	var out []tea.Msg
+
+	for _, k := range keys {
+		if cmd := m.Update(key(k)); cmd != nil {
+			out = append(out, cmd())
+		}
+	}
+
+	return out
+}
+
+const twoHunkDiff = `diff --git a/a.txt b/a.txt
+index 0000000..1111111 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++TWO
+ three
+@@ -20,3 +20,3 @@
+ twenty
+-twenty-one
++TWENTY-ONE
+ twenty-two
+diff --git a/b.txt b/b.txt
+index 0000000..2222222 100644
+--- a/b.txt
++++ b/b.txt
+@@ -1 +1 @@
+-old b
++new b
+`
+
+// ]h and [h step hunk labels across files, n repeats the last motion and N reverses it, and before
+// any motion n steps hunks, so reading a diff top to bottom is one key held down.
+func TestHunkMotionsAndRepeat(t *testing.T) {
+	t.Parallel()
+
+	m := NewDocked(ui.New(theme.Macchiato()))
+	m.Show("diff", twoHunkDiff, 80, "")
+
+	if len(m.hunks) != 3 {
+		t.Fatalf("hunks = %v, want three labels", m.hunks)
+	}
+
+	press(&m, "n")
+
+	if m.list.Cursor() != m.hunks[0] {
+		t.Errorf("n before any motion: cursor %d, want the first hunk %d", m.list.Cursor(), m.hunks[0])
+	}
+
+	press(&m, "]", "h")
+
+	if m.list.Cursor() != m.hunks[1] {
+		t.Errorf("]h: cursor %d, want %d", m.list.Cursor(), m.hunks[1])
+	}
+
+	press(&m, "n")
+
+	if m.list.Cursor() != m.hunks[2] || m.CurrentPath() != "b.txt" {
+		t.Errorf("n after ]h: cursor %d in %s, want the hunk in b.txt", m.list.Cursor(), m.CurrentPath())
+	}
+
+	press(&m, "N")
+
+	if m.list.Cursor() != m.hunks[1] {
+		t.Errorf("N: cursor %d, want back at %d", m.list.Cursor(), m.hunks[1])
+	}
+}
+
+// The motions over what the parent holds go up as messages, and n repeats one of those too.
+func TestMotionsTheParentHoldsGoUp(t *testing.T) {
+	t.Parallel()
+
+	m := NewDocked(ui.New(theme.Macchiato()))
+	m.Show("diff", twoHunkDiff, 80, "")
+
+	cases := []struct {
+		keys []string
+		want MotionMsg
+	}{
+		{[]string{"]", "r"}, MotionMsg{Object: ObjectRound, Dir: 1}},
+		{[]string{"[", "r"}, MotionMsg{Object: ObjectRound, Dir: -1}},
+		{[]string{"N"}, MotionMsg{Object: ObjectRound, Dir: 1}},
+		{[]string{"]", "]"}, MotionMsg{Object: ObjectChapter, Dir: 1}},
+		{[]string{"[", "["}, MotionMsg{Object: ObjectChapter, Dir: -1}},
+	}
+
+	for _, tc := range cases {
+		got := press(&m, tc.keys...)
+		if len(got) != 1 || got[0] != tc.want {
+			t.Errorf("%v sent %v, want %v", tc.keys, got, tc.want)
+		}
+	}
+}
+
+// A ] followed by a key that names no object still steps a file, then acts as itself.
+func TestBareBracketStillStepsAFile(t *testing.T) {
+	t.Parallel()
+
+	m := NewDocked(ui.New(theme.Macchiato()))
+	m.Show("diff", twoHunkDiff, 80, "")
+
+	press(&m, "]", "s")
+
+	if m.CurrentPath() != "b.txt" || !m.sideBySide {
+		t.Errorf("] s: in %s, side by side %v; want b.txt and side by side", m.CurrentPath(), m.sideBySide)
 	}
 }
 
@@ -76,7 +188,7 @@ func TestFileKeysNoopWithoutHeaders(t *testing.T) {
 		return // render produced no lines; nothing to step over
 	}
 
-	m.Update(key("]"))
+	press(&m, "]", "f")
 
 	if m.list.Cursor() != 0 {
 		t.Errorf("cursor = %d, want 0 when the diff has no file headers", m.list.Cursor())
@@ -106,10 +218,10 @@ func TestShow_KeepsTheFileWhenTheNewRevisionTouchesIt(t *testing.T) {
 
 	m := NewDocked(ui.New(theme.Macchiato()))
 	m.Show("diff a", twoFileDiff, 60, "")
-	m.Update(key("]"))
+	press(&m, "]", "f")
 
 	if got := m.CurrentPath(); got != "second.txt" {
-		t.Fatalf("CurrentPath() = %q after ], want second.txt", got)
+		t.Fatalf("CurrentPath() = %q after ]f, want second.txt", got)
 	}
 
 	m.Show("diff b", otherFileDiff, 60, m.CurrentPath())

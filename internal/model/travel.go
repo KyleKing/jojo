@@ -324,7 +324,7 @@ func (m Model) travelHints() []keyhint.Hint {
 		restore,
 		{Key: "o", What: "op log"},
 		exit,
-		{Key: "?", What: "help", Pin: true},
+		m.pinnedHelp(),
 	}
 }
 
@@ -338,7 +338,7 @@ func (m Model) travelFooter() string {
 	room := max(0, m.width-ansi.StringWidth(message)-len(keyhint.Gap))
 
 	return padLine(m.skin.Subtitle.Render(message)+keyhint.Gap+
-		keyhint.Fit(m.skin.KeyHintStyles(), m.travelHints(), room), m.width)
+		keyhint.Fit(m.skin.FooterHintStyles(), m.travelHints(), room), m.width)
 }
 
 // opLogFrame draws the op log over the log as it stood at the operation under its cursor, so

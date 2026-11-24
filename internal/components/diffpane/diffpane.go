@@ -21,6 +21,22 @@ import (
 // CancelledMsg is sent when the pane is dismissed.
 type CancelledMsg struct{}
 
+// MotionMsg is a ] or [ motion over an object the pane does not hold itself: r steps the change's
+// versions and ] or [ (doubled, as in ]]) its chapter in the outline, which the parent owns. Dir is
+// 1 forward and -1 back.
+type MotionMsg struct {
+	Object string
+	Dir    int
+}
+
+// Objects of the ] and [ motions.
+const (
+	ObjectHunk    = "h"
+	ObjectFile    = "f"
+	ObjectRound   = "r"
+	ObjectChapter = "]"
+)
+
 // Model is the pane's state: the diff text it was opened with, kept so a resize re-renders rather
 // than re-reads, and the scroll position over the rendered lines.
 type Model struct {
@@ -28,11 +44,16 @@ type Model struct {
 	title string
 	text  string
 	// files are the rendered-line indexes where each file's header lands, so [ and ] can step the
-	// cursor between them, and paths names the file each one heads.
+	// cursor between them, and paths names the file each one heads. hunks are where each hunk's label
+	// lands, in the same order.
 	files []int
 	paths []string
-	list  listview.Model[string]
-	width int
+	hunks []int
+	// prefix is a held ] or [, waiting for the object it moves over, and last the motion n repeats.
+	prefix string
+	last   motion
+	list   listview.Model[string]
+	width  int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
 	sideBySide bool
 	// docked draws the pane flat beside the log rather than framed over it, so its lines take the
@@ -94,7 +115,7 @@ func (m *Model) render() {
 
 	var lines []string
 
-	m.files, m.paths = nil, nil
+	m.files, m.paths, m.hunks = nil, nil, nil
 
 	for _, seg := range segments(m.text) {
 		if !seg.diff {
@@ -114,6 +135,11 @@ func (m *Model) render() {
 		}
 
 		m.paths = append(m.paths, paths...)
+
+		for _, hunk := range hunkLabels(rendered, bounds) {
+			m.hunks = append(m.hunks, hunk+len(lines))
+		}
+
 		lines = append(lines, rendered...)
 	}
 
@@ -264,6 +290,9 @@ func fileHeader(stripped, path string) bool {
 		strings.HasPrefix(path, stripped[2:])
 }
 
+// Lines is the diff as rendered, one entry per line.
+func (m Model) Lines() []string { return m.list.Items() }
+
 // Title is what the pane was last opened under.
 func (m Model) Title() string { return m.list.Title() }
 
@@ -274,8 +303,6 @@ func (m *Model) Close() { m.list.Close() }
 func (m Model) IsOpen() bool { return m.list.IsOpen() }
 
 // Update handles one message. Key handling only runs while the pane is open.
-//
-//nolint:unparam // matches the other panels' Update signature; the caller stays uniform.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok || !m.list.IsOpen() {
@@ -283,15 +310,22 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	name := key.String()
+
+	if m.prefix != "" {
+		return m.completeMotion(name)
+	}
+
 	if m.list.MoveKey(name) {
 		return nil
 	}
 
 	switch name {
-	case "[":
-		m.stepFile(-1)
-	case "]":
-		m.stepFile(1)
+	case "[", "]":
+		m.prefix = name
+	case "n":
+		return m.Repeat(1)
+	case "N":
+		return m.Repeat(-1)
 	case "s":
 		cursor := m.list.Cursor()
 		m.sideBySide = !m.sideBySide
@@ -307,43 +341,145 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// stepFile moves the cursor to the header of the next or previous file, clamped at both ends.
-func (m *Model) stepFile(dir int) {
-	if len(m.files) == 0 {
-		return
+// motion is one ] or [ step over an object, which n repeats and N reverses.
+type motion struct {
+	object string
+	dir    int
+}
+
+// completeMotion finishes a held ] or [. An object the pane holds moves its cursor; one the parent
+// holds goes up as a MotionMsg. Any other key steps a file, the way a bare ] did before the motions
+// had objects, and is then handled as itself, so a habit costs nothing.
+func (m *Model) completeMotion(name string) tea.Cmd {
+	dir := 1
+	if m.prefix == "[" {
+		dir = -1
 	}
 
-	cursor := m.list.Cursor()
-	target := m.files[0]
+	pressed := m.prefix
+	m.prefix = ""
+
+	object := name
+	if name == pressed {
+		object = ObjectChapter
+	}
+
+	switch object {
+	case ObjectHunk, ObjectFile, ObjectRound, ObjectChapter:
+		m.last = motion{object: object, dir: dir}
+
+		return m.move(m.last)
+	}
+
+	m.stepFile(dir)
+
+	return m.Update(tea.KeyPressMsg(tea.Key{Text: name, Code: firstRune(name)}))
+}
+
+func firstRune(s string) rune {
+	for _, r := range s {
+		return r
+	}
+
+	return 0
+}
+
+// Repeat steps the last motion again, reversed for a negative dir, and steps hunks before any
+// motion has been made, so n reads through a diff from the start.
+func (m *Model) Repeat(dir int) tea.Cmd {
+	last := m.last
+	if last.object == "" {
+		last = motion{object: ObjectHunk, dir: 1}
+	}
+
+	last.dir *= dir
+
+	return m.move(last)
+}
+
+func (m *Model) move(step motion) tea.Cmd {
+	switch step.object {
+	case ObjectHunk:
+		m.StepHunk(step.dir)
+	case ObjectFile:
+		m.stepFile(step.dir)
+	default:
+		return func() tea.Msg { return MotionMsg{Object: step.object, Dir: step.dir} }
+	}
+
+	return nil
+}
+
+// StepHunk moves the cursor to the next or previous hunk's label, clamped at both ends, and is how
+// the outline beside a docked pane reads through it without taking the focus.
+func (m *Model) StepHunk(dir int) {
+	m.last = motion{object: ObjectHunk, dir: dir}
+	m.list.Jump(step(m.hunks, m.list.Cursor(), dir))
+}
+
+// step is the first mark past cursor in dir, or the last one that way when none is past it.
+func step(marks []int, cursor, dir int) int {
+	if len(marks) == 0 {
+		return cursor
+	}
 
 	if dir > 0 {
-		target = m.files[len(m.files)-1]
-
-		for _, file := range m.files {
-			if file > cursor {
-				target = file
-
-				break
+		for _, mark := range marks {
+			if mark > cursor {
+				return mark
 			}
 		}
-	} else {
-		for i := len(m.files) - 1; i >= 0; i-- {
-			if m.files[i] < cursor {
-				target = m.files[i]
 
-				break
-			}
+		return marks[len(marks)-1]
+	}
+
+	for i := len(marks) - 1; i >= 0; i-- {
+		if marks[i] < cursor {
+			return marks[i]
 		}
 	}
 
-	m.list.Jump(target)
+	return marks[0]
+}
+
+// hunkLabelRE is the line range the renderer ends a hunk's label with ("func a  L1–3", "L10–12").
+var hunkLabelRE = regexp.MustCompile(`(?:^| {2})L\d+(?:–\d+)?$`)
+
+// hunkLabels is where each hunk's label lands in rendered, searched only after a file's header so a
+// line of code that happens to end like a label is never taken for one: a diff line starts with its
+// sign or its bar, and a label never does.
+func hunkLabels(rendered []string, files []int) []int {
+	var out []int
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	for i := files[0]; i < len(rendered); i++ {
+		line := ansi.Strip(rendered[i])
+		if line == "" || strings.ContainsRune(" +-│▎▌▐┃", firstRune(line)) {
+			continue
+		}
+
+		if hunkLabelRE.MatchString(strings.TrimRight(line, " ")) {
+			out = append(out, i)
+		}
+	}
+
+	return out
+}
+
+// stepFile moves the cursor to the header of the next or previous file, clamped at both ends.
+func (m *Model) stepFile(dir int) {
+	m.list.Jump(step(m.files, m.list.Cursor(), dir))
 }
 
 // View renders the diff centered in a width by height frame.
 func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "j k", What: "scroll"},
-		{Key: "[ ]", What: "file"},
+		{Key: "]f [f", What: "file"},
+		{Key: "]h [h", What: "hunk"},
 		{Key: "s", What: "side by side"},
 		{Key: "esc", What: "close"},
 	})

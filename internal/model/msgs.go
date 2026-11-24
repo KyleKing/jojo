@@ -110,5 +110,5 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return next, cmd, true
 	}
 
-	return m, nil, false
+	return m.handleRoundsMsg(msg)
 }

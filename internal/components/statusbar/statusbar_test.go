@@ -48,7 +48,7 @@ func TestView_DropsHintsFromTheRightKeepingHelp(t *testing.T) {
 	for _, tt := range tests {
 		got := ansi.Strip(testModel().View(tt.width, ctx))
 
-		if !strings.Contains(got, "?] help") {
+		if !strings.Contains(got, "? help") {
 			t.Errorf("width %d dropped the help hint: %q", tt.width, got)
 		}
 
@@ -56,7 +56,7 @@ func TestView_DropsHintsFromTheRightKeepingHelp(t *testing.T) {
 			t.Errorf("width %d ellipsis: want %v, got %q", tt.width, tt.wantEllipsis, got)
 		}
 
-		if strings.Contains(got, "[n]ew") != tt.wantNew {
+		if strings.Contains(got, "n new") != tt.wantNew {
 			t.Errorf("width %d new hint: want %v, got %q", tt.width, tt.wantNew, got)
 		}
 
@@ -152,7 +152,7 @@ func TestView_TruncatesAWideMessageRatherThanDroppingIt(t *testing.T) {
 			t.Errorf("width %d did not mark the cut: %q", width, got)
 		}
 
-		if !strings.Contains(got, "?] help") {
+		if !strings.Contains(got, "? help") {
 			t.Errorf("width %d dropped the help hint: %q", width, got)
 		}
 

@@ -1,8 +1,12 @@
 package model
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/statusbar"
@@ -27,11 +31,28 @@ func (m Model) loadHeadOp() tea.Cmd {
 	}
 }
 
+// helpHint is the route to the legend, which every footer ends on.
+func (m Model) helpHint() keyhint.Hint {
+	return keyhint.Hint{Key: "?", What: "help", Fresh: m.keys.Level("?")}
+}
+
+// pinnedHelp is helpHint for a footer that sheds hints by priority, where help must stay.
+func (m Model) pinnedHelp() keyhint.Hint {
+	h := m.helpHint()
+	h.Fresh, h.Pin = 0, true
+
+	return h
+}
+
 // failureHint offers the whole of a failure the footer could only show one line of.
 var failureHint = keyhint.Hint{Key: "!", What: "full error"}
 
 // footerHints ends on help, because the footer drops hints from the right and keeps the last.
 func (m Model) footerHints() []keyhint.Hint {
+	if m.outline.active {
+		return m.outlineHints()
+	}
+
 	hints := rowHints(m.log.Selected())
 	for i := range hints {
 		hints[i].Fresh = m.keys.Level(hints[i].Key)
@@ -39,7 +60,7 @@ func (m Model) footerHints() []keyhint.Hint {
 
 	hints = append(hints, m.keys.Hints(help.L0, help.L2)...)
 
-	hints = append(hints, keyhint.Hint{Key: "?", What: "help", Fresh: m.keys.Level("?")})
+	hints = append(hints, m.helpHint())
 
 	// A failure takes the last place, the one hint the footer never drops, while it is on screen.
 	if m.failing {
@@ -120,4 +141,86 @@ func (m Model) nearbyBookmarks() []statusbar.Bookmark {
 	}
 
 	return out
+}
+
+// inspectorMinHeight is the shortest terminal that spends a row on the inspector, since below it the
+// row is worth more to the log.
+const inspectorMinHeight = 12
+
+// inspectorRows is the rows the inspector takes: one, unless the terminal is too short to spare it.
+func (m Model) inspectorRows() int {
+	if m.height < inspectorMinHeight {
+		return 0
+	}
+
+	return 1
+}
+
+// overflow is what the row the cursor is on had no room for, from whichever list is drawn.
+func (m Model) overflow() []string {
+	if m.outline.active {
+		return m.outline.view.Overflow()
+	}
+
+	return m.log.Overflow()
+}
+
+// inspectorGap separates the inspector's facts.
+const inspectorGap = " · "
+
+// inspector is the line over the footer that says what the row under the cursor had no room for at
+// this width, then its commit id, so narrowing the terminal hides nothing a reader cannot get back by
+// moving onto the row. It is one row or none, never taller, so it costs the log one line.
+func (m Model) inspector(rev *jj.Revision, overflow []string) []string {
+	if m.inspectorRows() == 0 {
+		return nil
+	}
+
+	if rev == nil {
+		return []string{strings.Repeat(" ", m.width)}
+	}
+
+	// The commit sits at the right edge and the facts are cut to the room left of it, so a long
+	// description can never push the commit off the line.
+	commit := ""
+	if rev.CommitID != "" {
+		commit = "commit " + rev.CommitID
+	}
+
+	room := m.width - 1 - lipgloss.Width(commit) - len(inspectorGap)
+	facts := make([]string, 0, len(overflow))
+
+	for _, fact := range overflow {
+		facts = append(facts, oneLineText(fact))
+	}
+
+	left := table.Truncate(strings.Join(facts, inspectorGap), max(0, room))
+	pad := max(1, m.width-1-lipgloss.Width(left)-lipgloss.Width(commit))
+	line := " " + m.skin.Body.Render(left) + strings.Repeat(" ", pad) + m.skin.Muted.Render(commit)
+
+	return []string{padLine(line, m.width)}
+}
+
+// oneLineText keeps a fact on the inspector's single row.
+func oneLineText(text string) string { return strings.Join(strings.Fields(text), " ") }
+
+// outlineHints are the footer's while the outline is open: its own keys in table order, with help
+// and any failure kept at the end the way the log's footer keeps them.
+func (m Model) outlineHints() []keyhint.Hint {
+	bindings := m.keys.ModeBindings(help.ModeOutline)
+	hints := make([]keyhint.Hint, 0, len(bindings)+len("?!"))
+
+	for i := range bindings {
+		h := bindings[i].Hint
+		h.Fresh = m.keys.Level(bindings[i].Run)
+		hints = append(hints, h)
+	}
+
+	hints = append(hints, m.helpHint())
+
+	if m.failing {
+		hints = append(hints, failureHint)
+	}
+
+	return hints
 }

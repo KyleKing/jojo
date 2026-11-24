@@ -184,6 +184,21 @@ func (p *Poller) FetchedLive() bool {
 	return p.fetchedOnce
 }
 
+// Known returns what the caches already hold for bookmark, without asking the forge: the status of
+// the bookmark the poller watches, or one an earlier session persisted. It is how a view of many
+// bookmarks shows forge state without a request per bookmark.
+func (p *Poller) Known(bookmark string) (*Status, bool) {
+	if bookmark == p.Bookmark() {
+		if status := p.Last(); status != nil {
+			return status, true
+		}
+	}
+
+	key := p.provider.Name() + "\x00" + bookmark
+
+	return cache.PersistedUsing(p.disk, p.memCache, p.remoteID, key, vcs.Stamp(p.repoPath))
+}
+
 // Bookmark returns the bookmark this poller is watching.
 func (p *Poller) Bookmark() string {
 	p.mu.Lock()

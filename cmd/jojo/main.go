@@ -151,7 +151,9 @@ func run() error {
 	seen := loadSeen(rec, keys)
 
 	app := model.New(ctx, client, skin, root, *revset,
-		model.Options{Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool})
+		model.Options{
+			Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
+		})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}

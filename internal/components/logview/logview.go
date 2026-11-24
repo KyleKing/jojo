@@ -1,6 +1,7 @@
 package logview
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -560,4 +561,49 @@ func (m Model) style(rev jj.Revision, key string) lipgloss.Style {
 	default:
 		return m.styles.Desc
 	}
+}
+
+// Overflow is what the row under the cursor had no room for at the current width: each column's
+// whole text where its column collapsed or cut it. The author is said as the whole email, since the
+// column only ever had room for the handle.
+func (m Model) Overflow() []string {
+	rev := m.Selected()
+	if rev == nil || m.width <= 0 {
+		return nil
+	}
+
+	layout := Fit(m.width, GraphWidth(m.rows))
+	text := Cells(*rev)
+	whole := map[string]string{
+		ColDesc:      rev.Description,
+		ColBookmarks: text[ColBookmarks],
+		ColAuthor:    rev.AuthorEmail,
+		ColAge:       rev.Age,
+	}
+
+	var out []string
+
+	for _, key := range []string{ColDesc, ColBookmarks, ColAuthor, ColAge} {
+		full := whole[key]
+		if full == "" {
+			continue
+		}
+
+		shown := text[key]
+		if key == ColAuthor || key == ColAge {
+			// These columns abbreviate on purpose; only a collapsed column has lost them.
+			shown = ""
+		}
+
+		if hidden(layout, key) || (shown != "" && lipgloss.Width(shown) > layout.Width(key)) {
+			out = append(out, full)
+		}
+	}
+
+	return out
+}
+
+// hidden reports whether the layout collapsed the column out of the row.
+func hidden(layout table.Layout, key string) bool {
+	return slices.Contains(layout.Dropped, key) || layout.Width(key) == 0
 }

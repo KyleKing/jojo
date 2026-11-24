@@ -84,9 +84,10 @@ func TestDock_FollowsTheLogCursorKeepingTheFile(t *testing.T) {
 
 	m := dockedModel(t, 120, 20)
 	m.dock.Update(tuitest.Key("]"))
+	m.dock.Update(tuitest.Key("f"))
 
 	if got := m.dock.CurrentPath(); got != "second.txt" {
-		t.Fatalf("the dock is in %q after ], want second.txt", got)
+		t.Fatalf("the dock is in %q after ]f, want second.txt", got)
 	}
 
 	m, cmd := moveLog(t, m, "j")

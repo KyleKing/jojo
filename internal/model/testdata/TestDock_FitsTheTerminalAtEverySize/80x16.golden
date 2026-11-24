@@ -12,5 +12,5 @@ r: @
 │ ▎old first                                                                    
 │ ▎new first                                                                    
 │ M second.txt
-│ L1
-@  [↑ ↓ ← →] move  [Enter] select  [Esc] back  [q]uit  …  [?] help              
+                                                                                
+@  ↑ ↓ ← → move  Enter select  Esc back  q quit  Tab switch pane  …  ? help     

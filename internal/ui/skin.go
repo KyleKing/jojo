@@ -132,6 +132,21 @@ func (s Skin) KeyHintStyles() keyhint.Styles {
 	}
 }
 
+// FooterHintStyles is the face a footer draws its keys in, the one jj-diff and second-look draw
+// theirs in: the key in the accent and the word muted beside it, without brackets, so the two faces
+// alone tell key from word. A hint marked Off (an unchosen option, a flag that is off) drops to the
+// quietest face, so a row of flags reads as the command's current shape.
+func (s Skin) FooterHintStyles() keyhint.Styles {
+	return keyhint.Styles{
+		Key:  s.Accent,
+		Text: s.Muted,
+		Head: s.Title,
+		Off:  lipgloss.NewStyle().Foreground(s.Palette.Overlay0),
+		Bare: true,
+		Gap:  keyhint.Gap,
+	}
+}
+
 // overlayPaddingV and overlayPaddingH are the frame's inner margin, vertical
 // and horizontal.
 const (

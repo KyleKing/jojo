@@ -8,11 +8,18 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/readmark"
 )
 
 // dockDebounce is how long the cursor has to rest on a revision before the docked diff reads it. A
 // diff is one jj call in the shared queue, so holding j would otherwise queue one per row passed.
 const dockDebounce = 120 * time.Millisecond
+
+// outlineDockShare is the percent of a wide terminal the dock takes beside the outline.
+const (
+	outlineDockShare = 45
+	percent          = 100
+)
 
 // dockMinSideBySide is the narrowest terminal that docks the diff beside the log rather than under
 // it, since below it neither half has room for a readable row.
@@ -25,11 +32,18 @@ type dockTickMsg struct {
 	seq      int
 }
 
-// dockLoadedMsg carries a docked diff read in the background.
+// dockLoadedMsg carries a docked diff read in the background: a revision's whole diff, with its hunks
+// named for the read strip, or one round of its evolution, under a title of its own.
 type dockLoadedMsg struct {
 	err      error
 	revision string
 	text     string
+	// title and prose are a round's banner and the sentences drawn above its interdiff, and cacheKey
+	// the name its diff is kept under for the session. All three are empty for a whole diff.
+	title    string
+	prose    string
+	cacheKey string
+	hunks    []readmark.Hunk
 	seq      int
 }
 
@@ -51,7 +65,7 @@ func (m Model) toggleDock() (tea.Model, tea.Cmd) {
 	}
 
 	m.resize()
-	cmd := m.loadDock(m.log.Selected())
+	cmd := m.loadDock(m.dockTarget())
 
 	return m, cmd
 }
@@ -63,12 +77,13 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 	}
 
 	m.dockSeq++
+	m.rounds.at = -1
 	client, ctx, seq, id := m.client, m.ctx, m.dockSeq, rev.ChangeID
 
 	return func() tea.Msg {
 		text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: id})
 
-		return dockLoadedMsg{revision: id, text: text, err: err, seq: seq}
+		return dockLoadedMsg{revision: id, text: text, err: err, seq: seq, hunks: readmark.Hunks(text)}
 	}
 }
 
@@ -116,15 +131,33 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 		return m
 	}
 
-	width, _ := m.dockSize()
-	m.dock.Show("diff "+msg.revision, msg.text, diffpane.DockWidth(width), m.dock.CurrentPath())
+	if msg.cacheKey != "" {
+		m.interdiffs[msg.cacheKey] = msg.text
+		m.showDockText(msg.title, msg.prose+msg.text, "")
+
+		return m
+	}
+
+	m.noteRead(msg.revision, msg.hunks)
+	m.showDockText("diff "+msg.revision, msg.text, m.dock.CurrentPath())
 
 	return m
+}
+
+// showDockText draws text in the dock under title, landing on keep's file when the text has it.
+func (m *Model) showDockText(title, text, keep string) {
+	width, _ := m.dockSize()
+	m.dock.Show(title, text, diffpane.DockWidth(width), keep)
 }
 
 // dockSize is the docked pane's width and height for the current terminal.
 func (m Model) dockSize() (int, int) {
 	logHeight := m.logHeight()
+	if m.width >= dockMinSideBySide && m.outline.active {
+		// The outline's rows carry more columns than the log's, so it keeps the larger share.
+		return m.width * outlineDockShare / percent, logHeight
+	}
+
 	if m.width >= dockMinSideBySide {
 		return m.width - m.width/2, logHeight
 	}
@@ -145,6 +178,10 @@ func (m Model) handleDockKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.cycleFocus()
 	case dockKey:
 		return m.toggleDock()
+	case "H":
+		cmd := m.openRoundsBox()
+
+		return m, cmd
 	}
 
 	cmd := m.dock.Update(msg)

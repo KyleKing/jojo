@@ -155,7 +155,36 @@ below 100 columns) and the log keeps the keys. Every cursor move bumps a sequenc
 cursor has already left is dropped when it lands. The new diff opens on the file the reader was in
 when the revision touches it, else on its first file.
 
-**Configuration is two settings.** A theme and key rebinds, and nothing that jj already
+**A stack is reviewed as chapters.** `I` reads the stack at the cursor (`outline_revset`, by
+default what the revision sits on above `trunk()` and what is stacked on it) and draws it in the
+log's place, parent first, docking the diff beside it on the chapter under the cursor. The outline
+is one background read: the graph, the stats of every chapter, and whatever the forge pane's caches
+already hold for each bookmark (`forge.Poller.Known`, which never reaches the network). `]]` and
+`[[` step chapters from the outline or the dock, and `]h` steps hunks in the dock without taking
+the focus. The outline reads and never writes, so a verb pressed there says where the verbs are.
+
+**A change's versions are rounds.** `[r` and `]r` step the docked diff through `jj evolog`, each
+version shown as `jj interdiff --from <its own previous version> --to <it>`, so what a rebase
+changed in the parents drops out. The evolution is read once per commit id with one template that
+also asks `self.inter_diff()` for its size, which is how a version that changed neither the patch
+nor the description is known without diffing it: consecutive ones fold into one "rebased, no
+content change" round. Both the evolution and each round's diff are cached for the session under
+commit ids, which name their content, and every read rides the dock's sequence number, so a read
+the cursor has left is dropped. `H` lists the rounds to jump to one.
+
+**Read marks have a seam, not a store.** `model.ReadState` answers `Unread(changeID, hunkHash)`,
+with hunks named by `internal/readmark` exactly as second-look's `internal/seen` names them (path
+and every line's kind and text, line numbers left out), so the shared `aragonite/seen` store can
+plug in without changing an id. Until it does, nothing is marked and each chapter's strip only
+counts the hunks of a diff the dock has read.
+
+**What a row had no room for goes on one line.** The inspector over the footer says the whole of
+what the cursor row cut or collapsed at this width (description, bookmarks, author, age), with the
+commit id at its right edge, so a narrow terminal loses nothing one cursor move cannot get back.
+It costs one row, and none below 12 rows of terminal.
+
+**Configuration is a handful of settings.** A theme, key rebinds, the diff tool, and the outline's
+stack revset, and nothing that jj already
 carries: named revsets are jj's `revset-aliases`, which the revset box completes, so jojo
 does not keep a second list of them. A setting jojo cannot honor stops startup, since a TUI
 has nowhere to report it once it is drawing.

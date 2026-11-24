@@ -22,7 +22,7 @@
 │          s  squash                                       │
 │          S  split                                        │
 │          i  squash interactively                         │
-│          I  move hunks into any revision                 │
+│      Alt+i  move hunks into any revision                 │
 │      Enter  diff the revision                            │
 │      Alt+d  diff any two revisions                       │
 │      Alt+p  diff docked beside the log                   │
@@ -35,6 +35,6 @@
 │          c  resolve the conflict                         │
 │          b  bookmarks                                    │
 │          f  fetch                                        │
-│                                              1–35 of 81  │
+│                                             1–35 of 104  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

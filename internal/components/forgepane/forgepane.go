@@ -113,6 +113,37 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// Lookup is a function answering what the pane's caches hold for a bookmark, safe to call off the
+// update loop and never reaching the network: "#12 open · CI passing", or "" when nothing is known.
+// It is nil when the repository has no supported forge.
+func (m *Model) Lookup() func(bookmark string) string {
+	poller := m.poller
+	if poller == nil {
+		return nil
+	}
+
+	return func(bookmark string) string {
+		status, ok := poller.Known(bookmark)
+		if !ok || status == nil || status.PR == nil {
+			return ""
+		}
+
+		return Summary(*status)
+	}
+}
+
+// Summary is a pull request and its CI in a few words, the way a row has room for them.
+func Summary(status forge.Status) string {
+	pr := status.PR
+	text := fmt.Sprintf("#%d %s", pr.Number, strings.ToLower(display.PRStatusDisplay(*pr)))
+
+	if checks := display.ChecksSummary(status.Checks); checks != "" && checks != display.EmDash {
+		text += " · CI " + checks
+	}
+
+	return text
+}
+
 // SetSize records the space the pane renders into.
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height

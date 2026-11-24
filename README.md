@@ -93,14 +93,16 @@ the handlers read. The ones worth knowing before you start:
 | `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions; `s` there switches to side by side |
 | `v` / `l` | details of the revision, or the files it touches, where `m` moves one file into another revision |
 | `space` / `C` in the files of `@` | stage or unstage the file, or commit what is staged, with `@-` standing in for git's index |
-| `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it |
+| `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it, and there `]h` / `[h` step hunks, `]f` / `[f` files, and `n` / `N` repeat the last motion |
+| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, the PR and CI state the forge pane already knows, and a read strip; the diff docks beside it on the chapter under the cursor, `]]` / `[[` step chapters, `]h` steps the dock's hunks, `Enter` reads in the dock, `Esc` returns to the log |
+| `[r` / `]r` / `H` | rounds: step the docked diff back and forth through the change's `jj evolog` versions, each shown as a true `jj interdiff` from the version before it under a banner like `version 3 of 5 · rebase · 2 hours ago`; rebases that changed nothing fold into one "rebased, no content change" round; `]r` past the newest returns to the whole change; `H` lists the rounds to jump to one |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks; a bookmark new to the remote is pushed by name, which tracks it, and a revision with none goes up under jj's generated `push-<change id>` (`jj git push -c`), each shown in the confirmation first |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate; `n` `s` `D` open the picker below |
 | `d` / `Alt+e` | describe in a prompt that holds the whole description, body and trailers included (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
-| `i` / `I` | squash hunks into the parent, or into any revision you pick |
+| `i` / `Alt+i` | squash hunks into the parent, or into any revision you pick |
 | `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root, in the picker below |
-| in the picker | `j` / `k` choose the destination on the log while the graph redraws as it will be after the command; `o` `a` `b` onto, after, or before it; `r` `s` `B` move the revisions, them with descendants, or the branch (rebase); `e` skip emptied (rebase) or keep emptied (squash); `m` combine messages in `$EDITOR` (squash); `w` no-edit (new); `h` duplicate in place; `Tab` before or after; `Enter` runs the command the footer shows as one operation; `Esc` leaves nothing behind |
+| in the picker | `j` / `k` choose the destination on the log while the graph redraws as it will be after the command; `o` `a` `b` onto, after, or before it; `r` `s` `B` move the revisions, them with descendants, or the branch (rebase); `e` skip emptied (rebase) or keep emptied (squash); `m` combine messages in `$EDITOR` (squash); `w` no-edit (new); `h` duplicate in place; `Tab` shows the graph before or after the command; `Enter` runs the command the footer shows as one operation; `Esc` leaves nothing behind |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
 | `o` | the operation log, drawing the log as it stood at the operation under the cursor, with restore (after a confirmation), revert, and per-operation diff drawn in the diff pane |
 | `[o` / `]o` | step the log back or forward one operation, read-only: `r` restores to it, `o` opens the op log there, `Esc` comes back to now |
@@ -111,6 +113,9 @@ the handlers read. The ones worth knowing before you start:
 | `x` | converge divergent changes with `jj converge` (the one under the cursor when it is divergent), or `a` in its dialog to abandon the stale sides |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `!` | the full text of the last failure, when the footer only had room for one line of it |
+
+The line over the footer is the inspector: whatever the row under the cursor had no room for at
+this width (the whole description, bookmarks, author, age), with the commit id at its right edge.
 
 Every action runs immediately and tells you to press `u`, because jj's operation log
 makes all of them reversible. The footer keeps naming the operation `u` would reverse, so
@@ -153,6 +158,10 @@ theme = "macchiato"
 # names jj-diff when it is on PATH and jj's own ui.diff-editor is unset; "none" leaves it to
 # jj's config; any other name is passed as --tool.
 diff_tool = "auto"
+
+# The stack the outline (I) reads, {rev} standing for the revision under the cursor. Omitted, it
+# is what that revision sits on above trunk() and what is stacked on it.
+outline_revset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
 
 # Move an action to another key, naming it the way `?` names it.
 [keys]

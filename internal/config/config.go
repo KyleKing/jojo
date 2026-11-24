@@ -25,6 +25,9 @@ type Config struct {
 	// hunks). Empty or "auto" names jj-diff when it is on PATH and jj's own ui.diff-editor is unset,
 	// "none" never names one so jj's configuration decides, and anything else is passed as --tool.
 	DiffTool string `toml:"diff_tool"`
+	// OutlineRevset is the stack the outline (I) reads, with {rev} standing for the revision under the
+	// cursor. Empty reads what that revision sits on above trunk() and what is stacked on it.
+	OutlineRevset string `toml:"outline_revset"`
 }
 
 // Path is where jojo looks: $XDG_CONFIG_HOME/jojo/config.toml, or ~/.config/jojo/config.toml. It

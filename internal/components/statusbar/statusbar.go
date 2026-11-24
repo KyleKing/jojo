@@ -56,7 +56,7 @@ func New(skin ui.Skin) Model {
 // glyph cannot push it onto a second row, dropping hints from the right and keeping the last.
 func (m Model) View(width int, ctx Context) string {
 	prefix := m.prefix(ctx, width)
-	hints := ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width-lipgloss.Width(prefix)-len(partGap))
+	hints := ui.FitHints(m.skin.FooterHintStyles(), ctx.Hints, width-lipgloss.Width(prefix)-len(partGap))
 
 	if hints != "" {
 		return padTo(prefix+partGap+hints, width)
@@ -70,14 +70,14 @@ func (m Model) View(width int, ctx Context) string {
 
 	// The prefix is dropped last: a footer that overflows wraps onto a second row and costs a line
 	// of the log, which is worse than losing the revset from view.
-	return padTo(ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width), width)
+	return padTo(ui.FitHints(m.skin.FooterHintStyles(), ctx.Hints, width), width)
 }
 
 // message is the message cut to whatever the last hint leaves, with that hint beside it.
 func (m Model) message(ctx Context, width int) string {
 	last := ""
 	if len(ctx.Hints) > 0 {
-		last = ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints[len(ctx.Hints)-1:], width)
+		last = ui.FitHints(m.skin.FooterHintStyles(), ctx.Hints[len(ctx.Hints)-1:], width)
 	}
 
 	room := width

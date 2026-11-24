@@ -36,6 +36,8 @@ const (
 	ctxOutput      = "output"
 	ctxPrompt      = "prompt"
 	ctxSpaces      = "spaces"
+	ctxOutline     = "outline"
+	ctxRounds      = "rounds"
 )
 
 // recordModalKey logs a key an overlay is about to take. Overlays with a text field log only the
@@ -100,6 +102,9 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 		ctxLog:    append(logKeys, listMoves()...),
 		ctxPick:   modeKeys(keys, help.ModePick),
 		ctxTravel: modeKeys(keys, help.ModeTravel),
+		ctxOutline: append(modeKeys(keys, help.ModeOutline),
+			bind("move", "j", "k", "down", "up"), bind("switch pane", "tab")),
+		ctxRounds: listModal(bind("show in the dock", "enter"), bind("close", "esc", "q", "H")),
 		ctxForge: {
 			bind("refresh", "r"),
 			bind("back to the log", "esc"),
@@ -117,11 +122,13 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 			bind("resolve", "x"), bind("close", "esc", "q", "b"),
 		),
 		ctxDiff: listModal(
-			bind("previous file", "["), bind("next file", "]"), bind("side by side", "s"), bind("close", "esc", "q"),
+			bind("motion prefix", "[", "]"), bind("repeat the motion", "n", "N"), bind("side by side", "s"),
+			bind("close", "esc", "q"),
 		),
 		ctxDock: listModal(
-			bind("previous file", "["), bind("next file", "]"), bind("side by side", "s"),
-			bind("back to the log", "esc", "q"), bind("switch pane", "tab"), bind("close", dockKey),
+			bind("motion prefix", "[", "]"), bind("repeat the motion", "n", "N"), bind("side by side", "s"),
+			bind("rounds", "H"), bind("back to the log", "esc", "q"), bind("switch pane", "tab"),
+			bind("close", dockKey),
 		),
 		ctxFiles: listModal(
 			bind("diff the file", "enter"), bind("restore", "r"), bind("move", "m"),

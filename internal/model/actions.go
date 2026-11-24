@@ -104,7 +104,7 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 		return m, m.exec("split"+undoHint, m.hunkArgs("split", "-i", "-r", rev.ChangeID)...), true
 	case "i":
 		return m, m.exec("squashed interactively"+undoHint, m.hunkArgs("squash", "-i", "-r", rev.ChangeID)...), true
-	case "I":
+	case "alt+i":
 		cmd := m.openMoveHunks(rev)
 
 		return m, cmd, true

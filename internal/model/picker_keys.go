@@ -262,9 +262,11 @@ func (m Model) pickChips() string {
 
 	hints = append(hints, m.verbToggles(chip)...)
 
-	compare := "before"
+	// Tab flips the graph between the repository as it is and as the command leaves it, so the chip
+	// names the view it switches to; a bare "before" read as the --insert-before placement.
+	compare := "show before"
 	if p.before {
-		compare = "after"
+		compare = "show after"
 	}
 
 	hints = append(hints, chip("pick-compare", compare, true, prioCompare))
@@ -272,7 +274,7 @@ func (m Model) pickChips() string {
 	apply, cancel := h["pick-apply"], h["pick-cancel"]
 	apply.What, apply.Pin, cancel.What, cancel.Pin = pickVerbNames[p.verb], true, "cancel", true
 
-	return padLine(keyhint.Fit(m.skin.KeyHintStyles(), append(hints, apply, cancel), m.width), m.width)
+	return padLine(keyhint.Fit(m.skin.FooterHintStyles(), append(hints, apply, cancel), m.width), m.width)
 }
 
 func (m Model) verbToggles(chip func(string, string, bool, int) keyhint.Hint) []keyhint.Hint {

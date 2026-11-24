@@ -23,15 +23,18 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
+	"github.com/kyleking/jojo/internal/components/outlineview"
 	"github.com/kyleking/jojo/internal/components/palette"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
+	"github.com/kyleking/jojo/internal/components/roundsview"
 	"github.com/kyleking/jojo/internal/components/search"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	"github.com/kyleking/jojo/internal/components/textview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/readmark"
 	"github.com/kyleking/jojo/internal/ui"
 )
 
@@ -87,6 +90,7 @@ type Model struct {
 	opLog      oplogview.Model
 	spaces     workspaceview.Model
 	evolog     evologview.Model
+	roundsBox  roundsview.Model
 	find       search.Model
 	palette    palette.Model
 	bookmarks  bookmarkview.Model
@@ -122,7 +126,22 @@ type Model struct {
 	// are maps, so the copies Update makes of the model share them.
 	stats      statsCache
 	statsAsked map[string]bool
-	log        logview.Model
+	// versions is every change evolution read this session, keyed by the commit it was read at, and
+	// interdiffs every round's diff, keyed by its two commits. Neither can go stale: a commit id
+	// names its content.
+	versions   map[string][]jj.Version
+	interdiffs map[string]string
+	// strips is the read strip of each change whose whole diff the dock has read, and reads the seam
+	// that says which hunks were read.
+	strips map[string]readmark.Strip
+	reads  ReadState
+	// outlineTemplate is config.toml's outline_revset, with {rev} for the revision under the cursor.
+	outlineTemplate string
+	// outline is the stack outline, which takes the log's place while it is active, and rounds the
+	// docked diff stepping through one change's versions.
+	outline outlineState
+	rounds  roundsState
+	log     logview.Model
 	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
 	// Each takes the keys while it is active.
 	travel travelState
@@ -152,9 +171,13 @@ type Options struct {
 	Seen *keyusage.Usage
 	// Usage records this session's keys, nil when recording is off.
 	Usage *keyusage.Recorder
+	// Reads answers which hunks have been read, nil for none: the seam aragonite/seen plugs into.
+	Reads ReadState
 	// DiffTool is config.toml's diff_tool: "" or "auto", "none", or a tool name.
 	DiffTool string
-	Keys     help.Keymap
+	// OutlineRevset is config.toml's outline_revset, "" for DefaultOutlineRevset.
+	OutlineRevset string
+	Keys          help.Keymap
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -163,6 +186,11 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	if opts.Seen != nil {
 		seen, now := *opts.Seen, time.Now()
 		keys = keys.WithLevel(func(key string) int { return seen.Level(ctxLog, key, now) })
+	}
+
+	reads := opts.Reads
+	if reads == nil {
+		reads = noReads{}
 	}
 
 	return Model{
@@ -178,23 +206,32 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		opLog:      oplogview.New(skin),
 		spaces:     workspaceview.New(skin),
 		evolog:     evologview.New(skin),
-		find:       search.New(skin),
-		bookmarks:  bookmarkview.New(skin),
-		detail:     detailview.New(skin),
-		files:      fileview.New(skin),
-		diff:       diffpane.New(skin),
-		dock:       diffpane.NewDocked(skin),
-		confirm:    confirm.New(skin),
-		output:     textview.New(skin),
-		palette:    palette.New(skin),
-		status:     statusbar.New(skin),
-		help:       help.New(skin, keys),
-		keys:       keys,
-		usage:      opts.Usage,
-		revset:     revset,
-		logWindow:  logLimit,
-		stats:      statsCache{},
-		statsAsked: map[string]bool{},
+		roundsBox:  roundsview.New(skin),
+		outline:    outlineState{view: outlineview.New(skin)},
+		rounds:     roundsState{at: -1},
+		versions:   map[string][]jj.Version{},
+		interdiffs: map[string]string{},
+		strips:     map[string]readmark.Strip{},
+		reads:      reads,
+
+		outlineTemplate: opts.OutlineRevset,
+		find:            search.New(skin),
+		bookmarks:       bookmarkview.New(skin),
+		detail:          detailview.New(skin),
+		files:           fileview.New(skin),
+		diff:            diffpane.New(skin),
+		dock:            diffpane.NewDocked(skin),
+		confirm:         confirm.New(skin),
+		output:          textview.New(skin),
+		palette:         palette.New(skin),
+		status:          statusbar.New(skin),
+		help:            help.New(skin, keys),
+		keys:            keys,
+		usage:           opts.Usage,
+		revset:          revset,
+		logWindow:       logLimit,
+		stats:           statsCache{},
+		statsAsked:      map[string]bool{},
 
 		diffPreference: opts.DiffTool,
 	}
@@ -243,7 +280,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case revsetbox.ChangedMsg:
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
-		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(msg.Revision), m.loadStats())
+		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(m.dockTarget()), m.loadStats())
 
 		return m, cmd
 	case logLoadedMsg:
@@ -341,9 +378,15 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.log.SetRows(msg.rows)
 	m.resize()
 
-	// A write changes what the docked diff shows without moving the cursor, so it reads again.
+	// A write changes what the docked diff shows without moving the cursor, so it reads again, and
+	// an open outline reads its stack again for the same reason.
+	outline := tea.Cmd(nil)
+	if m.outline.active {
+		outline = m.readOutline(m.outline.revset)
+	}
+
 	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp(),
-		m.loadDock(m.log.Selected()), m.loadStats())
+		m.loadDock(m.dockTarget()), m.loadStats(), outline)
 
 	return m, cmd
 }
@@ -383,6 +426,7 @@ func (m *Model) resize() {
 	}
 
 	m.log.SetSize(width, height)
+	m.outline.view.SetSize(width, height)
 	m.pick.view.SetSize(m.width, m.pickHeight())
 	m.travel.view.SetSize(m.width, m.logHeight())
 }
@@ -399,7 +443,7 @@ func (m Model) logHeight() int {
 		findHeight = findRows
 	}
 
-	return max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight)
+	return max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight-m.inspectorRows())
 }
 
 // View renders the log above the footer, with the help legend over both.
@@ -430,6 +474,7 @@ func (m Model) overlay() func(width, height int) string {
 		{m.opLogFrame, m.opLog.IsOpen()},
 		{m.spaces.View, m.spaces.IsOpen()},
 		{m.evolog.View, m.evolog.IsOpen()},
+		{m.roundsBox.View, m.roundsBox.IsOpen()},
 		{m.palette.View, m.palette.IsOpen()},
 	}
 
@@ -470,6 +515,8 @@ func (m Model) render() string {
 		panes = append(panes, m.forge.View())
 	}
 
+	panes = append(panes, m.inspector(m.dockTarget(), m.overflow())...)
+
 	return strings.Join(append(panes, m.footer()), "\n")
 }
 
@@ -482,6 +529,8 @@ func (m Model) modeFrame() string {
 			panes = append(panes, m.forge.View())
 		}
 
+		panes = append(panes, m.inspector(m.pick.view.Selected(), m.pick.view.Overflow())...)
+
 		return strings.Join(append(panes, m.pickFooter()), "\n")
 	}
 
@@ -490,24 +539,31 @@ func (m Model) modeFrame() string {
 		panes = append(panes, m.forge.View())
 	}
 
+	panes = append(panes, m.inspector(m.travel.view.Selected(), m.travel.view.Overflow())...)
+
 	return strings.Join(append(panes, m.travelFooter()), "\n")
 }
 
 // logPane is the log, with the docked diff beside it on a wide terminal or under it on a narrow one.
 func (m Model) logPane() string {
+	left := m.log.View()
+	if m.outline.active {
+		left = m.outline.view.View()
+	}
+
 	if !m.docked {
-		return m.log.View()
+		return left
 	}
 
 	dockWidth, dockHeight := m.dockSize()
 	focused := m.focus == focusDock
 
 	if !m.dockSideBySide() {
-		return m.log.View() + "\n" + m.dock.DockView(dockWidth, dockHeight, focused)
+		return left + "\n" + m.dock.DockView(dockWidth, dockHeight, focused)
 	}
 
 	logWidth := m.width - dockWidth
-	logLines := strings.Split(m.log.View(), "\n")
+	logLines := strings.Split(left, "\n")
 	dockLines := strings.Split(m.dock.DockView(dockWidth, dockHeight, focused), "\n")
 
 	for i := range logLines {

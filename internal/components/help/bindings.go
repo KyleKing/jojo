@@ -53,6 +53,8 @@ const (
 	ModePick = "pick"
 	// ModeTravel is the log as it stood at an earlier operation.
 	ModeTravel = "travel"
+	// ModeOutline is the stack outline, which takes the log's place while it is open.
+	ModeOutline = "outline"
 )
 
 // The labels of the keys every mode shares, which the legend spells the same way everywhere.
@@ -60,6 +62,14 @@ const (
 	enterLabel = "Enter"
 	escLabel   = "Esc"
 	tabLabel   = "Tab"
+)
+
+// The keys several modes bind the same way, as the dispatcher spells them, and the row every list's
+// legend opens with.
+const (
+	enterKey = "enter"
+	escKey   = "esc"
+	moveRows = "j / k"
 )
 
 // spaceKey checks a revision in the log and stages a file in the file list of @.
@@ -77,7 +87,7 @@ var defaultBindings = []Binding{
 	{Layer: L0, Hint: keyhint.Hint{Key: tabLabel, What: "switch pane"}},
 
 	{Layer: L1, Hint: keyhint.Hint{What: "Vim motions", Head: true}},
-	{Layer: L1, Hint: keyhint.Hint{Key: "j / k", What: "move a line"}},
+	{Layer: L1, Hint: keyhint.Hint{Key: moveRows, What: "move a line"}},
 	{Layer: L1, Run: "/", Action: "search", Hint: keyhint.Hint{Key: "/", What: "search the log"}},
 	{Layer: L1, Hint: keyhint.Hint{Key: "?", What: "help"}},
 	{Layer: L1, Hint: keyhint.Hint{Key: ":", What: "command palette"}},
@@ -104,11 +114,11 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "i", What: "squash interactively"},
 	},
 	{
-		Layer: L2, Run: "I", Action: "move-hunks", Cmd: "jj squash -i --from <rev> --into <dest>",
-		Hint: keyhint.Hint{Key: "I", What: "move hunks into any revision"},
+		Layer: L2, Run: "alt+i", Action: "move-hunks", Cmd: "jj squash -i --from <rev> --into <dest>",
+		Hint: keyhint.Hint{Key: "Alt+i", What: "move hunks into any revision"},
 	},
 	{
-		Layer: L2, Run: "enter", Action: "diff", Cmd: "jj diff -r <rev>",
+		Layer: L2, Run: enterKey, Action: "diff", Cmd: "jj diff -r <rev>",
 		Hint: keyhint.Hint{Key: enterLabel, What: "diff the revision"},
 	},
 	{
@@ -173,6 +183,22 @@ var defaultBindings = []Binding{
 		Layer: L2, Run: "E", Action: "evolog", Cmd: "jj evolog -r <rev>",
 		Hint: keyhint.Hint{Key: "E", What: "evolution of the revision"},
 	},
+	{
+		Layer: L2, Run: "I", Action: "outline", Cmd: "jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'",
+		Hint: keyhint.Hint{Key: "I", What: "stack outline: review the stack chapter by chapter"},
+	},
+	{
+		Layer: L2, Run: "H", Action: "rounds", Cmd: "jj evolog -r <rev>",
+		Hint: keyhint.Hint{Key: "H", What: "rounds: the versions of the change, to show one in the dock"},
+	},
+	{
+		Layer: L2, Run: "[r", Action: "round-older", Cmd: "jj interdiff --from <previous> --to <version>",
+		Hint: keyhint.Hint{Key: "[r", What: "dock the change's previous version, as an interdiff"},
+	},
+	{
+		Layer: L2, Run: "]r", Action: "round-newer", Cmd: "jj interdiff --from <previous> --to <version>",
+		Hint: keyhint.Hint{Key: "]r", What: "dock the next version, back to the whole change after the newest"},
+	},
 	{Layer: L2, Run: "u", Action: "undo", Cmd: "jj undo", Hint: keyhint.Hint{Key: "u", What: "undo"}},
 	{
 		Layer: L2, Run: "ctrl+r", Action: "redo", Cmd: "jj redo",
@@ -226,24 +252,32 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "C", What: "commit what is staged"},
 	},
 
+	// The docked diff's own keys, read while it has focus (Tab), and in the outline beside it.
+	{Layer: L2, Hint: keyhint.Hint{What: "In the docked diff", Head: true}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "]h / [h", What: "next / previous hunk"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "]f / [f", What: "next / previous file"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "n / N", What: "repeat the last ] or [ motion forward / back"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "]r / [r", What: "next / previous version of the change (rounds)"}},
+	{Layer: L2, Hint: keyhint.Hint{Key: "]] / [[", What: "next / previous chapter, while the outline is open"}},
+
 	// The picker's keys toggle the flags of the command it is building. The provisional letters follow
 	// jjui's rebase mode, and each carries an Action so the keymap pass can move them in config.
 	{Layer: L2, Mode: ModePick, Hint: keyhint.Hint{What: "Picking where it goes (r R s D n)", Head: true}},
 	{
 		Layer: L2, Mode: ModePick,
-		Hint: keyhint.Hint{Key: "j / k", What: "move the destination; the graph redraws as it will be"},
+		Hint: keyhint.Hint{Key: moveRows, What: "move the destination; the graph redraws as it will be"},
 	},
 	{
-		Layer: L2, Mode: ModePick, Run: "enter", Action: "pick-apply",
+		Layer: L2, Mode: ModePick, Run: enterKey, Action: "pick-apply",
 		Hint: keyhint.Hint{Key: enterLabel, What: "run it"},
 	},
 	{
-		Layer: L2, Mode: ModePick, Run: "esc", Action: "pick-cancel",
+		Layer: L2, Mode: ModePick, Run: escKey, Action: "pick-cancel",
 		Hint: keyhint.Hint{Key: escLabel, What: "cancel, nothing ran"},
 	},
 	{
 		Layer: L2, Mode: ModePick, Run: "tab", Action: "pick-compare",
-		Hint: keyhint.Hint{Key: tabLabel, What: "before / after"},
+		Hint: keyhint.Hint{Key: tabLabel, What: "show the graph before / after the command"},
 	},
 	{
 		Layer: L2, Mode: ModePick, Run: "o", Action: "pick-onto", Cmd: "--onto",
@@ -286,6 +320,49 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "w", What: "new: leave @ where it is"},
 	},
 
+	// The outline takes the log's place, with the docked diff following the chapter under the cursor.
+	{Layer: L2, Mode: ModeOutline, Hint: keyhint.Hint{What: "Stack outline (I)", Head: true}},
+	{
+		Layer: L2, Mode: ModeOutline,
+		Hint: keyhint.Hint{Key: moveRows, What: "move a chapter; the docked diff follows"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "]]", Action: "chapter-next",
+		Hint: keyhint.Hint{Key: "]]", What: "chapter"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "[[", Action: "chapter-prev",
+		Hint: keyhint.Hint{Key: "[[", What: "back a chapter"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: enterKey, Action: "chapter-read",
+		Hint: keyhint.Hint{Key: enterLabel, What: "read it in the dock"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "]h", Action: "chapter-hunk-next",
+		Hint: keyhint.Hint{Key: "]h", What: "hunk"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "[h", Action: "chapter-hunk-prev",
+		Hint: keyhint.Hint{Key: "[h", What: "back a hunk"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "]r", Action: "chapter-round-newer", Cmd: "jj interdiff",
+		Hint: keyhint.Hint{Key: "]r", What: "newer version"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "[r", Action: "chapter-round-older", Cmd: "jj interdiff",
+		Hint: keyhint.Hint{Key: "[r", What: "older version"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: "H", Action: "chapter-rounds", Cmd: "jj evolog",
+		Hint: keyhint.Hint{Key: "H", What: "rounds"},
+	},
+	{
+		Layer: L2, Mode: ModeOutline, Run: escKey, Action: "outline-close",
+		Hint: keyhint.Hint{Key: escLabel, What: "log"},
+	},
+
 	// Time travel is read-only: these are the only keys it answers, and a write verb says why not.
 	{Layer: L2, Mode: ModeTravel, Hint: keyhint.Hint{What: "Viewing an earlier operation ([o o)", Head: true}},
 	{
@@ -293,7 +370,7 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "r", What: "restore the repository to it"},
 	},
 	{
-		Layer: L2, Mode: ModeTravel, Run: "esc", Action: "travel-exit",
+		Layer: L2, Mode: ModeTravel, Run: escKey, Action: "travel-exit",
 		Hint: keyhint.Hint{Key: escLabel, What: "back to now"},
 	},
 }

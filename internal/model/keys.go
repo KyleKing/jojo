@@ -91,6 +91,12 @@ func (m *Model) routeToMode(msg tea.KeyPressMsg) (string, tea.Model, tea.Cmd, bo
 		return "", next, cmd, true
 	}
 
+	if m.outline.active && m.focus == focusLog {
+		next, cmd := m.handleOutlineKey(key)
+
+		return "", next, cmd, true
+	}
+
 	return key, m, nil, false
 }
 
@@ -103,8 +109,8 @@ func opStep(key string) int {
 	return 1
 }
 
-// chordPrefixes start the two-key bindings: [o and ]o step through the op log, the way [ and ]
-// step through files in the diff.
+// chordPrefixes start the two-key bindings: [o and ]o step through the op log, [r and ]r through
+// the versions of the change in the dock, and ]] and [[ through the outline's chapters.
 var chordPrefixes = map[string]bool{"[": true, "]": true}
 
 // chordKey resolves a key against a held chord prefix, and holds a new one. A prefix followed by a
@@ -155,15 +161,25 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.destPicker.Update(msg), true
 	case ctxOpLog:
 		return m.opLog.Update(msg), true
-	case ctxSpaces:
-		return m.spaces.Update(msg), true
-	case ctxEvolog:
-		return m.evolog.Update(msg), true
-	case ctxPalette:
-		return m.palette.Update(msg), true
-	default:
-		return m.find.Update(msg), true
 	}
+
+	return m.routeToListModal(ctx, msg), true
+}
+
+// routeToListModal is routeToModal for the list overlays and the search bar.
+func (m *Model) routeToListModal(ctx string, msg tea.KeyPressMsg) tea.Cmd {
+	switch ctx {
+	case ctxSpaces:
+		return m.spaces.Update(msg)
+	case ctxEvolog:
+		return m.evolog.Update(msg)
+	case ctxRounds:
+		return m.roundsBox.Update(msg)
+	case ctxPalette:
+		return m.palette.Update(msg)
+	}
+
+	return m.find.Update(msg)
 }
 
 // openModal names the overlay that takes the next key, "" when none is open.
@@ -191,6 +207,8 @@ func (m *Model) openModal() string {
 		return ctxSpaces
 	case m.evolog.IsOpen():
 		return ctxEvolog
+	case m.roundsBox.IsOpen():
+		return ctxRounds
 	case m.palette.IsOpen():
 		return ctxPalette
 	case m.find.IsOpen():
@@ -293,6 +311,18 @@ func (m Model) panelKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.previewDivergent(), true
 	case "[o", "]o":
 		cmd := m.stepOp(opStep(key))
+
+		return m, cmd, true
+	case "I":
+		cmd := m.openOutline()
+
+		return m, cmd, true
+	case "H":
+		cmd := m.openRoundsBox()
+
+		return m, cmd, true
+	case "[r", "]r":
+		cmd := m.stepRound(motionDir(key))
 
 		return m, cmd, true
 	}
