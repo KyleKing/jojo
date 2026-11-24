@@ -106,11 +106,11 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
-	case "enter", "r":
+	case "enter":
 		return m.restore()
-	case "d":
+	case "p":
 		return m.emit(func(op jj.Operation) tea.Msg { return ShowMsg{Operation: op} })
-	case "v":
+	case "u":
 		return m.revert()
 	}
 
@@ -172,8 +172,8 @@ func (m *Model) guarded(warning string, build func(jj.Operation) tea.Msg) tea.Cm
 func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "enter", What: "restore"},
-		{Key: "d", What: "diff"},
-		{Key: "v", What: "revert"},
+		{Key: "p", What: "diff"},
+		{Key: "u", What: "revert"},
 		{Key: "esc", What: "cancel"},
 	})
 }

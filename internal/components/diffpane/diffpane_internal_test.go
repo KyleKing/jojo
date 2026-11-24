@@ -66,12 +66,37 @@ func TestFileKeysStepBetweenHeaders(t *testing.T) {
 	}
 }
 
+// press plays keys the way jojo's keymap dispatches them to the pane: ] or [ and an object is a
+// Motion, n and N a Repeat, and anything else goes to Update.
 func press(m *Model, keys ...string) []tea.Msg {
 	var out []tea.Msg
 
-	for _, k := range keys {
-		if cmd := m.Update(key(k)); cmd != nil {
+	collect := func(cmd tea.Cmd) {
+		if cmd != nil {
 			out = append(out, cmd())
+		}
+	}
+
+	for i := 0; i < len(keys); i++ {
+		switch k := keys[i]; {
+		case (k == "]" || k == "[") && i+1 < len(keys):
+			dir, object := 1, keys[i+1]
+			if k == "[" {
+				dir = -1
+			}
+
+			if object == "[" {
+				object = ObjectChapter
+			}
+
+			i++
+			collect(m.Motion(object, dir))
+		case k == "n":
+			collect(m.Repeat(1))
+		case k == "N":
+			collect(m.Repeat(-1))
+		default:
+			collect(m.Update(key(k)))
 		}
 	}
 
@@ -161,20 +186,6 @@ func TestMotionsTheParentHoldsGoUp(t *testing.T) {
 		if len(got) != 1 || got[0] != tc.want {
 			t.Errorf("%v sent %v, want %v", tc.keys, got, tc.want)
 		}
-	}
-}
-
-// A ] followed by a key that names no object still steps a file, then acts as itself.
-func TestBareBracketStillStepsAFile(t *testing.T) {
-	t.Parallel()
-
-	m := NewDocked(ui.New(theme.Macchiato()))
-	m.Show("diff", twoHunkDiff, 80, "")
-
-	press(&m, "]", "s")
-
-	if m.CurrentPath() != "b.txt" || !m.sideBySide {
-		t.Errorf("] s: in %s, side by side %v; want b.txt and side by side", m.CurrentPath(), m.sideBySide)
 	}
 }
 

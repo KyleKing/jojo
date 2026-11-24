@@ -3,6 +3,7 @@ package model
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/palette"
 	"github.com/kyleking/jojo/internal/components/search"
 )
@@ -33,7 +34,8 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, nil, true
 	case palette.RunMsg:
-		next, cmd := m.dispatch(msg.Key)
+		m.palette.Close()
+		next, cmd := m.runAction(msg.Action)
 
 		return next, cmd, true
 	case palette.CancelledMsg:
@@ -45,33 +47,17 @@ func (m Model) handleFindMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// dispatch runs the key the palette picked through the same handlers the keypress itself reaches,
-// so the palette can never do something a key cannot.
-func (m Model) dispatch(id string) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.handleRootKey(id); handled {
-		return next, cmd
-	}
-
-	if next, cmd, handled := m.panelKey(id); handled {
-		return next, cmd
-	}
-
-	if next, cmd, handled := m.handleActionKey(id); handled {
-		return next, cmd
-	}
-
-	return m, m.say(id + " does nothing here")
-}
-
-// paletteCommands is the keymap itself, filtered to what a single key runs, so an entry cannot drift
-// from the binding it names.
+// paletteCommands is the keymap itself, every action the log runs whether a key is bound to it or
+// not, so an entry cannot drift from the binding it names and a palette-only verb (arrange) is
+// reachable.
 func (m Model) paletteCommands() []palette.Command {
 	bindings := m.keys.Runnable()
 	commands := make([]palette.Command, 0, len(bindings))
 
-	for i := range bindings {
-		b := &bindings[i]
-		commands = append(commands, palette.Command{Key: b.Run, Name: b.What, What: b.Cmd})
+	for _, b := range bindings {
+		commands = append(commands, palette.Command{
+			Key: b.Label(), Action: b.Action, Name: b.What, What: help.Cmd(b.Action),
+		})
 	}
 
 	return commands

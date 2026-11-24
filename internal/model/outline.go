@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/outlineview"
@@ -211,13 +212,12 @@ func (m Model) dockTarget() *jj.Revision {
 	return m.log.Selected()
 }
 
-// handleOutlineKey owns the keys while the outline has the focus. It reads, so a write verb pressed
+// dispatchOutline owns the keys while the outline has the focus. It reads, so a write verb pressed
 // by habit says where the writes are rather than acting on a chapter it cannot redraw.
-func (m Model) handleOutlineKey(key string) (tea.Model, tea.Cmd) {
-	m.usage.Key(ctxOutline, key)
-
-	if moved, changed := m.outline.view.MoveKey(key); moved {
-		if !changed {
+func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
+	if key, ok := navKey(action); ok {
+		moved, changed := m.outline.view.MoveKey(key.String())
+		if !moved || !changed {
 			return m, nil
 		}
 
@@ -226,50 +226,38 @@ func (m Model) handleOutlineKey(key string) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	switch m.keys.ResolveIn(help.ModeOutline, key) {
-	case "]]":
-		cmd := m.stepChapter(1)
+	switch action {
+	case keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
+		cmd := m.stepChapter(actionDir(action))
 
 		return m, cmd
-	case "[[":
-		cmd := m.stepChapter(-1)
-
-		return m, cmd
-	case "]h", "[h":
-		m.dock.StepHunk(motionDir(key))
+	case keys.NextAction(keys.ObjHunk), keys.PrevAction(keys.ObjHunk):
+		m.dock.StepHunk(actionDir(action))
 
 		return m, nil
-	case "]r", "[r":
-		cmd := m.stepRound(motionDir(key))
+	case keys.NextAction(keys.ObjRound), keys.PrevAction(keys.ObjRound):
+		cmd := m.stepRound(actionDir(action))
 
 		return m, cmd
-	case "H":
+	case keys.ActionRounds:
 		cmd := m.openRoundsBox()
 
 		return m, cmd
-	case keyEnter:
+	case help.ActionChapterRead:
 		m.focus = focusDock
 
 		return m, nil
-	case keyEsc, "I":
+	case keys.ActionBack, keys.ActionOutline:
 		cmd := m.closeOutline()
 
 		return m, cmd
 	}
 
-	return m.outlineRootKey(key)
-}
-
-// outlineRootKey is what the outline leaves to the application: quitting, help, the pane cycle.
-func (m Model) outlineRootKey(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	case "q", keyQuit, "?", keyTab, ":", "/", dockKey, "p":
-		next, cmd, _ := m.handleRootKey(key)
-
+	if next, cmd, handled := m.globalAction(action); handled {
 		return next, cmd
 	}
 
-	return m, m.say("the outline reads; Esc returns to the log, where the verbs are")
+	return m, m.say("the outline reads; esc returns to the log, where the verbs are")
 }
 
 // stepChapter moves the outline's cursor one chapter, the docked diff following once it rests.
@@ -287,15 +275,6 @@ func (m *Model) stepChapter(dir int) tea.Cmd {
 	}
 
 	return m.followDock(m.dockTarget())
-}
-
-// motionDir is 1 for a ] motion and -1 for a [ one.
-func motionDir(key string) int {
-	if strings.HasPrefix(key, "[") {
-		return -1
-	}
-
-	return 1
 }
 
 // noteRead files the read strip of a change whose whole diff the dock just read, for the chapter

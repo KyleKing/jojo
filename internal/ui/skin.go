@@ -163,3 +163,15 @@ func (s Skin) OverlayStyles() overlay.Styles {
 
 	return overlay.Styles{Frame: frame, Elision: s.Muted}
 }
+
+// PanelStyles is the face of the which-key panel a waiting prefix floats over the frame: the
+// overlay's border, tight, around the legend's faces.
+func (s Skin) PanelStyles() keyhint.PanelStyles {
+	return keyhint.PanelStyles{
+		Frame: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(s.Palette.Overlay0).Padding(0, 1),
+		Styles: s.FooterHintStyles(),
+		Count:  s.Muted,
+		On:     s.Accent,
+	}
+}

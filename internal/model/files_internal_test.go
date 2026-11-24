@@ -29,9 +29,9 @@ func TestFilePanelStartsOnTheConflict(t *testing.T) {
 		{Path: "b.txt", Conflict: true},
 	})
 
-	next, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	next, cmd := model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if cmd == nil {
-		t.Fatal("c produced no command")
+		t.Fatal("x produced no command")
 	}
 
 	resolve, ok := cmd().(fileview.ResolveMsg)
@@ -55,7 +55,7 @@ func TestFilePanelRefusesToResolveACleanFile(t *testing.T) {
 
 	model := openFiles(t, []jj.FileChange{{Status: "M", Path: "a.txt"}})
 
-	if _, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"}); cmd != nil {
+	if _, cmd := model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd != nil {
 		t.Fatalf("c on a clean file produced %T, want nothing", cmd())
 	}
 }
@@ -117,9 +117,9 @@ func TestMoveFileSquashesOnlyThatPath(t *testing.T) {
 
 	model := openFiles(t, []jj.FileChange{{Status: "M", Path: "a.txt"}})
 
-	next, cmd := model.Update(tea.KeyPressMsg{Code: 'm', Text: "m"})
+	next, cmd := model.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
 	if cmd == nil {
-		t.Fatal("m produced no command")
+		t.Fatal("s produced no command")
 	}
 
 	move, ok := cmd().(fileview.MoveMsg)
@@ -217,7 +217,7 @@ func TestCommit_ClosesTheListAndAsksForTheMessage(t *testing.T) {
 
 	model := openWorkingCopyFiles(t, false, stagedFiles())
 
-	next, cmd := model.Update(tuitest.Key("C"))
+	next, cmd := model.Update(tuitest.Key("c"))
 	if cmd == nil {
 		t.Fatal("C produced no command")
 	}

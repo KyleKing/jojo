@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│        Esc  back                               │
-│          q  quit                               │
-│        Tab  switch pane                        │
-│                                                │
-│  ── Vim motions ─────────────────────────────  │
-│                                    4–8 of 104  │
+│         q  close, or quit at the root          │
+│       esc  back out one level                  │
+│    ctrl+c  cancel the running command, else …  │
+│         u  undo                                │
+│    ctrl+r  redo                                │
+│                                     4–8 of 75  │
 │                                                │
 ╰────────────────────────────────────────────────╯

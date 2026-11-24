@@ -21,4 +21,4 @@ Stack · 4 · parse-header
 │ 
 │ 
  stack (trunk()..@) | (@:: ~ ::trunk())                                commit d4
-@  ]] chapter  [[ back a chapter  Enter read it in the dock  ]h hunk  …  ? help 
+@  ]] chapter  [[ previous chapter  enter read  ]h hunk  ]r round  …  ? help    

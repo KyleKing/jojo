@@ -7,8 +7,11 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/fileview"
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -195,4 +198,57 @@ func (m Model) resolve(revision string, paths ...string) tea.Cmd {
 // fetch brings every remote current, which is what a rebase onto trunk needs first.
 func (m Model) fetch() tea.Cmd {
 	return m.run(undoHint, m.client.Fetch)
+}
+
+// fileKeys are the keys the file list reads for itself, by the action that presses them, so a
+// rebound file verb reaches a list that only knows its own letters.
+var fileKeys = map[string]tea.KeyPressMsg{
+	help.ActionFileOpen:    {Code: tea.KeyEnter},
+	help.ActionFileRestore: {Code: 'R', Text: "R"},
+	help.ActionFileSquash:  {Code: 's', Text: "s"},
+	help.ActionFileResolve: {Code: 'x', Text: "x"},
+	help.ActionFileStage:   {Code: tea.KeySpace, Text: " "},
+	help.ActionFileCommit:  {Code: 'c', Text: "c"},
+	keys.ActionBack:        {Code: tea.KeyEscape},
+	keys.ActionQuit:        {Code: tea.KeyEscape},
+}
+
+// dispatchList runs an action in the file list.
+func (m Model) dispatchList(action string) (tea.Model, tea.Cmd) {
+	if key, ok := navKey(action); ok {
+		return m, m.files.Update(key)
+	}
+
+	if key, ok := fileKeys[action]; ok {
+		return m, m.files.Update(key)
+	}
+
+	if next, cmd, handled := m.globalAction(action); handled {
+		return next, cmd
+	}
+
+	return m, nil
+}
+
+// fileHints are the file list's footer keys as the user has them bound.
+func fileHints(km help.Keymap) fileview.Hints {
+	h := fileview.DefaultHints()
+	for action, hint := range map[string]*keyhint.Hint{
+		help.ActionFileOpen: &h.Diff, help.ActionFileRestore: &h.Restore, help.ActionFileSquash: &h.Squash,
+		help.ActionFileResolve: &h.Resolve, help.ActionFileStage: &h.Stage, help.ActionFileCommit: &h.Commit,
+		keys.ActionBack: &h.Close,
+	} {
+		if bound, ok := km.Hint(action); ok {
+			bound.What = hint.What
+			*hint = bound
+		}
+	}
+
+	return h
+}
+
+// diffHints are the full-screen diff's footer keys as the user has them bound.
+func diffHints(km help.Keymap) []keyhint.Hint {
+	return km.Hints(keys.ActionLineDown, keys.NextAction(keys.ObjFile), keys.NextAction(keys.ObjHunk),
+		keys.ActionAgain, keys.ActionViewSideBySide, keys.ActionBack)
 }

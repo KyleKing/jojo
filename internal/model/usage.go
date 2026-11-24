@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/help"
 )
@@ -23,7 +24,6 @@ const (
 	ctxDetail      = "detail"
 	ctxDiff        = "diff"
 	ctxDock        = "dock"
-	ctxEvolog      = "evolog"
 	ctxFiles       = "files"
 	ctxFind        = "find"
 	ctxForge       = "forge"
@@ -55,20 +55,21 @@ func (m *Model) recordModalKey(ctx string, msg tea.KeyPressMsg) {
 	m.usage.Key(ctx, msg.String())
 }
 
-// modeKeys is a mode's own bindings, as the user has bound them, plus the movement every mode keeps.
-func modeKeys(keys help.Keymap, mode string) []keyusage.Binding {
-	out := []keyusage.Binding{bind("quit", "q", "ctrl+c"), bind("help", "?")}
+// screenKeys is a screen's bindings as the user has bound them, sequences spelled the way the
+// dispatcher records them: the keys joined by spaces.
+func screenKeys(km help.Keymap, screen keys.Context) []keyusage.Binding {
+	bound := km.Bound(screen)
+	out := make([]keyusage.Binding, 0, len(bound))
 
-	bindings := keys.ModeBindings(mode)
-	for i := range bindings {
-		out = append(out, bind(bindings[i].What, bindings[i].Run))
+	for _, b := range bound {
+		out = append(out, keyusage.Binding{Keys: b.Keys, What: b.What})
 	}
 
-	return append(out, listMoves()...)
+	return out
 }
 
-func bind(what string, keys ...string) keyusage.Binding {
-	return keyusage.Binding{Keys: keys, What: what}
+func bind(what string, seqs ...string) keyusage.Binding {
+	return keyusage.Binding{Keys: seqs, What: what}
 }
 
 func listMoves() []keyusage.Binding {
@@ -84,29 +85,28 @@ func listModal(own ...keyusage.Binding) []keyusage.Binding {
 	return append(own, listMoves()...)
 }
 
-// UsageKeymap is every context a key is logged under, with the log's keys as the user has bound them.
-func UsageKeymap(keys help.Keymap) keyusage.Keymap {
-	logKeys := []keyusage.Binding{
-		bind("quit", "q", "ctrl+c"),
-		bind("help", "?"),
-		bind("command palette", ":"),
-		bind("switch pane", "tab"),
-	}
-
-	runnable := keys.Runnable()
-	for i := range runnable {
-		logKeys = append(logKeys, bind(runnable[i].What, runnable[i].Run))
+// UsageKeymap is every context a key is logged under, with the keymap's screens as the user has
+// bound them.
+func UsageKeymap(km help.Keymap) keyusage.Keymap {
+	pick := screenKeys(km, keys.Picker)
+	for _, screen := range []keys.Context{
+		help.PickRebase, help.PickSquash, help.PickDuplicate, help.PickNew,
+		help.PickRestore,
+	} {
+		pick = append(pick, screenKeys(km, screen)...)
 	}
 
 	return keyusage.Keymap{
-		ctxLog:    append(logKeys, listMoves()...),
-		ctxPick:   modeKeys(keys, help.ModePick),
-		ctxTravel: modeKeys(keys, help.ModeTravel),
-		ctxOutline: append(modeKeys(keys, help.ModeOutline),
-			bind("move", "j", "k", "down", "up"), bind("switch pane", "tab")),
-		ctxRounds: listModal(bind("show in the dock", "enter"), bind("close", "esc", "q", "H")),
+		ctxLog:     screenKeys(km, keys.Log),
+		ctxPick:    pick,
+		ctxTravel:  screenKeys(km, help.Travel),
+		ctxOutline: screenKeys(km, help.Outline),
+		ctxDock:    screenKeys(km, keys.View),
+		ctxFiles:   screenKeys(km, keys.List),
+		ctxRounds: listModal(bind("show in the dock", "enter"), bind("restore to it", "R"),
+			bind("close", "esc", "q", "H")),
 		ctxForge: {
-			bind("refresh", "r"),
+			bind("refresh", "ctrl+l"),
 			bind("back to the log", "esc"),
 			bind("switch pane", "tab"),
 		},
@@ -121,26 +121,8 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 			bind("delete", "d"), bind("forget", "f"), bind("track", "t"), bind("push", "p"),
 			bind("resolve", "x"), bind("close", "esc", "q", "b"),
 		),
-		ctxDiff: listModal(
-			bind("motion prefix", "[", "]"), bind("repeat the motion", "n", "N"), bind("side by side", "s"),
-			bind("close", "esc", "q"),
-		),
-		ctxDock: listModal(
-			bind("motion prefix", "[", "]"), bind("repeat the motion", "n", "N"), bind("side by side", "s"),
-			bind("rounds", "H"), bind("back to the log", "esc", "q"), bind("switch pane", "tab"),
-			bind("close", dockKey),
-		),
-		ctxFiles: listModal(
-			bind("diff the file", "enter"), bind("restore", "r"), bind("move", "m"),
-			bind("resolve", "c"), bind("stage or unstage", "space"), bind("commit", "C"),
-			bind("close", "esc", "q", "l"),
-		),
 		ctxOpLog: listModal(
-			bind("restore", "enter", "r"), bind("show", "d"), bind("revert", "v"), bind("close", "esc", "q", "o"),
-		),
-		ctxEvolog: listModal(
-			bind("show", "enter"), bind("mark", "space"), bind("interdiff", "d"),
-			bind("restore", "r"), bind("close", "esc", "q"),
+			bind("restore", "enter"), bind("show", "p"), bind("revert", "u"), bind("close", "esc", "q", "o"),
 		),
 		ctxSpaces: listModal(bind("add", "a"), bind("forget", "f"), bind("close", "esc", "q", "w")),
 		ctxPalette: {

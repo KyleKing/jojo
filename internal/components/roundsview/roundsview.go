@@ -24,6 +24,11 @@ type PickedMsg struct {
 // WholeMsg asks the docked diff to show the change as it stands rather than one round of it.
 type WholeMsg struct{}
 
+// RestoreMsg asks for the change's content to be put back to the round at Index as it ended.
+type RestoreMsg struct {
+	Round rounds.Round
+}
+
 // CancelledMsg is sent when the box closes without a pick.
 type CancelledMsg struct{}
 
@@ -94,6 +99,15 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		}
 
 		return func() tea.Msg { return PickedMsg{Index: e.index} }
+	case "R":
+		e, ok := m.list.Selected()
+		if !ok || e.whole {
+			return nil
+		}
+
+		m.Close()
+
+		return func() tea.Msg { return RestoreMsg{Round: e.round} }
 	case "esc", "q", "H":
 		m.Close()
 
@@ -108,6 +122,7 @@ func (m Model) View(width, height int) string {
 	return m.list.View(width, height, m.row, []keyhint.Hint{
 		{Key: "j k", What: "move"},
 		{Key: "enter", What: "show in the dock"},
+		{Key: "R", What: "restore to it"},
 		{Key: "esc", What: "close"},
 	})
 }

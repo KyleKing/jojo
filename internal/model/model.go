@@ -11,13 +11,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/overlay"
 
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/diffpane"
-	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/forgepane"
 	"github.com/kyleking/jojo/internal/components/help"
@@ -77,11 +79,17 @@ type clearMessageMsg struct{}
 // Model is the application.
 type Model struct {
 	// ctx is the program lifetime, so quitting cancels a jj call already running.
-	ctx        context.Context //nolint:containedctx // the model owns every jj call it starts.
-	skin       ui.Skin
-	repoPath   string
-	status     statusbar.Model
-	client     *jj.Client
+	ctx      context.Context //nolint:containedctx // the model owns every jj call it starts.
+	skin     ui.Skin
+	repoPath string
+	status   statusbar.Model
+	client   *jj.Client
+	// matcher turns key presses into actions, holding a prefix (g, b, ], [, \, -) while it waits.
+	// It is a pointer, so the copies Update makes of the model share the one waiting prefix.
+	matcher *keys.Matcher
+	// tick schedules the debounces and the message timeout: tea.Tick in the program, and whatever a
+	// test passes as Options.Ticker, so a test can wait on what a timer delivers rather than on time.
+	tick       Ticker
 	help       help.Model
 	revsetBox  revsetbox.Model
 	forge      forgepane.Model
@@ -89,7 +97,6 @@ type Model struct {
 	destPicker destpicker.Model
 	opLog      oplogview.Model
 	spaces     workspaceview.Model
-	evolog     evologview.Model
 	roundsBox  roundsview.Model
 	find       search.Model
 	palette    palette.Model
@@ -104,17 +111,12 @@ type Model struct {
 	pushing    pendingPush
 	// restoring is the operation a restore confirmation is standing over.
 	restoring jj.Operation
-	// chord is the first key of a two-key binding such as [o, held until the second arrives.
-	chord    string
-	onSubmit submitted
-	onEditor submitted
-	onPick   picked
-	keys     help.Keymap
-	usage    *keyusage.Recorder
-	// tick schedules the debounces and the message timeout: tea.Tick in the program, and whatever a
-	// test passes as Options.Ticker, so a test can wait on what a timer delivers rather than on time.
-	tick   Ticker
-	revset string
+	onSubmit  submitted
+	onEditor  submitted
+	onPick    picked
+	keys      help.Keymap
+	usage     *keyusage.Recorder
+	revset    string
 	// startRevset is the revset the log opened on, which the revset row only spends a line on once
 	// something else is asked for.
 	startRevset string
@@ -204,16 +206,22 @@ type Options struct {
 
 // New builds the root model against a repository jj already recognizes.
 func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset string, opts Options) Model {
-	keys := opts.Keys
+	km := opts.Keys
 	if opts.Seen != nil {
 		seen, now := *opts.Seen, time.Now()
-		keys = keys.WithLevel(func(key string) int { return seen.Level(ctxLog, key, now) })
+		km = km.WithLevel(func(key string) int { return seen.Level(ctxLog, key, now) })
 	}
 
 	reads := opts.Reads
 	if reads == nil {
 		reads = noReads{}
 	}
+
+	files := fileview.New(skin)
+	files.SetHints(fileHints(km))
+
+	diff := diffpane.New(skin)
+	diff.SetHints(diffHints(km))
 
 	return Model{
 		ctx:        ctx,
@@ -227,7 +235,6 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		destPicker: destpicker.New(skin),
 		opLog:      oplogview.New(skin),
 		spaces:     workspaceview.New(skin),
-		evolog:     evologview.New(skin),
 		roundsBox:  roundsview.New(skin),
 		outline:    outlineState{view: outlineview.New(skin)},
 		rounds:     roundsState{at: -1},
@@ -240,15 +247,16 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		find:            search.New(skin),
 		bookmarks:       bookmarkview.New(skin),
 		detail:          detailview.New(skin),
-		files:           fileview.New(skin),
-		diff:            diffpane.New(skin),
+		files:           files,
+		diff:            diff,
 		dock:            diffpane.NewDocked(skin),
 		confirm:         confirm.New(skin),
 		output:          textview.New(skin),
 		palette:         palette.New(skin),
 		status:          statusbar.New(skin),
-		help:            help.New(skin, keys),
-		keys:            keys,
+		help:            help.New(skin, km),
+		keys:            km,
+		matcher:         keys.NewMatcher(km.Keys()),
 		usage:           opts.Usage,
 		tick:            opts.Ticker,
 		revset:          revset,
@@ -261,9 +269,15 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	}
 }
 
-// Init loads the log, so the first frame is an empty log rather than a blocked terminal.
+// Init loads the log, so the first frame is an empty log rather than a blocked terminal. A [keys]
+// table written in names the keymap no longer uses still works, and says so once in the footer.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool())
+	var warn tea.Cmd
+	if w := m.keys.Warnings(); len(w) > 0 {
+		warn = m.say(strings.Join(w, "; "))
+	}
+
+	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool(), warn)
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {
@@ -573,7 +587,6 @@ func (m Model) overlay() func(width, height int) string {
 		{m.destPicker.View, m.destPicker.IsOpen()},
 		{m.opLogFrame, m.opLog.IsOpen()},
 		{m.spaces.View, m.spaces.IsOpen()},
-		{m.evolog.View, m.evolog.IsOpen()},
 		{m.roundsBox.View, m.roundsBox.IsOpen()},
 		{m.palette.View, m.palette.IsOpen()},
 	}
@@ -603,7 +616,7 @@ func (m Model) render() string {
 	}
 
 	if m.pick.active || m.travel.active {
-		return m.modeFrame()
+		return m.whichKey(m.modeFrame())
 	}
 
 	panes := append(m.revsetPane(), m.logPane())
@@ -617,7 +630,34 @@ func (m Model) render() string {
 
 	panes = append(panes, m.inspector(m.dockTarget(), m.overflow())...)
 
-	return strings.Join(append(panes, m.footer()), "\n")
+	return m.whichKey(strings.Join(append(panes, m.footer()), "\n"))
+}
+
+// panelShare is the fraction of the width the which-key panel may take at most: half.
+const panelShare = 2
+
+// whichKey floats the keys that can follow a waiting prefix over the bottom right of the frame, so a
+// chord never has to be remembered whole. It sits above the footer, which keeps saying where the
+// reader is and how to get out.
+func (m Model) whichKey(frame string) string {
+	hints := m.matcher.Panel(m.screen())
+	if len(hints) == 0 {
+		return frame
+	}
+
+	head := keyhint.Hint{Head: true, What: strings.Join(m.matcher.Pending(), "") + "…"}
+	box := keyhint.Panel(m.skin.PanelStyles(), append([]keyhint.Hint{head}, hints...), max(1, m.width/panelShare))
+
+	// The picker's footer is two rows, the live command line over its flags, and both stay in view.
+	keep := footerRows
+	if m.pick.active {
+		keep = pickRows
+	}
+
+	lines := strings.Split(frame, "\n")
+	body := max(0, len(lines)-keep)
+
+	return strings.Join(append(overlay.BottomRight(lines[:body], box, m.width), lines[body:]...), "\n")
 }
 
 // modeFrame is the log while it is picking a destination or showing the past: the docked diff

@@ -5,7 +5,7 @@
 │  @ 1m             aaa111 snapshot working copy           │
 │    1m             bbb222 describe commit bbb             │
 │    1m             ccc333 rebase                          │
-│  [enter] restore  [d]iff  re[v]ert  [esc] cancel         │
+│  [enter] restore  [p] diff  [u] revert  [esc] cancel     │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯
                                                             

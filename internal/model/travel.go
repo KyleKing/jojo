@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/components/confirm"
@@ -237,47 +237,42 @@ func (m Model) restoreConfirmed() (Model, tea.Cmd) {
 	return m, m.run(undoHint, func(ctx context.Context) (string, error) { return m.client.OpRestore(ctx, op) })
 }
 
-// handleTravelKey is the whole of what the past answers to. Moving and stepping read; r restores
+// dispatchTravel is the whole of what the past answers to. Moving and stepping read; Enter restores
 // after a confirmation; every other key says why it does nothing rather than doing it to the present.
-func (m Model) handleTravelKey(key string, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	m.usage.Key(ctxTravel, msg.String())
+func (m Model) dispatchTravel(action string) (tea.Model, tea.Cmd) {
+	if key, ok := navKey(action); ok {
+		m.travel.view.Update(key)
 
-	switch key {
-	case "[o", "]o":
-		cmd := m.stepOp(opStep(key))
+		return m, nil
+	}
+
+	switch action {
+	case help.ActionOpOlder, help.ActionOpNewer:
+		cmd := m.stepOp(opStep(action))
 
 		return m, cmd
-	case "q", keyQuit:
+	case keys.ActionQuit, keys.ActionCancel:
 		m.quitting = true
 
 		return m, tea.Quit
-	case "?":
-		m.showHelp = true
-		m.help = m.help.ScrollToStart()
+	case keys.ActionHelp:
+		m.openHelp()
 
 		return m, nil
-	case "o":
+	case help.ActionOpLog:
 		m.opLog.OpenAt(m.travel.ops, m.travel.index)
 
 		return m, nil
-	}
-
-	switch m.keys.ResolveIn(help.ModeTravel, msg.String()) {
-	case keyEsc:
+	case keys.ActionBack:
 		m.endTravel()
 
 		return m, m.say("back at the current operation")
-	case "r", keyEnter:
+	case help.ActionTravelRestore:
 		return m.confirmRestore(m.travel.op())
 	}
 
-	if slices.Contains(pickMoves, msg.String()) {
-		m.travel.view.Update(msg)
-
-		return m, nil
-	}
-
-	return m, m.say("read-only at operation " + m.travel.op().ID + ": esc returns to now, r restores it")
+	return m, m.say("read-only at operation " + m.travel.op().ID + ": " + m.keys.Label(keys.ActionBack) +
+		" returns to now, " + m.keys.Label(help.ActionTravelRestore) + " restores it")
 }
 
 // travelBanner says, on the row the revset box would take, that the log is not the present.
@@ -299,7 +294,8 @@ func (m Model) travelBanner() string {
 
 	// The way out goes last and is kept whole, since it is the one thing on the row a reader must find.
 	if !m.travel.now() {
-		parts = append(parts, "r restore · esc back to now")
+		parts = append(parts, m.keys.Label(help.ActionTravelRestore)+" restore · "+
+			m.keys.Label(keys.ActionBack)+" back to now")
 	}
 
 	text := table.Truncate(strings.Join(parts, " · "), m.width)
@@ -314,18 +310,18 @@ func (m Model) travelBanner() string {
 // travelHints are the footer's while the log shows the past: the few keys that work, so the
 // read-only rule is visible before anyone runs into it.
 func (m Model) travelHints() []keyhint.Hint {
-	h := m.keys.ModeHints(help.ModeTravel)
+	hints := []keyhint.Hint{{
+		Key:  m.keys.Label(help.ActionOpOlder) + " " + m.keys.Label(help.ActionOpNewer),
+		What: "older / newer", Priority: 1,
+	}}
+	hints = append(hints, m.keys.Hints(help.ActionTravelRestore, help.ActionOpLog)...)
 
-	restore, exit := h["travel-restore"], h["travel-exit"]
-	restore.What, exit.What = "restore", "now"
-
-	return []keyhint.Hint{
-		{Key: "[o ]o", What: "older / newer", Priority: 1},
-		restore,
-		{Key: "o", What: "op log"},
-		exit,
-		m.pinnedHelp(),
+	if back, ok := m.keys.Hint(keys.ActionBack); ok {
+		back.What = "now"
+		hints = append(hints, back)
 	}
+
+	return append(hints, m.pinnedHelp())
 }
 
 // travelFooter replaces the log's footer: the message when one is up, else the notice and the keys.

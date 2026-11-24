@@ -32,8 +32,11 @@ const (
 type RebaseOptions struct {
 	Revisions   []string
 	Destination []string
-	Mode        RebaseDestinationMode
-	Scope       RebaseScope
+	// Flags are jj's own toggles, spelled as jj spells them (--skip-emptied, --keep-divergent,
+	// --simplify-parents), appended as given.
+	Flags []string
+	Mode  RebaseDestinationMode
+	Scope RebaseScope
 	// SkipEmptied abandons a revision the rebase leaves empty, which is what landing a stack on a
 	// trunk that already took some of it usually wants.
 	SkipEmptied bool
@@ -78,6 +81,17 @@ func (c *Client) New(ctx context.Context, revs []string) (string, error) {
 	args := append([]string{"new"}, revs...)
 
 	return c.mutate(ctx, args...)
+}
+
+// Commit describes @ with message and starts a new change on top of it, as one operation.
+func (c *Client) Commit(ctx context.Context, message string) (string, error) {
+	return c.mutate(ctx, "commit", "-m", message)
+}
+
+// RestoreArgs puts from's content into into, which with from as into's parent discards into's
+// changes. Flags (--restore-descendants) follow.
+func RestoreArgs(from, into string, flags ...string) []string {
+	return append([]string{"restore", "--from", from, "--into", into}, flags...)
 }
 
 // Edit makes rev the working-copy commit.
@@ -187,7 +201,7 @@ func RebaseArgs(opts RebaseOptions) []string {
 		args = append(args, "--skip-emptied")
 	}
 
-	return args
+	return append(args, opts.Flags...)
 }
 
 // SquashOptions describes a squash of several revisions into one.

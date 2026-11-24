@@ -13,4 +13,4 @@
 │ M second.txt
 │ L1
                                                                                 
-@  ↑ ↓ ← → move  Enter select  Esc back  q quit  Tab switch pane  …  ? help     
+@  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  …  ? help 

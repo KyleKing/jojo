@@ -105,7 +105,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return m.scheduleNext()
 
 	case tea.KeyPressMsg:
-		if msg.String() == "r" && m.poller != nil && !m.fetching {
+		if msg.String() == "ctrl+l" && m.poller != nil && !m.fetching {
 			return m.fetchCmd()
 		}
 	}

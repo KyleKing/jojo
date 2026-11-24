@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│  ── Universal ───────────────────────────────  │
-│    ↑ ↓ ← →  move                               │
-│      Enter  select                             │
-│        Esc  back                               │
-│          q  quit                               │
-│                                    1–5 of 104  │
+│  ── General ─────────────────────────────────  │
+│         ?  help                                │
+│         :  command palette                     │
+│         q  close, or quit at the root          │
+│       esc  back out one level                  │
+│                                     1–5 of 75  │
 │                                                │
 ╰────────────────────────────────────────────────╯

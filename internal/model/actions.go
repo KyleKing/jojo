@@ -3,12 +3,15 @@ package model
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keys"
 
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -27,122 +30,167 @@ func (m Model) targets() []string {
 	return nil
 }
 
-// handleActionKey runs the per-commit verbs. Each executes immediately and offers undo rather than
-// opening a confirm gate, because the operation log already covers them.
-func (m Model) handleActionKey(key string) (tea.Model, tea.Cmd, bool) {
+// revisionAction runs the verbs on the revision under the cursor (or the checked ones). Each
+// executes immediately and offers undo rather than opening a confirm gate, because the operation log
+// already covers them; the verbs that need a destination open the in-log picker.
+func (m Model) revisionAction(action string) (tea.Model, tea.Cmd) {
 	rev := m.log.Selected()
 	if rev == nil {
-		return m, nil, false
+		return m, nil
 	}
 
-	if cmd, handled := m.writeKey(key, *rev); handled {
-		return m, cmd, true
+	if cmd, handled := m.writeAction(action, *rev); handled {
+		return m, cmd
 	}
 
-	if cmd, handled := m.viewKey(key, *rev); handled {
-		return m, cmd, true
+	if cmd, handled := m.viewAction(action, *rev); handled {
+		return m, cmd
 	}
 
-	return m.openKey(key, *rev)
+	return m.openAction(action, *rev)
 }
 
-// writeKey covers the verbs that need no argument, so they run as the key lands.
-func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
+// writeAction covers the verbs that need no argument, so they run as the key lands.
+func (m *Model) writeAction(action string, rev jj.Revision) (tea.Cmd, bool) {
 	targets := m.targets()
 
-	switch key {
-	case "e":
+	switch action {
+	case help.ActionNew:
+		return m.act(joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.New(ctx, targets) }), true
+	case help.ActionEdit:
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Edit(ctx, rev.ChangeID) }), true
-	case "a":
+	case help.ActionAbandon:
 		return m.act(joinIDs(targets),
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Abandon(ctx, targets) }), true
-	case "A":
+	case help.ActionAbsorb:
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Absorb(ctx, rev.ChangeID) }), true
-	case "|":
+	case help.ActionParallelize:
 		return m.parallelize(), true
+	case help.ActionCheck:
+		m.log.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+		return nil, true
 	}
 
 	return nil, false
 }
 
-// viewKey covers the verbs that read rather than write, each opening a panel or a diff.
-func (m Model) viewKey(key string, rev jj.Revision) (tea.Cmd, bool) {
-	switch key {
-	case "E":
-		return m.loadEvolog(rev.ChangeID), true
-	case "v":
+// viewAction covers the verbs that read rather than write, each opening a panel or a diff.
+func (m Model) viewAction(action string, rev jj.Revision) (tea.Cmd, bool) {
+	switch action {
+	case keys.ActionInspect:
 		return m.loadDetail(rev.ChangeID), true
-	case "l":
+	case keys.ActionYank:
+		return tea.Batch(tea.SetClipboard(rev.ChangeID), m.say("yanked "+rev.ChangeID)), true
+	case help.ActionFiles:
 		return m.filesKey(rev), true
-	case "c":
+	case help.ActionResolve:
 		return m.resolveKey(rev), true
-	case "P":
+	case help.ActionPush:
 		targets := m.targets()
 
 		return m.previewPush(joinIDs(targets), jj.PushOptions{Revisions: targets}), true
-	case "enter":
+	case help.ActionDiff:
 		return m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
+	case help.ActionCompare:
+		return m.openCompare(rev.ChangeID), true
 	}
 
 	return nil, false
 }
 
-// openKey covers the verbs that need an argument, a terminal, or a view of their own.
-func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
-	switch key {
-	case "d":
-		return m, m.loadDescribe(rev), true
-	case "alt+e":
-		return m, m.describeInEditor(rev.ChangeID, ""), true
-	case "s", "r", "R", "D", "n":
-		cmd := m.openVerb(key)
+// openAction covers the verbs that need an argument, a terminal, or a view of their own.
+func (m Model) openAction(action string, rev jj.Revision) (tea.Model, tea.Cmd) {
+	switch action {
+	case keys.ActionDescribe:
+		return m, m.loadDescribe(rev)
+	case keys.ActionDescribeEditor:
+		return m, m.describeInEditor(rev.ChangeID, "")
+	case help.ActionCommit:
+		return m.openCommitPrompt(rev)
+	case help.ActionDiffedit:
+		return m, m.exec("edited "+rev.ChangeID+undoHint, m.hunkArgs("diffedit", "-r", rev.ChangeID)...)
+	case help.ActionSplit:
+		return m, m.exec("split"+undoHint, m.hunkArgs("split", "-i", "-r", rev.ChangeID)...)
+	case help.ActionBisect:
+		return m.openBisect()
+	case help.ActionBookmarkCreate:
+		target := rev.ChangeID
 
-		return m, cmd, true
-	case "S":
-		return m, m.exec("split"+undoHint, m.hunkArgs("split", "-i", "-r", rev.ChangeID)...), true
-	case "i":
-		return m, m.exec("squashed interactively"+undoHint, m.hunkArgs("squash", "-i", "-r", rev.ChangeID)...), true
-	case "alt+i":
-		cmd := m.openMoveHunks(rev)
-
-		return m, cmd, true
-	case "alt+d":
-		cmd := m.openDiffRange()
-
-		return m, cmd, true
-	case "X":
-		return m, m.exec("arranged, press u to undo", "arrange"), true
-	case "B":
-		next, cmd := m.openBisect()
-
-		return next, cmd, true
+		return m.askBookmarkName("new bookmark on "+target, func(m Model, name string) (Model, tea.Cmd) {
+			return m, m.bookmarkWrite(func(ctx context.Context) (string, error) {
+				return m.client.BookmarkSet(ctx, name, target)
+			})
+		}), nil
 	}
 
-	return m, nil, false
+	cmd := m.openVerb(action, rev)
+
+	return m, cmd
 }
 
-// openVerb puts the log into picking mode for the verb key names. New takes the checked revisions
-// as extra parents and nothing else, so with none checked it is a destination alone.
-func (m *Model) openVerb(key string) tea.Cmd {
+// openVerb puts the log into picking mode for a verb that needs a destination. New takes the checked
+// revisions as extra parents and nothing else, so with none checked it is a destination alone, and
+// restore acts on the one revision under the cursor.
+func (m *Model) openVerb(action string, rev jj.Revision) tea.Cmd {
 	targets := m.targets()
 
-	switch key {
-	case "s":
+	switch action {
+	case help.ActionSquash:
 		return m.openPicker(pickSquash, targets)
-	case "D":
+	case help.ActionDuplicate:
 		return m.openPicker(pickDuplicate, targets)
-	case "n":
+	case help.ActionNewPlaced:
 		return m.openPicker(pickNew, m.log.Checked())
-	case "R":
-		cmd := m.openPicker(pickRebase, targets)
-		m.pick.scope = jj.RebaseScopeSource
-
-		return cmd
+	case help.ActionRestore:
+		return m.openPicker(pickRestore, []string{rev.ChangeID})
+	case help.ActionRebase:
+		return m.openPicker(pickRebase, targets)
+	case help.ActionRebaseSubtree:
+		return m.openPicker(pickRebase, targets, "s")
 	}
 
-	return m.openPicker(pickRebase, targets)
+	return nil
+}
+
+// openCommitPrompt asks for the message the working copy is committed with. Commit only acts on @,
+// so on any other row it says where to go rather than committing something else.
+func (m Model) openCommitPrompt(rev jj.Revision) (tea.Model, tea.Cmd) {
+	if !rev.WorkingCopy {
+		return m, m.say("c commits @, the working copy: @ jumps there")
+	}
+
+	m.onSubmit = func(m Model, text string) (Model, tea.Cmd) {
+		if strings.TrimSpace(text) == "" {
+			return m, m.say("commit needs a message, nothing ran")
+		}
+
+		cmd := m.act("@", func(ctx context.Context, c *jj.Client) (string, error) { return c.Commit(ctx, text) })
+
+		return m, cmd
+	}
+	m.onEditor = func(m Model, _ string) (Model, tea.Cmd) {
+		return m, m.exec("committed"+undoHint, "commit")
+	}
+
+	return m, m.prompt.OpenText("commit @", rev.Description)
+}
+
+// shell hands the terminal to $SHELL in the repository root and reloads the log on return, since
+// whatever ran there may have rewritten it.
+func (m Model) shell() tea.Cmd {
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "sh"
+	}
+
+	cmd := exec.CommandContext(m.ctx, sh) //nolint:gosec // G204: the user's own shell, by design.
+	cmd.Dir = m.repoPath
+
+	return m.execCommand("back from the shell", cmd)
 }
 
 func joinIDs(ids []string) string {

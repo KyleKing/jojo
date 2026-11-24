@@ -13,4 +13,4 @@
                                                             │ 
                                                             │ 
                                                                                                                         
-@  ↑ ↓ ← → move  Enter select  Esc back  q quit  Tab switch pane  n new  e edit  d describe  …  ? help                  
+@  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  a abandon  u undo  l files  S split  …  ? help    

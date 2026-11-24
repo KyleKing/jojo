@@ -15,17 +15,19 @@ func TestRowHintsSayTheOneThingThatMatters(t *testing.T) {
 		rev  *jj.Revision
 		name string
 		want string
+		key  string
 	}{
 		{name: "no row", rev: nil, want: ""},
 		{
 			name: "conflict outranks immutable",
 			rev:  &jj.Revision{Conflict: true, Immutable: true},
 			want: "conflicted, resolve it",
+			key:  "x",
 		},
 		{name: "immutable", rev: &jj.Revision{Immutable: true}, want: "immutable, an edit asks first"},
 		{name: "empty", rev: &jj.Revision{Empty: true}, want: "empty, abandon it"},
 		{name: "the working copy is empty on purpose", rev: &jj.Revision{Empty: true, WorkingCopy: true}, want: ""},
-		{name: "bookmark", rev: &jj.Revision{LocalBookmarks: []string{"main"}}, want: "bookmarks, push from there"},
+		{name: "bookmark", rev: &jj.Revision{LocalBookmarks: []string{"main"}}, want: "bookmarked, push it", key: "P"},
 		{name: "ordinary revision", rev: &jj.Revision{ChangeID: "abc"}, want: ""},
 	}
 
@@ -33,7 +35,7 @@ func TestRowHintsSayTheOneThingThatMatters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			hints := rowHints(tc.rev)
+			hints := testModel(t, nil).rowHints(tc.rev)
 
 			if tc.want == "" {
 				if len(hints) != 0 {
@@ -45,6 +47,10 @@ func TestRowHintsSayTheOneThingThatMatters(t *testing.T) {
 
 			if len(hints) != 1 {
 				t.Fatalf("rowHints returned %d hints, want exactly one", len(hints))
+			}
+
+			if tc.key != "" && hints[0].Key != tc.key {
+				t.Errorf("key = %q, want %q", hints[0].Key, tc.key)
 			}
 
 			if hints[0].What != tc.want {

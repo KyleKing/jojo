@@ -1,40 +1,40 @@
 ╭──────────────────────────────────────────────────────────╮
 │                                                          │
-│  ── Universal ─────────────────────────────────────────  │
-│    ↑ ↓ ← →  move                                         │
-│      Enter  select                                       │
-│        Esc  back                                         │
-│          q  quit                                         │
-│        Tab  switch pane                                  │
+│  ── General ───────────────────────────────────────────  │
+│         ?  help                                          │
+│         :  command palette                               │
+│         q  close, or quit at the root                    │
+│       esc  back out one level                            │
+│    ctrl+c  cancel the running command, else quit         │
+│         u  undo                                          │
+│    ctrl+r  redo                                          │
+│    ctrl+l  reload from the source                        │
+│       tab  next pane                                     │
+│         !  shell in the repository root                  │
+│         K  what is this                                  │
+│         Y  yank a reference                              │
+│        gm  messages and the last failure                 │
 │                                                          │
-│  ── Vim motions ───────────────────────────────────────  │
-│      j / k  move a line                                  │
-│          /  search the log                               │
-│          ?  help                                         │
-│          :  command palette                              │
-│      g / G  top / bottom                                 │
+│  ── Move ──────────────────────────────────────────────  │
+│        gg  top                                           │
+│         G  bottom                                        │
+│    j/down  down a line                                   │
+│      k/up  up a line                                     │
+│    ctrl+d  half a page down                              │
+│    ctrl+u  half a page up                                │
+│         @  jump to the working copy                      │
 │                                                          │
-│  ── Mnemonics ─────────────────────────────────────────  │
-│          n  new                                          │
-│          e  edit                                         │
-│          d  describe                                     │
-│      Alt+e  describe in $EDITOR                          │
-│          s  squash                                       │
-│          S  split                                        │
-│          i  squash interactively                         │
-│      Alt+i  move hunks into any revision                 │
-│      Enter  diff the revision                            │
-│      Alt+d  diff any two revisions                       │
-│      Alt+p  diff docked beside the log                   │
-│          a  abandon                                      │
-│          A  absorb                                       │
-│          D  duplicate                                    │
-│          r  rebase the revision                          │
-│          R  rebase it and its descendants                │
-│          l  files in the revision                        │
-│          c  resolve the conflict                         │
-│          b  bookmarks                                    │
-│          f  fetch                                        │
-│                                             1–35 of 104  │
+│  ── Find ──────────────────────────────────────────────  │
+│         /  search                                        │
+│                                                          │
+│  ── Read ──────────────────────────────────────────────  │
+│         H  choose the round to compare against           │
+│         I  outline                                       │
+│                                                          │
+│  ── Jump ──────────────────────────────────────────────  │
+│        ]r  next round                                    │
+│        [r  previous round                                │
+│                                                          │
+│                                              1–35 of 75  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

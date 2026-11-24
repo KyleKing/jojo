@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/tuitest"
 )
 
 // A workspace nested under the repository root would be snapshotted into its own commits, so the new
@@ -77,6 +78,18 @@ func asModel(t *testing.T, m tea.Model) Model {
 	}
 
 	return model
+}
+
+// pressKeys sends each key in turn, the way a chord such as g m arrives.
+func pressKeys(t *testing.T, m Model, keys ...string) tea.Model {
+	t.Helper()
+
+	var next tea.Model = m
+	for _, key := range keys {
+		next = update(asModel(t, next), tuitest.Key(key))
+	}
+
+	return next
 }
 
 func update(m Model, msg tea.Msg) tea.Model {

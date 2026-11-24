@@ -96,7 +96,7 @@ func TestCommit_OffersTheIndexDescription(t *testing.T) {
 
 	m := workingCopy(indexed())
 
-	commit, ok := press(t, &m, "C").(fileview.CommitMsg)
+	commit, ok := press(t, &m, "c").(fileview.CommitMsg)
 	if !ok || commit.Message != "wip: parser" {
 		t.Fatalf("C sent %#v, want a commit offering the index's description", commit)
 	}
@@ -124,7 +124,7 @@ func TestStagingKeys_RefuseWithAReason(t *testing.T) {
 		{
 			name: "commit with nothing staged",
 			open: func() fileview.Model { return workingCopy(fileview.Staging{Index: "idxidxid"}) },
-			key:  "C",
+			key:  "c",
 			want: "nothing staged",
 		},
 		{

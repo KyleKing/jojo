@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│        Esc  log                                │
-│                                                │
-│  ── Viewing an earlier operation ([o o) ─────  │
-│          r  restore the repository to it       │
-│        Esc  back to now                        │
-│                                100–104 of 104  │
+│        bb  bookmarks: the list                 │
+│        bc  create a bookmark here              │
+│         L  edit the revset                     │
+│        gh  forge pane: pull requests and CI    │
+│        gw  workspaces                          │
+│                                   71–75 of 75  │
 │                                                │
 ╰────────────────────────────────────────────────╯

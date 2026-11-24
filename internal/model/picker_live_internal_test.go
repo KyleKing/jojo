@@ -298,9 +298,9 @@ func TestPickerLive_RefusedPreviewLeavesNoTrace(t *testing.T) {
 	m := liveModel(t, dir, "middle")
 	before, ops := repoPrint(t, dir), opCount(t, dir)
 
-	// R moves middle with its descendants, and top is one of them: jj refuses to rebase a revision
+	// -s moves middle with its descendants, and top is one of them: jj refuses to rebase a revision
 	// onto its own descendant.
-	m = press(t, m, "R")
+	m = press(t, m, "r", "-", "s")
 	m.pick.dest = changeFor(t, dir, "top")
 	m = pump(t, m, m.changed())
 
@@ -417,11 +417,11 @@ func TestTravelLive_ReadOnly(t *testing.T) {
 
 	before := repoPrint(t, dir)
 
-	for _, key := range []string{"a", "d", "s", "r", "esc"} {
-		if key == "r" {
+	for _, key := range []string{"a", "d", "s", "enter", "esc"} {
+		if key == "enter" {
 			m = press(t, m, key)
 			if !m.confirm.IsOpen() {
-				t.Error("r did not ask before restoring")
+				t.Error("enter did not ask before restoring")
 			}
 
 			m = press(t, m, "n")
@@ -454,7 +454,7 @@ func TestTravelLive_ReadOnly(t *testing.T) {
 	}
 }
 
-// r on an earlier operation restores it after the confirmation, as one operation.
+// enter on an earlier operation restores it after the confirmation, as one operation.
 func TestTravelLive_RestoreAfterConfirming(t *testing.T) {
 	t.Parallel()
 
@@ -465,7 +465,7 @@ func TestTravelLive_RestoreAfterConfirming(t *testing.T) {
 	m = pump(t, m, m.loadLog("all()"))
 	ops := opCount(t, dir)
 
-	m = press(t, m, "[", "o", "r", "y")
+	m = press(t, m, "[", "o", "enter", "y")
 
 	if got := opCount(t, dir) - ops; got != 1 {
 		t.Errorf("restoring added %d operations, want 1", got)

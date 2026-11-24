@@ -283,7 +283,7 @@ func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 	}{
 		{"log", "", size{100, 20}, size{100, 40}},
 		{"log, wider and taller", "", size{80, 16}, size{140, 44}},
-		{"docked diff", "\x1bp", size{120, 20}, size{140, 40}},
+		{"docked diff", "p", size{120, 20}, size{140, 40}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

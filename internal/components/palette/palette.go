@@ -15,19 +15,21 @@ import (
 	"github.com/kyleking/jojo/internal/ui"
 )
 
-// Command is one action the palette can run: the key the root model already
-// dispatches on, the palette's own searchable name, and a one-line
-// description.
+// Command is one action the palette can run: the key bound to it ("" for a
+// palette-only action), the action the root model dispatches, the palette's
+// own searchable name, and a one-line description.
 type Command struct {
-	Key  string
-	Name string
-	What string
+	Key    string
+	Action string
+	Name   string
+	What   string
 }
 
-// RunMsg is sent when Enter confirms a command, naming the key its binding
-// already handles.
+// RunMsg is sent when Enter confirms a command, naming its action and the key
+// bound to it.
 type RunMsg struct {
-	Key string
+	Key    string
+	Action string
 }
 
 // CancelledMsg is sent when Esc dismisses the palette without running one.
@@ -113,7 +115,7 @@ func (m *Model) run() tea.Cmd {
 
 	m.Close()
 
-	return func() tea.Msg { return RunMsg{Key: cmd.Key} }
+	return func() tea.Msg { return RunMsg{Key: cmd.Key, Action: cmd.Action} }
 }
 
 func (m *Model) setFilter(s string) {

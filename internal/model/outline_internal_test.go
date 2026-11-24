@@ -96,7 +96,7 @@ func TestOutline_WriteVerbsDoNothing(t *testing.T) {
 	before := opCount(t, dir)
 	m = press(t, m, "a")
 
-	if opCount(t, dir) != before || !strings.Contains(m.message, "Esc returns to the log") {
+	if opCount(t, dir) != before || !strings.Contains(m.message, "esc returns to the log") {
 		t.Errorf("a in the outline wrote %d operations, said %q", opCount(t, dir)-before, m.message)
 	}
 }

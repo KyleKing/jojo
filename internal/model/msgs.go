@@ -8,13 +8,11 @@ import (
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/detailview"
 	"github.com/kyleking/jojo/internal/components/diffpane"
-	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/textview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
-	"github.com/kyleking/jojo/internal/jj"
 )
 
 // handleOverlayMsg covers what the modals report back: an argument collected, an action confirmed,
@@ -50,7 +48,7 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, nil, true
 	case prompt.CancelledMsg, destpicker.CancelledMsg, workspaceview.CancelledMsg,
-		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg,
+		bookmarkview.CancelledMsg, detailview.CancelledMsg,
 		fileview.CancelledMsg:
 		return m.cancelModals(), nil, true
 	case textview.CancelledMsg:
@@ -98,14 +96,6 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return next, cmd, true
 	case workspaceview.ForgetMsg:
 		next, cmd := m.forgetWorkspace(msg)
-
-		return next, cmd, true
-	case evologview.ShowMsg:
-		return m, m.showDiff(jj.DiffTarget{Revision: msg.CommitID}), true
-	case evologview.InterdiffMsg:
-		return m, m.showDiff(jj.DiffTarget{From: msg.From, To: msg.To}), true
-	case evologview.RestoreMsg:
-		next, cmd := m.restoreVersion(msg)
 
 		return next, cmd, true
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -16,18 +17,27 @@ import (
 // scroll-position line.
 const footerRows = 1
 
-// Model is the `?` overlay: a scroll position over the legend, rendered fresh
-// from the keymap on every View.
+// Model is the `?` overlay: a scroll position over the legend of one screen, rendered fresh from
+// the keymap on every View.
 type Model struct {
 	skin   ui.Skin
 	keys   Keymap
+	ctx    keys.Context
 	offset int
 }
 
-// New returns a help overlay scrolled to the top, showing the keys in keys rather than the defaults,
-// so a rebind reaches the legend too.
-func New(skin ui.Skin, keys Keymap) Model {
-	return Model{skin: skin, keys: keys}
+// New returns a help overlay scrolled to the top of the log's legend, showing the keys in km rather
+// than the defaults, so a rebind reaches the legend too.
+func New(skin ui.Skin, km Keymap) Model {
+	return Model{skin: skin, keys: km, ctx: keys.Log}
+}
+
+// For is the overlay showing the legend of screen ctx from the top, which is the screen the help key
+// was pressed on: the picker's page lists its flags, the docked diff's its motions.
+func (m Model) For(ctx keys.Context) Model {
+	m.ctx, m.offset = ctx, 0
+
+	return m
 }
 
 // ScrollBy moves the offset by n lines, clamped at zero. View clamps the
@@ -91,7 +101,7 @@ func (m Model) View(width, height int) string {
 // rule after a blank row, the same shape jj-diff and second-look give their legends. The first
 // group skips the blank row, since the frame's padding already separates it from the border.
 func (m Model) legend(width int) []string {
-	hints := m.keys.AllHints()
+	hints := m.keys.Legend(m.ctx)
 	drawn := keyhint.Help(m.skin.KeyHintStyles(), hints, width)
 	out := make([]string, 0, len(drawn)+len(hints))
 

@@ -1,613 +1,402 @@
-// Package help renders the `?` overlay: the full key legend, grouped by the
-// four layers jojo's keymap is designed in, scrollable when the legend is
-// taller than the frame.
+// Package help is jojo's keymap and the `?` overlay that draws it. The keymap is aragonite's shared
+// vocabulary (tui/keys: Global, DiffView, the picker flags) merged with jojo's own jj verbs, so the
+// dispatcher, the legend, the footers, the palette, and the which-key panel a waiting prefix shows
+// all read one table and cannot disagree about what a key does.
 package help
 
 import (
-	"errors"
-	"fmt"
 	"slices"
 
-	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 )
 
-// Layer is one tier of jojo's keymap, from the keys every screen understands
-// to the ones only a power user reaches for.
-type Layer int
-
-// The four layers, in the order the legend groups them.
+// The screens jojo adds to the shared ones (keys.Log, keys.Picker, keys.View, keys.List). A key is
+// live on a screen when its binding's contexts overlap the one the model reports, so each mode of the
+// log that answers keys of its own is a bit here.
 const (
-	// L0 works everywhere: arrow movement, confirming, backing out.
-	L0 Layer = iota
-	// L1 is vim motion: hjkl, search, the command line.
-	L1
-	// L2 is jj's own mnemonics: one letter per verb.
-	L2
-	// L3 is the power tools: aliases, arrange, bisect, multi-select.
-	L3
+	// Travel is the log as it stood at an earlier operation, which is read-only.
+	Travel keys.Context = 1 << (iota + 8) //nolint:mnd // the first bit aragonite leaves free
+	// Outline is the stack outline, which takes the log's place while it is open.
+	Outline
+	// PickRebase, PickSquash, PickDuplicate, PickNew, and PickRestore are the in-log picker for
+	// each verb. A verb's flags live on its own bit, so rebase's -r and restore's -i never meet.
+	PickRebase
+	PickSquash
+	PickDuplicate
+	PickNew
+	PickRestore
 )
 
-// Binding is one entry in jojo's keymap: the hint it renders as, the layer it
-// belongs to, and the key the root model dispatches on. Run is empty for a
-// binding no single key runs, such as movement or a heading, and those are the
-// entries the command palette leaves out.
-type Binding struct {
-	// Cmd is the jj invocation this binding runs, written as a shape rather than a real command
-	// line. The palette shows it, which is how someone learns the CLI from the TUI.
-	Cmd string
-	// Action names the binding in config.toml's [keys] table. It is stable across a rebind, which
-	// Run and Key are not.
-	Action string
-	Run    string
-	// Mode is where the key is live: "" for the log, or one of the modes the log enters (ModePick,
-	// ModeTravel), whose keys are read only while it lasts. Two modes may give one key different
-	// actions; one mode may not give it two.
-	Mode string
-	keyhint.Hint
-	Layer Layer
+// PickVerbs maps each picker screen to the aragonite verb whose flags it offers.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var PickVerbs = map[keys.Context]string{
+	PickRebase:    keys.VerbRebase,
+	PickSquash:    keys.VerbSquash,
+	PickDuplicate: keys.VerbDuplicate,
+	PickNew:       keys.VerbNew,
+	PickRestore:   keys.VerbRestore,
 }
 
-// The modes the log enters, each with keys of its own that mean nothing outside it.
+// keyEnter is the key every screen's own "do it" sits on.
+const keyEnter = "enter"
+
+// pickScreens is every picker screen.
+const pickScreens = PickRebase | PickSquash | PickDuplicate | PickNew | PickRestore
+
+// Actions jojo adds to the shared vocabulary. Shared actions keep aragonite's names (keys.Action*),
+// so a [keys] rebind written for jj-diff or second-look means the same thing here.
 const (
-	// ModePick is the in-log destination picker that rebase, squash, duplicate, and new open.
-	ModePick = "pick"
-	// ModeTravel is the log as it stood at an earlier operation.
-	ModeTravel = "travel"
-	// ModeOutline is the stack outline, which takes the log's place while it is open.
-	ModeOutline = "outline"
+	ActionDiff           = "diff"
+	ActionPreview        = "preview"
+	ActionFiles          = "files"
+	ActionCompare        = "compare"
+	ActionNew            = "new"
+	ActionNewPlaced      = "new-placed"
+	ActionEdit           = "edit"
+	ActionDiffedit       = "diffedit"
+	ActionCommit         = "commit"
+	ActionSquash         = "squash"
+	ActionSplit          = "split"
+	ActionDuplicate      = "duplicate"
+	ActionRebase         = "rebase"
+	ActionRebaseSubtree  = "rebase-subtree"
+	ActionRestore        = "restore"
+	ActionAbandon        = "abandon"
+	ActionAbsorb         = "absorb"
+	ActionResolve        = "resolve"
+	ActionConverge       = "converge"
+	ActionArrange        = "arrange"
+	ActionOpLog          = "op-log"
+	ActionOpOlder        = "op-older"
+	ActionOpNewer        = "op-newer"
+	ActionFetch          = "fetch"
+	ActionPush           = "push"
+	ActionBookmarks      = "bookmarks"
+	ActionBookmarkCreate = "bookmark-create"
+	ActionRevset         = "revset"
+	ActionCheck          = "check"
+	ActionParallelize    = "parallelize"
+	ActionBisect         = "bisect"
+	ActionWorkingCopy    = "working-copy"
+	ActionForge          = "forge"
+	ActionWorkspaces     = "workspaces"
+
+	ActionPickApply   = "pick-apply"
+	ActionPickClear   = "pick-clear"
+	ActionPickCompare = "pick-compare"
+
+	ActionTravelRestore = "travel-restore"
+	ActionChapterRead   = "chapter-read"
+
+	ActionFileOpen    = "file-open"
+	ActionFileRestore = "file-restore"
+	ActionFileSquash  = "file-squash"
+	ActionFileResolve = "file-resolve"
+	ActionFileStage   = "file-stage"
+	ActionFileCommit  = "file-commit"
 )
 
-// The labels of the keys every mode shares, which the legend spells the same way everywhere.
+// Legend groups jojo files its own verbs under, beside aragonite's.
 const (
-	enterLabel = "Enter"
-	escLabel   = "Esc"
-	tabLabel   = "Tab"
+	GroupLook   = "Look"
+	GroupWrite  = "Rewrite"
+	GroupPlace  = "Pick where it goes"
+	GroupRepo   = "Repository"
+	GroupPicker = "Picking"
+	GroupTravel = "Time travel"
+	GroupStack  = "Outline"
+	GroupFiles  = "Files"
 )
 
-// The keys several modes bind the same way, as the dispatcher spells them, and the row every list's
-// legend opens with.
-const (
-	enterKey = "enter"
-	escKey   = "esc"
-	moveRows = "j / k"
-)
-
-// spaceKey checks a revision in the log and stages a file in the file list of @.
-const spaceKey = "space"
-
-// defaultBindings is the whole keymap, as data. The statusbar and the root model both read from
-// here, so a binding cannot drift between the footer, the help overlay, and the handler that acts
-// on it. Never hand it out: NewKeymap clones it, because a rebind rewrites its entries.
-var defaultBindings = []Binding{
-	{Layer: L0, Hint: keyhint.Hint{What: "Universal", Head: true}},
-	{Layer: L0, Hint: keyhint.Hint{Key: "↑ ↓ ← →", What: "move"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: enterLabel, What: "select"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: escLabel, What: "back"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: "q", What: "quit"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: tabLabel, What: "switch pane"}},
-
-	{Layer: L1, Hint: keyhint.Hint{What: "Vim motions", Head: true}},
-	{Layer: L1, Hint: keyhint.Hint{Key: moveRows, What: "move a line"}},
-	{Layer: L1, Run: "/", Action: "search", Hint: keyhint.Hint{Key: "/", What: "search the log"}},
-	{Layer: L1, Hint: keyhint.Hint{Key: "?", What: "help"}},
-	{Layer: L1, Hint: keyhint.Hint{Key: ":", What: "command palette"}},
-	{Layer: L1, Hint: keyhint.Hint{Key: "g / G", What: "top / bottom"}},
-
-	{Layer: L2, Hint: keyhint.Hint{What: "Mnemonics", Head: true}},
-	{Layer: L2, Run: "n", Action: "new", Cmd: "jj new <rev>", Hint: keyhint.Hint{Key: "n", What: "new"}},
-	{Layer: L2, Run: "e", Action: "edit", Cmd: "jj edit <rev>", Hint: keyhint.Hint{Key: "e", What: "edit"}},
-	{
-		Layer: L2, Run: "d", Action: "describe", Cmd: "jj describe -r <rev> -m <full description>",
-		Hint: keyhint.Hint{Key: "d", What: "describe"},
-	},
-	{
-		Layer: L2, Run: "alt+e", Action: "describe-editor", Cmd: "jj describe -r <rev>",
-		Hint: keyhint.Hint{Key: "Alt+e", What: "describe in $EDITOR"},
-	},
-	{
-		Layer: L2, Run: "s", Action: "squash", Cmd: "jj squash --from <rev> --into <dest>",
-		Hint: keyhint.Hint{Key: "s", What: "squash"},
-	},
-	{Layer: L2, Run: "S", Action: "split", Cmd: "jj split -i -r <rev>", Hint: keyhint.Hint{Key: "S", What: "split"}},
-	{
-		Layer: L2, Run: "i", Action: "squash-interactive", Cmd: "jj squash -i -r <rev>",
-		Hint: keyhint.Hint{Key: "i", What: "squash interactively"},
-	},
-	{
-		Layer: L2, Run: "alt+i", Action: "move-hunks", Cmd: "jj squash -i --from <rev> --into <dest>",
-		Hint: keyhint.Hint{Key: "Alt+i", What: "move hunks into any revision"},
-	},
-	{
-		Layer: L2, Run: enterKey, Action: "diff", Cmd: "jj diff -r <rev>",
-		Hint: keyhint.Hint{Key: enterLabel, What: "diff the revision"},
-	},
-	{
-		Layer: L2, Run: "alt+d", Action: "diff-range", Cmd: "jj diff --from <a> --to <b>",
-		Hint: keyhint.Hint{Key: "Alt+d", What: "diff any two revisions"},
-	},
-	{
-		Layer: L2, Run: "alt+p", Action: "dock-diff", Cmd: "jj diff -r <rev> --git",
-		Hint: keyhint.Hint{Key: "Alt+p", What: "diff docked beside the log"},
-	},
-	{Layer: L2, Run: "a", Action: "abandon", Cmd: "jj abandon <rev>", Hint: keyhint.Hint{Key: "a", What: "abandon"}},
-	{Layer: L2, Run: "A", Action: "absorb", Cmd: "jj absorb -r <rev>", Hint: keyhint.Hint{Key: "A", What: "absorb"}},
-	{
-		Layer: L2, Run: "D", Action: "duplicate", Cmd: "jj duplicate <rev>",
-		Hint: keyhint.Hint{Key: "D", What: "duplicate"},
-	},
-	{
-		Layer: L2, Run: "r", Action: "rebase", Cmd: "jj rebase -r <rev> --onto <dest>",
-		Hint: keyhint.Hint{Key: "r", What: "rebase the revision"},
-	},
-	{
-		Layer: L2, Run: "R", Action: "rebase-subtree", Cmd: "jj rebase -s <rev> --onto <dest>",
-		Hint: keyhint.Hint{Key: "R", What: "rebase it and its descendants"},
-	},
-	{
-		Layer: L2, Run: "l", Action: "files", Cmd: "jj diff -r <rev> --summary",
-		Hint: keyhint.Hint{Key: "l", What: "files in the revision"},
-	},
-	{
-		Layer: L2, Run: "c", Action: "resolve", Cmd: "jj resolve -r <rev>",
-		Hint: keyhint.Hint{Key: "c", What: "resolve the conflict"},
-	},
-	{
-		Layer: L2, Run: "b", Action: "bookmarks", Cmd: "jj bookmark list",
-		Hint: keyhint.Hint{Key: "b", What: "bookmarks"},
-	},
-	{
-		Layer: L2, Run: "f", Action: "fetch", Cmd: "jj git fetch --all-remotes",
-		Hint: keyhint.Hint{Key: "f", What: "fetch"},
-	},
-	{
-		Layer: L2, Run: "P", Action: "push", Cmd: "jj git push -r <rev>",
-		Hint: keyhint.Hint{Key: "P", What: "push the revision's bookmarks"},
-	},
-	{
-		Layer: L2, Run: "o", Action: "op-log", Cmd: "jj op log",
-		Hint: keyhint.Hint{Key: "o", What: "op log, with the log as it stood at each operation"},
-	},
-	{
-		Layer: L2, Run: "[o", Action: "op-older", Cmd: "jj log --at-op <op> --ignore-working-copy",
-		Hint: keyhint.Hint{Key: "[o", What: "the log one operation back, read-only"},
-	},
-	{
-		Layer: L2, Run: "]o", Action: "op-newer", Cmd: "jj log --at-op <op> --ignore-working-copy",
-		Hint: keyhint.Hint{Key: "]o", What: "the log one operation forward"},
-	},
-	{
-		Layer: L2, Run: "v", Action: "detail", Cmd: "jj log -r <rev> -T ...",
-		Hint: keyhint.Hint{Key: "v", What: "details of the revision"},
-	},
-	{
-		Layer: L2, Run: "E", Action: "evolog", Cmd: "jj evolog -r <rev>",
-		Hint: keyhint.Hint{Key: "E", What: "evolution of the revision"},
-	},
-	{
-		Layer: L2, Run: "I", Action: "outline", Cmd: "jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'",
-		Hint: keyhint.Hint{Key: "I", What: "stack outline: review the stack chapter by chapter"},
-	},
-	{
-		Layer: L2, Run: "H", Action: "rounds", Cmd: "jj evolog -r <rev>",
-		Hint: keyhint.Hint{Key: "H", What: "rounds: the versions of the change, to show one in the dock"},
-	},
-	{
-		Layer: L2, Run: "[r", Action: "round-older", Cmd: "jj interdiff --from <previous> --to <version>",
-		Hint: keyhint.Hint{Key: "[r", What: "dock the change's previous version, as an interdiff"},
-	},
-	{
-		Layer: L2, Run: "]r", Action: "round-newer", Cmd: "jj interdiff --from <previous> --to <version>",
-		Hint: keyhint.Hint{Key: "]r", What: "dock the next version, back to the whole change after the newest"},
-	},
-	{Layer: L2, Run: "u", Action: "undo", Cmd: "jj undo", Hint: keyhint.Hint{Key: "u", What: "undo"}},
-	{
-		Layer: L2, Run: "ctrl+r", Action: "redo", Cmd: "jj redo",
-		Hint: keyhint.Hint{Key: "Ctrl+r", What: "redo"},
-	},
-	{
-		Layer: L2, Run: "!", Action: "last-failure",
-		Hint: keyhint.Hint{Key: "!", What: "full text of the last failure"},
-	},
-	{
-		Layer: L2, Run: "ctrl+l", Action: "reload", Cmd: "jj log",
-		Hint: keyhint.Hint{Key: "Ctrl+l", What: "reload the log"},
-	},
-	{Layer: L2, Run: "@", Action: "working-copy", Hint: keyhint.Hint{Key: "@", What: "jump to working copy"}},
-	{
-		Layer: L2, Run: "w", Action: "workspaces", Cmd: "jj workspace list",
-		Hint: keyhint.Hint{Key: "w", What: "workspaces"},
-	},
-	{Layer: L2, Run: "p", Action: "forge", Hint: keyhint.Hint{Key: "p", What: "forge pane"}},
-	{Layer: L2, Run: "L", Action: "revset", Hint: keyhint.Hint{Key: "L", What: "edit the revset"}},
-	{Layer: L2, Run: spaceKey, Action: "check", Hint: keyhint.Hint{Key: spaceKey, What: "check for a batch action"}},
-
-	{Layer: L3, Hint: keyhint.Hint{What: "Power", Head: true}},
-	{
-		Layer: L3, Run: "|", Action: "parallelize", Cmd: "jj parallelize <revs>",
-		Hint: keyhint.Hint{Key: "|", What: "parallelize the checked revisions"},
-	},
-	{
-		Layer: L3, Run: "X", Action: "arrange", Cmd: "jj arrange",
-		Hint: keyhint.Hint{Key: "X", What: "arrange the graph"},
-	},
-	{
-		Layer: L3, Run: "B", Action: "bisect", Cmd: "jj bisect run --range <a>::<b>",
-		Hint: keyhint.Hint{Key: "B", What: "bisect between the two checked revisions"},
-	},
-	{
-		Layer: L3, Run: "x", Action: "abandon-divergent", Cmd: "jj converge [-r change_id(<rev>)]",
-		Hint: keyhint.Hint{Key: "x", What: "converge divergent changes"},
-	},
-	{Layer: L3, Hint: keyhint.Hint{What: "edit the revset aliases"}},
-
-	// The staging keys live in the file list of @ (l on the working copy) rather than the log, so they
-	// carry no Run: the legend teaches them and the list dispatches them.
-	{Layer: L3, Hint: keyhint.Hint{What: "Staging, in the files of @", Head: true}},
-	{
-		Layer: L3, Cmd: "jj squash --from @ --into @- <path>",
-		Hint: keyhint.Hint{Key: spaceKey, What: "stage or unstage the file"},
-	},
-	{
-		Layer: L3, Cmd: "jj describe @- && jj new -A @- -B @",
-		Hint: keyhint.Hint{Key: "C", What: "commit what is staged"},
-	},
-
-	// The docked diff's own keys, read while it has focus (Tab), and in the outline beside it.
-	{Layer: L2, Hint: keyhint.Hint{What: "In the docked diff", Head: true}},
-	{Layer: L2, Hint: keyhint.Hint{Key: "]h / [h", What: "next / previous hunk"}},
-	{Layer: L2, Hint: keyhint.Hint{Key: "]f / [f", What: "next / previous file"}},
-	{Layer: L2, Hint: keyhint.Hint{Key: "n / N", What: "repeat the last ] or [ motion forward / back"}},
-	{Layer: L2, Hint: keyhint.Hint{Key: "]r / [r", What: "next / previous version of the change (rounds)"}},
-	{Layer: L2, Hint: keyhint.Hint{Key: "]] / [[", What: "next / previous chapter, while the outline is open"}},
-
-	// The picker's keys toggle the flags of the command it is building. The provisional letters follow
-	// jjui's rebase mode, and each carries an Action so the keymap pass can move them in config.
-	{Layer: L2, Mode: ModePick, Hint: keyhint.Hint{What: "Picking where it goes (r R s D n)", Head: true}},
-	{
-		Layer: L2, Mode: ModePick,
-		Hint: keyhint.Hint{Key: moveRows, What: "move the destination; the graph redraws as it will be"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: enterKey, Action: "pick-apply",
-		Hint: keyhint.Hint{Key: enterLabel, What: "run it"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: escKey, Action: "pick-cancel",
-		Hint: keyhint.Hint{Key: escLabel, What: "cancel, nothing ran"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "tab", Action: "pick-compare",
-		Hint: keyhint.Hint{Key: tabLabel, What: "show the graph before / after the command"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "o", Action: "pick-onto", Cmd: "--onto",
-		Hint: keyhint.Hint{Key: "o", What: "onto"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "a", Action: "pick-after", Cmd: "--insert-after",
-		Hint: keyhint.Hint{Key: "a", What: "after"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "b", Action: "pick-before", Cmd: "--insert-before",
-		Hint: keyhint.Hint{Key: "b", What: "before"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "h", Action: "pick-here", Cmd: "jj duplicate <rev>",
-		Hint: keyhint.Hint{Key: "h", What: "duplicate in place"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "r", Action: "pick-revisions", Cmd: "jj rebase -r",
-		Hint: keyhint.Hint{Key: "r", What: "move the revisions alone"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "s", Action: "pick-source", Cmd: "jj rebase -s",
-		Hint: keyhint.Hint{Key: "s", What: "move them with descendants"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "B", Action: "pick-branch", Cmd: "jj rebase -b",
-		Hint: keyhint.Hint{Key: "B", What: "move the whole branch"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "e", Action: "pick-emptied", Cmd: "--skip-emptied / --keep-emptied",
-		Hint: keyhint.Hint{Key: "e", What: "skip (rebase) or keep (squash) emptied revisions"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "m", Action: "pick-message", Cmd: "--use-destination-message",
-		Hint: keyhint.Hint{Key: "m", What: "squash: keep the destination's message, or combine in $EDITOR"},
-	},
-	{
-		Layer: L2, Mode: ModePick, Run: "w", Action: "pick-no-edit", Cmd: "jj new --no-edit",
-		Hint: keyhint.Hint{Key: "w", What: "new: leave @ where it is"},
-	},
-
-	// The outline takes the log's place, with the docked diff following the chapter under the cursor.
-	{Layer: L2, Mode: ModeOutline, Hint: keyhint.Hint{What: "Stack outline (I)", Head: true}},
-	{
-		Layer: L2, Mode: ModeOutline,
-		Hint: keyhint.Hint{Key: moveRows, What: "move a chapter; the docked diff follows"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "]]", Action: "chapter-next",
-		Hint: keyhint.Hint{Key: "]]", What: "chapter"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "[[", Action: "chapter-prev",
-		Hint: keyhint.Hint{Key: "[[", What: "back a chapter"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: enterKey, Action: "chapter-read",
-		Hint: keyhint.Hint{Key: enterLabel, What: "read it in the dock"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "]h", Action: "chapter-hunk-next",
-		Hint: keyhint.Hint{Key: "]h", What: "hunk"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "[h", Action: "chapter-hunk-prev",
-		Hint: keyhint.Hint{Key: "[h", What: "back a hunk"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "]r", Action: "chapter-round-newer", Cmd: "jj interdiff",
-		Hint: keyhint.Hint{Key: "]r", What: "newer version"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "[r", Action: "chapter-round-older", Cmd: "jj interdiff",
-		Hint: keyhint.Hint{Key: "[r", What: "older version"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: "H", Action: "chapter-rounds", Cmd: "jj evolog",
-		Hint: keyhint.Hint{Key: "H", What: "rounds"},
-	},
-	{
-		Layer: L2, Mode: ModeOutline, Run: escKey, Action: "outline-close",
-		Hint: keyhint.Hint{Key: escLabel, What: "log"},
-	},
-
-	// Time travel is read-only: these are the only keys it answers, and a write verb says why not.
-	{Layer: L2, Mode: ModeTravel, Hint: keyhint.Hint{What: "Viewing an earlier operation ([o o)", Head: true}},
-	{
-		Layer: L2, Mode: ModeTravel, Run: "r", Action: "travel-restore", Cmd: "jj op restore <op>",
-		Hint: keyhint.Hint{Key: "r", What: "restore the repository to it"},
-	},
-	{
-		Layer: L2, Mode: ModeTravel, Run: escKey, Action: "travel-exit",
-		Hint: keyhint.Hint{Key: escLabel, What: "back to now"},
-	},
+// unsupported is the shared vocabulary jojo has no concept for yet. Each is left out of the keymap
+// rather than drawn dead, and TestKeymap_AgreesWithShared keeps its keys free for when it lands.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var unsupported = []string{
+	keys.ActionRepeat, keys.ActionLabelJump, keys.ActionJumpBack, keys.ActionJumpForward,
+	keys.ActionOpenFile, keys.ActionDefinition, keys.ActionReferences, keys.ActionCalls,
+	keys.ActionPageDown, keys.ActionPageUp, keys.ActionScrollDown, keys.ActionScrollUp,
+	keys.ActionSideOld, keys.ActionSideNew, keys.ActionFilter, keys.ActionRead, keys.ActionOnlyUnread,
+	keys.ActionVisual, keys.ActionWhitespace, keys.ActionCosmetic, keys.ActionMoreContext,
+	keys.ActionLessContext,
+	keys.ActionFoldToggle, keys.ActionFoldInvert, keys.ActionFoldOpenAll, keys.ActionFoldAll,
+	keys.ActionFrameMiddle, keys.ActionFrameTop, keys.ActionFrameBottom,
+	keys.ActionViewWrap, keys.ActionViewNumbers, keys.ActionViewRefine, keys.ActionViewGrammar,
+	keys.ActionViewImages, keys.ActionViewCycle,
 }
 
-// Keymap is the effective keymap: the default table with the user's rebinds applied. Build it once
-// and pass it to whatever renders or dispatches a key, so the legend, the palette, the footer, and
-// the handlers can never disagree about which key runs what.
-type Keymap struct {
-	// toDefault is one translation per mode, "" being the log's.
-	toDefault map[string]map[string]string
-	level     func(key string) int
-	bindings  []Binding
+// objects are the ] and [ objects jojo steps: hunks and files in a diff, chapters of the outline, and
+// rounds (versions of the change), which the log steps too.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var objects = []string{keys.ObjHunk, keys.ObjFile, keys.ObjChapter, keys.ObjRound}
+
+// pickerOnly are the shared bindings the picker answers: moving the destination, help, quitting,
+// and backing out. The rest would act on the log under it, so they are taken off its screens.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var pickerOnly = []string{
+	keys.ActionHelp, keys.ActionQuit, keys.ActionBack, keys.ActionCancel, keys.ActionLineDown,
+	keys.ActionLineUp, keys.ActionHalfPageDown, keys.ActionHalfPageUp, keys.ActionTop, keys.ActionBottom,
 }
 
-// fixedKeys are the hints whose key the dispatcher handles by name rather than through a binding.
-var fixedKeys = map[string]string{"q": "q", "?": "?", ":": ":", "Tab": "tab"}
+// travelOnly is what the past answers besides its own keys: the picker's, since every verb would
+// act on the present.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var travelOnly = pickerOnly
 
-// WithLevel grades every hint that stands for one key by how long level says that key has gone
-// unpressed. Level takes the key as msg.String() spells it.
-func (k Keymap) WithLevel(level func(key string) int) Keymap {
-	k.level = level
+// outlineOnly is what the outline leaves to the application besides its own keys.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var outlineOnly = append(slices.Clone(pickerOnly), keys.ActionPalette, keys.ActionSearch,
+	keys.ActionSwitchPane, keys.ActionMessages)
 
-	return k
+// viewOnly is the shared General keys the docked diff answers.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var viewOnly = append(slices.Clone(pickerOnly), keys.ActionSwitchPane, keys.ActionAgain, keys.ActionReverse,
+	keys.ActionMessages)
+
+// pickerFlags are the flags jojo's picker builds a command from, per verb. -m (a message prompt) is
+// left out until there is one, as are squash's -o, -A, and -B (into a new commit placed there).
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var pickerFlags = map[string][]string{
+	keys.VerbRebase:    {"r", "s", "b", "o", "A", "B", "e", "d", "p"},
+	keys.VerbSquash:    {"t", "u", "k", "i"},
+	keys.VerbDuplicate: {"o", "A", "B"},
+	keys.VerbNew:       {"o", "A", "B", "n"},
+	keys.VerbRestore:   {"i", "d"},
 }
 
-// Level is how unpracticed key is, 0 when nothing is known about it.
-func (k Keymap) Level(key string) int {
-	if k.level == nil {
-		return 0
-	}
+// PickerFlags is the flags of verb the picker offers, in aragonite's order.
+func PickerFlags(verb string) []keys.Flag {
+	var out []keys.Flag
 
-	return k.level(key)
-}
-
-func (k Keymap) hint(b *Binding) keyhint.Hint {
-	h := b.Hint
-
-	switch key := fixedKeys[h.Key]; {
-	case b.Run != "":
-		h.Fresh = k.Level(b.Run)
-	case key != "":
-		h.Fresh = k.Level(key)
-	}
-
-	return h
-}
-
-// ErrUnknownAction marks a rebind naming an action the keymap does not have.
-var ErrUnknownAction = errors.New("unknown action")
-
-// ErrDuplicateKey marks a rebind putting two actions on one key.
-var ErrDuplicateKey = errors.New("two actions on one key")
-
-// NewKeymap applies overrides, keyed by Binding.Action, to the default table. An unknown action or a
-// collision is an error, because a rebind that silently does nothing is worse than one that refuses.
-func NewKeymap(overrides map[string]string) (Keymap, error) {
-	bindings := slices.Clone(defaultBindings)
-	actions := map[string]int{}
-
-	for i := range bindings {
-		if bindings[i].Action != "" {
-			actions[bindings[i].Action] = i
-		}
-	}
-
-	for action, key := range overrides {
-		i, ok := actions[action]
-		if !ok {
-			return Keymap{}, fmt.Errorf("%w: %q", ErrUnknownAction, action)
-		}
-
-		bindings[i].Run, bindings[i].Key = key, key
-	}
-
-	toDefault, err := translation(bindings)
-	if err != nil {
-		return Keymap{}, err
-	}
-
-	return Keymap{bindings: bindings, toDefault: toDefault}, nil
-}
-
-// unbound is what a rebound action's old key resolves to: a byte no terminal sends, so every switch
-// falls through and the key does nothing.
-const unbound = "\x00"
-
-// translation maps each effective key back to the key the handlers switch on, one map per mode,
-// which is what makes a rebind one lookup at the door rather than a rename through every switch. A
-// key whose action moved away maps to unbound, so a rebind moves a key rather than adding one.
-func translation(bindings []Binding) (map[string]map[string]string, error) {
-	out := map[string]map[string]string{}
-
-	for _, mode := range modes(bindings) {
-		one, err := modeTranslation(bindings, mode)
-		if err != nil {
-			return nil, err
-		}
-
-		out[mode] = one
-	}
-
-	return out, nil
-}
-
-func modes(bindings []Binding) []string {
-	var out []string
-
-	for i := range bindings {
-		if !slices.Contains(out, bindings[i].Mode) {
-			out = append(out, bindings[i].Mode)
+	for _, f := range keys.Flags(verb) {
+		if slices.Contains(pickerFlags[verb], f.Letter) {
+			out = append(out, f)
 		}
 	}
 
 	return out
 }
 
-func modeTranslation(bindings []Binding, mode string) (map[string]string, error) {
-	fromDefault := map[string]string{}
+// sharedBindings is the slice of aragonite's table jojo uses, each binding narrowed or widened to the
+// screens where jojo acts on it.
+func sharedBindings() []keys.Binding {
+	drop := slices.Clone(unsupported)
 
-	for i := range defaultBindings {
-		b := &defaultBindings[i]
-		if b.Action != "" && b.Mode == mode {
-			fromDefault[b.Action] = b.Run
+	for _, o := range keys.Objects() {
+		if !slices.Contains(objects, o.Noun) {
+			drop = append(drop, keys.NextAction(o.Noun), keys.PrevAction(o.Noun))
 		}
 	}
 
-	held := map[string]string{}
+	shared := keys.Without(slices.Concat(keys.Global(), keys.DiffView()), drop...)
 
-	for i := range bindings {
-		b := &bindings[i]
-		if b.Action == "" || b.Mode != mode {
-			continue
-		}
-
-		if other, taken := held[b.Run]; taken {
-			return nil, fmt.Errorf("%w: %q runs both %s and %s", ErrDuplicateKey, b.Run, other, b.Action)
-		}
-
-		held[b.Run] = b.Action
+	for i := range shared {
+		shared[i].Contexts = sharedContexts(shared[i])
 	}
 
-	out := map[string]string{}
+	for _, ctx := range []keys.Context{PickRebase, PickSquash, PickDuplicate, PickNew, PickRestore} {
+		verb := PickVerbs[ctx]
 
-	for key, action := range held {
-		if def := fromDefault[action]; def != key {
-			out[key] = def
+		for _, f := range keys.FlagBindings(verb) {
+			if slices.Contains(pickerFlags[verb], f.Keys[0][len("- "):]) {
+				f.Contexts = ctx
+				shared = append(shared, f)
+			}
 		}
 	}
 
-	for _, def := range fromDefault {
-		if _, stillHeld := held[def]; !stillHeld {
-			out[def] = unbound
-		}
-	}
-
-	return out, nil
+	return shared
 }
 
-// Resolve turns a key pressed in the log into the key the handlers know. A key nothing rebinds is
-// its own answer, so the common case costs one map miss.
-func (k Keymap) Resolve(pressed string) string { return k.ResolveIn("", pressed) }
+// everywhere is a zero context spelled out, so a screen can be taken off it.
+const everywhere = ^keys.Context(0)
 
-// ResolveIn is Resolve for a key pressed while the log is in mode.
-func (k Keymap) ResolveIn(mode, pressed string) string {
-	if key, ok := k.toDefault[mode][pressed]; ok {
-		return key
+// sharedContexts is where jojo answers a shared binding: the log and the diff for most, with the
+// modes of the log taking only what they handle.
+func sharedContexts(b keys.Binding) keys.Context {
+	ctx := b.Contexts
+	if ctx == 0 {
+		ctx = everywhere
 	}
 
-	return pressed
+	switch b.Action {
+	case keys.ActionRounds, keys.NextAction(keys.ObjRound), keys.PrevAction(keys.ObjRound):
+		ctx |= keys.Log | Outline
+	case keys.ActionOutline:
+		ctx = keys.Log | Outline
+	case keys.ActionAgain, keys.ActionReverse:
+		// The repeats step a diff's motions; nowhere else in jojo has one to repeat.
+		return keys.Diff
+	case keys.NextAction(keys.ObjHunk), keys.PrevAction(keys.ObjHunk),
+		keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
+		ctx |= Outline
+	}
+
+	for _, only := range []struct {
+		actions []string
+		screen  keys.Context
+	}{
+		{pickerOnly, keys.Picker | pickScreens},
+		{travelOnly, Travel},
+		{outlineOnly, Outline},
+		{viewOnly, keys.View},
+		{pickerOnly, keys.List},
+	} {
+		if b.Contexts == 0 && !slices.Contains(only.actions, b.Action) {
+			ctx &^= only.screen
+		}
+	}
+
+	return ctx
 }
 
-// ModeHints is the hint of each key live in mode, keyed by its action, as the user has bound it.
-func (k Keymap) ModeHints(mode string) map[string]keyhint.Hint {
-	out := map[string]keyhint.Hint{}
+// Cmds are the jj shapes the palette shows beside each action, which is how someone learns the CLI
+// from the TUI. They are written as shapes, not command lines.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var Cmds = map[string]string{
+	ActionDiff: "jj diff -r <rev>", ActionPreview: "jj diff -r <rev> --git", ActionFiles: "jj diff -r <rev> --summary",
+	ActionCompare: "jj diff --from <a> --to <b>", ActionNew: "jj new <revs>",
+	ActionNewPlaced: "jj new -o/-A/-B <dest>", ActionEdit: "jj edit <rev>",
+	ActionDiffedit: "jj diffedit -r <rev>", ActionCommit: "jj commit -m <message>",
+	keys.ActionDescribe: "jj describe -r <rev> -m <message>", keys.ActionDescribeEditor: "jj describe -r <rev>",
+	ActionSquash: "jj squash --from <rev> --into <dest>", ActionSplit: "jj split -i -r <rev>",
+	ActionDuplicate: "jj duplicate <rev> [-o/-A/-B <dest>]", ActionRebase: "jj rebase -r <rev> -o <dest>",
+	ActionRebaseSubtree: "jj rebase -s <rev> -o <dest>", ActionRestore: "jj restore --from <src> --into <rev>",
+	ActionAbandon: "jj abandon <revs>", ActionAbsorb: "jj absorb -r <rev>", ActionResolve: "jj resolve -r <rev>",
+	ActionConverge: "jj converge [-r change_id(<rev>)]", ActionArrange: "jj arrange",
+	ActionOpLog: "jj op log", ActionOpOlder: "jj log --at-op <op> --ignore-working-copy",
+	ActionOpNewer: "jj log --at-op <op> --ignore-working-copy", ActionFetch: "jj git fetch --all-remotes",
+	ActionPush: "jj git push -r <revs>", ActionBookmarks: "jj bookmark list",
+	ActionBookmarkCreate: "jj bookmark create <name> -r <rev>", ActionParallelize: "jj parallelize <revs>",
+	ActionBisect: "jj bisect run --range <a>::<b>", ActionWorkspaces: "jj workspace list",
+	keys.ActionUndo: "jj undo", keys.ActionRedo: "jj redo", keys.ActionReload: "jj log",
+	keys.ActionRounds: "jj evolog -r <rev>", keys.ActionOutline: "jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'",
+	keys.ActionInspect: "jj log -r <rev> -T ...", keys.NextAction(keys.ObjRound): "jj interdiff --from <a> --to <b>",
+	keys.PrevAction(keys.ObjRound): "jj interdiff --from <a> --to <b>", ActionTravelRestore: "jj op restore <op>",
+}
 
-	bindings := k.ModeBindings(mode)
-	for i := range bindings {
-		out[bindings[i].Action] = k.hint(&bindings[i])
+// toolBindings is what jojo adds: the jj verbs on the log, the picker's own keys, time travel, the
+// outline, and the file list.
+func toolBindings() []keys.Binding {
+	return slices.Concat(logBindings(), modeBindings(), fileBindings())
+}
+
+func logBindings() []keys.Binding {
+	b := func(action, group, what, short string, seqs ...string) keys.Binding {
+		return keys.Binding{Action: action, Keys: seqs, What: what, Short: short, Group: group, Contexts: keys.Log}
+	}
+
+	return []keys.Binding{
+		b(ActionDiff, GroupLook, "diff the revision", "diff", keyEnter),
+		withContexts(b(ActionPreview, GroupLook, "dock the diff beside the log, following the cursor", "dock", "p"),
+			keys.Log|Outline|keys.View),
+		b(ActionFiles, GroupLook, "files in the revision", "files", "l"),
+		b(ActionCompare, GroupLook, "diff against another revision", "compare", "="),
+		b(ActionNew, GroupWrite, "new on the revision (two or more checked: a merge)", "new", "n"),
+		b(ActionNewPlaced, GroupPlace, "new, choosing where it goes", "new…", "N"),
+		b(ActionEdit, GroupWrite, "edit", "edit", "e"),
+		b(ActionDiffedit, GroupWrite, "edit the revision's content in the diff editor", "diffedit", "E"),
+		b(keys.ActionDescribe, GroupWrite, "describe", "describe", "d"),
+		b(keys.ActionDescribeEditor, GroupWrite, "describe in $EDITOR", "", "D"),
+		b(ActionCommit, GroupWrite, "commit @: describe it and start a new one", "commit", "c"),
+		b(ActionSquash, GroupPlace, "squash, choosing where into", "squash", "s"),
+		b(ActionSplit, GroupWrite, "split", "split", "S"),
+		b(ActionDuplicate, GroupPlace, "duplicate, choosing where (enter: in place)", "duplicate", "y"),
+		b(ActionRebase, GroupPlace, "rebase, choosing where", "rebase", "r"),
+		b(ActionRebaseSubtree, GroupPlace, "rebase with descendants, choosing where", "", []string{}...),
+		b(ActionRestore, GroupPlace, "restore content from another revision (the parent: discard)", "restore", "R"),
+		b(ActionAbandon, GroupWrite, "abandon", "abandon", "a"),
+		b(ActionAbsorb, GroupWrite, "absorb into the revisions that last touched each line", "absorb", "A"),
+		b(ActionResolve, GroupWrite, "resolve the conflict", "resolve", "x"),
+		b(ActionConverge, GroupWrite, "converge divergent changes", "converge", "X"),
+		b(ActionArrange, GroupWrite, "arrange the graph", "", []string{}...),
+		b(ActionParallelize, GroupWrite, "parallelize the checked revisions", "", "|"),
+		b(ActionCheck, GroupWrite, "check for a batch action", "check", "space"),
+		b(ActionBisect, GroupWrite, "bisect between the two checked revisions", "", "B"),
+		withContexts(b(ActionOpLog, GroupRepo, "op log, with the log as it stood at each operation", "ops", "o"),
+			keys.Log|Travel),
+		withContexts(b(ActionOpOlder, GroupRepo, "the log one operation back, read-only", "older", "[ o"),
+			keys.Log|Travel),
+		withContexts(b(ActionOpNewer, GroupRepo, "the log one operation forward", "newer", "] o"), keys.Log|Travel),
+		b(ActionFetch, GroupRepo, "fetch", "fetch", "f"),
+		b(ActionPush, GroupRepo, "push the revision's bookmarks", "push", "P"),
+		b(ActionBookmarks, GroupRepo, "bookmarks: the list", "bookmarks", "b b"),
+		b(ActionBookmarkCreate, GroupRepo, "create a bookmark here", "", "b c"),
+		b(ActionRevset, GroupRepo, "edit the revset", "revset", "L"),
+		withContexts(b(ActionWorkingCopy, keys.GroupMove, "jump to the working copy", "@", "@"),
+			keys.Log|keys.Picker|pickScreens),
+		b(ActionForge, GroupRepo, "forge pane: pull requests and CI", "forge", "g h"),
+		b(ActionWorkspaces, GroupRepo, "workspaces", "", "g w"),
+	}
+}
+
+func withContexts(b keys.Binding, ctx keys.Context) keys.Binding {
+	b.Contexts = ctx
+
+	return b
+}
+
+func modeBindings() []keys.Binding {
+	return []keys.Binding{
+		{
+			Action: ActionPickApply, Keys: []string{keyEnter}, What: "run it", Group: GroupPicker,
+			Contexts: keys.Picker | pickScreens,
+		},
+		{
+			Action: ActionPickClear, Keys: []string{"backspace"}, What: "back to jj's default destination",
+			Short: "default", Group: GroupPicker, Contexts: PickDuplicate,
+		},
+		{
+			Action: ActionPickCompare, Keys: []string{"p"}, What: "show the graph before / after the command",
+			Short: "before", Group: GroupPicker, Contexts: keys.Picker | pickScreens,
+		},
+		{
+			Action: ActionTravelRestore, Keys: []string{keyEnter}, What: "restore the repository to this operation",
+			Short: "restore", Group: GroupTravel, Contexts: Travel,
+		},
+		{
+			Action: ActionChapterRead, Keys: []string{keyEnter}, What: "read the chapter in the dock",
+			Short: "read", Group: GroupStack, Contexts: Outline,
+		},
+	}
+}
+
+func fileBindings() []keys.Binding {
+	f := func(action, what, short, seq string) keys.Binding {
+		return keys.Binding{
+			Action: action, Keys: []string{seq}, What: what, Short: short, Group: GroupFiles,
+			Contexts: keys.List,
+		}
+	}
+
+	return []keys.Binding{
+		f(ActionFileOpen, "diff the file", "diff", keyEnter),
+		f(ActionFileRestore, "restore (discard) the file", "restore", "R"),
+		f(ActionFileSquash, "squash the file into…", "squash", "s"),
+		f(ActionFileResolve, "resolve the file's conflict", "resolve", "x"),
+		f(ActionFileStage, "stage or unstage the file (in @)", "stage", "space"),
+		f(ActionFileCommit, "commit what is staged (in @)", "commit", "c"),
+	}
+}
+
+// Shared is every binding of aragonite's table jojo's own must agree with, unnarrowed:
+// TestKeymap_AgreesWithShared checks jojo's verbs against it.
+func Shared() []keys.Binding {
+	out := slices.Concat(keys.Global(), keys.DiffView())
+	for _, verb := range PickVerbs {
+		out = append(out, keys.FlagBindings(verb)...)
 	}
 
 	return out
 }
 
-// ModeBindings is the bindings live in mode, in table order.
-func (k Keymap) ModeBindings(mode string) []Binding {
-	var out []Binding
-
-	for i := range k.bindings {
-		if b := k.bindings[i]; b.Mode == mode && b.Run != "" {
-			out = append(out, b)
-		}
-	}
-
-	return out
-}
-
-// Hints returns the actionable hints (headings excluded) for the given
-// layers, in table order. No layers returns every layer.
-func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
-	out := make([]keyhint.Hint, 0, len(k.bindings))
-
-	for i := range k.bindings {
-		b := &k.bindings[i]
-		if b.Head || b.Mode != "" {
-			continue
-		}
-
-		if len(layers) > 0 && !slices.Contains(layers, b.Layer) {
-			continue
-		}
-
-		out = append(out, k.hint(b))
-	}
-
-	return out
-}
-
-// AllHints returns every entry, headings included, in the shape the legend
-// renders.
-func (k Keymap) AllHints() []keyhint.Hint {
-	out := make([]keyhint.Hint, len(k.bindings))
-	for i := range k.bindings {
-		out[i] = k.hint(&k.bindings[i])
-	}
-
-	return out
-}
-
-// Runnable returns the bindings the command palette can dispatch from the log, in table order.
-func (k Keymap) Runnable() []Binding {
-	out := make([]Binding, 0, len(k.bindings))
-
-	for i := range k.bindings {
-		if k.bindings[i].Run != "" && k.bindings[i].Mode == "" {
-			out = append(out, k.bindings[i])
-		}
-	}
-
-	return out
-}
+// Tool is jojo's own bindings, for TestKeymap_AgreesWithShared.
+func Tool() []keys.Binding { return toolBindings() }

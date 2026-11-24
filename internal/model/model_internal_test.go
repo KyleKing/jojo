@@ -159,8 +159,8 @@ func TestWroteReportsTheCommandAndTheWayBack(t *testing.T) {
 	}
 }
 
-// Tab has to skip the forge pane while it is closed, or a third of the cycle
-// focuses something nobody can see.
+// Tab has to skip the forge pane while it is closed, or a third of the cycle focuses something nobody
+// can see, and it skips the revset box, where a stray key used to land as text: L focuses that.
 func TestCycleFocusSkipsTheClosedForgePane(t *testing.T) {
 	t.Parallel()
 
@@ -170,9 +170,9 @@ func TestCycleFocusSkipsTheClosedForgePane(t *testing.T) {
 		want  focus
 		open  bool
 	}{
-		{name: "log to revset", start: focusLog, want: focusRevset},
+		{name: "log stays on the log with nothing else open", start: focusLog, want: focusLog},
+		{name: "log to forge when it is open", start: focusLog, want: focusForge, open: true},
 		{name: "revset back to log when the forge is closed", start: focusRevset, want: focusLog},
-		{name: "revset to forge when it is open", start: focusRevset, want: focusForge, open: true},
 		{name: "forge back to log", start: focusForge, want: focusLog, open: true},
 	}
 

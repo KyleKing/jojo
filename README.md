@@ -78,41 +78,59 @@ packages for theming, overlays, tables, and key hints.
 
 ## Keys
 
-`?` in the app is the authoritative list, generated from the same table the footer and
-the handlers read. The ones worth knowing before you start:
+`?` in the app is the authoritative list for the screen you are on, generated from the same table
+the footer, the palette, and the handlers read. That table is aragonite's shared `tui/keys`
+vocabulary merged with jojo's jj verbs, so a key means the same thing here, in jj-diff, and in
+second-look. A key that starts a sequence (`g`, `b`, `]`, `[`, `\`, `-`) waits with a panel of what
+can follow it; `Esc` drops it. The ones worth knowing before you start:
 
 | Key | Does |
 | --- | --- |
-| `j` / `k` | move a revision, skipping the graph connectors |
-| `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `D` `r` `R` `s` `P` run over all of them instead of the cursor; a write that goes through clears them |
+| `j` / `k`, `gg` / `G`, `Ctrl+d` / `Ctrl+u` | move a revision (skipping graph connectors), top / bottom, half a page |
 | `@` | jump to the working copy |
+| `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `y` `r` `s` `P` run over all of them instead of the cursor; a write that goes through clears them |
 | `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
-| `:` | the command palette, listing every action and the jj command it runs |
-| `L` | edit the revset, which re-filters the log as you type |
-| `Tab` | cycle the log, the revset box, the forge pane, and the docked diff |
-| `Enter` / `Alt+d` | diff the revision in a pane, or diff any two revisions; `s` there switches to side by side |
-| `v` / `l` | details of the revision, or the files it touches, where `m` moves one file into another revision |
-| `space` / `C` in the files of `@` | stage or unstage the file, or commit what is staged, with `@-` standing in for git's index |
-| `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it, and there `]h` / `[h` step hunks, `]f` / `[f` files, and `n` / `N` repeat the last motion |
-| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, the PR and CI state the forge pane already knows, and a read strip; the diff docks beside it on the chapter under the cursor, `]]` / `[[` step chapters, `]h` steps the dock's hunks, `Enter` reads in the dock, `Esc` returns to the log |
-| `[r` / `]r` / `H` | rounds: step the docked diff back and forth through the change's `jj evolog` versions, each shown as a true `jj interdiff` from the version before it under a banner like `version 3 of 5 · rebase · 2 hours ago`; rebases that changed nothing fold into one "rebased, no content change" round; `]r` past the newest returns to the whole change; `H` lists the rounds to jump to one |
-| `c` | resolve the conflict, in the whole revision or one file of it |
-| `f` / `P` | fetch every remote, or push the revision's bookmarks; a bookmark new to the remote is pushed by name, which tracks it, and a revision with none goes up under jj's generated `push-<change id>` (`jj git push -c`), each shown in the confirmation first |
-| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate; `n` `s` `D` open the picker below |
-| `d` / `Alt+e` | describe in a prompt that holds the whole description, body and trailers included (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
-| `i` / `Alt+i` | squash hunks into the parent, or into any revision you pick |
-| `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root, in the picker below |
-| in the picker | `j` / `k` choose the destination on the log while the graph redraws as it will be after the command; `o` `a` `b` onto, after, or before it; `r` `s` `B` move the revisions, them with descendants, or the branch (rebase); `e` skip emptied (rebase) or keep emptied (squash); `m` combine messages in `$EDITOR` (squash); `w` no-edit (new); `h` duplicate in place; `Tab` shows the graph before or after the command; `Enter` runs the command the footer shows as one operation; `Esc` leaves nothing behind |
-| `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
-| `o` | the operation log, drawing the log as it stood at the operation under the cursor, with restore (after a confirmation), revert, and per-operation diff drawn in the diff pane |
-| `[o` / `]o` | step the log back or forward one operation, read-only: `r` restores to it, `o` opens the op log there, `Esc` comes back to now |
-| `E` | the evolution of the revision, with interdiff and restore |
-| `w` | the workspace panel, with add and forget |
-| `p` | the forge pane |
-| <code>&#124;</code> `X` `B` | parallelize the checked revisions, `jj arrange`, bisect between two checked revisions |
-| `x` | converge divergent changes with `jj converge` (the one under the cursor when it is divergent), or `a` in its dialog to abandon the stale sides |
+| `:` | the command palette: every action, bound to a key or not, with the jj command it runs |
+| `L` | edit the revset, which re-filters the log as you type; `Tab` completes, `Enter` returns to the log |
+| `Tab` | cycle the log, the forge pane, and the docked diff |
+| `Enter` / `=` | diff the revision, or diff it against another revision you pick |
+| `p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it, and there `]h` / `[h` step hunks, `]f` / `[f` files, `n` / `N` repeat the last motion, `\s` switches to side by side |
+| `l` / `K` | the files the revision touches, or its details |
+| `n` / `N` | new on the revision (two or more checked: a merge), or new placed with the picker below |
+| `e` / `E` | edit the revision, or edit its content in the diff editor (`jj diffedit`) |
+| `d` / `D` | describe in a prompt that holds the whole description (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
+| `c` | commit `@`: describe it and start a new change (`jj commit`) |
+| `s` / `r` / `y` / `R` | squash, rebase, duplicate, or restore, each in the picker below |
+| `S` | split the revision |
+| `a` / `A` | abandon, absorb |
+| `x` / `X` | resolve the conflict, or converge divergent changes (`jj converge`) |
+| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip; the diff docks beside it, `]]` / `[[` step chapters, `]h` the dock's hunks, `Enter` reads in the dock, `Esc` returns to the log |
+| `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
+| `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |
+| `bb` / `bc` | the bookmark list (set, advance, create, rename, delete, forget, track, push), or create one on the revision |
+| `o` | the operation log, drawing the log as it stood at the operation under the cursor: `Enter` restores (after a confirmation), `u` reverts that operation, `p` shows its diff |
+| `[o` / `]o` | step the log back or forward one operation, read-only: `Enter` restores to it, `o` opens the op log there, `Esc` comes back to now |
+| `gh` / `gw` / `gm` | the forge pane, the workspaces, or the full text of the last failure |
+| <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
-| `!` | the full text of the last failure, when the footer only had room for one line of it |
+| `Y` / `!` | yank the change id, or open a shell in the repository root |
+
+### The picker
+
+`s` `r` `y` `N` `R` turn the log into a destination picker. `j` / `k` move the destination while the
+graph redraws as it will be after the command, and the footer shows the live `jj …` line. Flags are
+`-` then the letter jj itself uses, case and all, and a radio group swaps:
+
+| Verb | Flags |
+| --- | --- |
+| rebase `r` | `-r` • / `-s` / `-b` what moves; `-o` • / `-A` / `-B` where; `-e` skip emptied, `-d` keep divergent, `-p` simplify parents |
+| squash `s` | `-t` into •; `-u` keep the destination's message (on), `-k` keep emptied, `-i` choose hunks in the diff editor |
+| duplicate `y` | `-o` / `-A` / `-B` once you move; `Enter` straight away duplicates in place, `Backspace` returns to it |
+| new `N` | `-o` • / `-A` / `-B`, `-n` no-edit |
+| restore `R` | from the parent by default (which discards the revision's changes); `-i` choose hunks, `-d` keep descendants' content |
+
+`p` shows the graph before or after the command, `Enter` runs it as one operation, and `Esc` leaves
+nothing behind.
 
 The line over the footer is the inspector: whatever the row under the cursor had no room for at
 this width (the whole description, bookmarks, author, age), with the commit id at its right edge.
@@ -128,7 +146,7 @@ The file list of the working copy (`l` on `@`) also speaks git, without changing
 about jj. `@-` stands in for the index: it lists the working copy's own files as unstaged and
 `@-`'s files beneath them as staged. `space` stages the file under the cursor
 (`jj squash --from @ --into @- <path>`) or unstages a staged one (the same squash in the other
-direction), and `C` commits: it describes `@-` and inserts a fresh empty change between it and `@`
+direction), and `c` commits: it describes `@-` and inserts a fresh empty change between it and `@`
 to be the next index. None of the three changes a file in the working copy, only which revision
 records it. When `@-` is immutable, has another child, or `@` is a merge, the keys refuse and say
 why rather than rewrite past the working copy.
@@ -154,7 +172,7 @@ Everything is optional and jojo runs with no config file at all. It reads
 # latte or light, macchiato or dark. Omit it to read the terminal's background.
 theme = "macchiato"
 
-# The diff editor split, squash -i and move-hunks hand the terminal to. Omitted or "auto"
+# The diff editor split, diffedit, and squash -i hand the terminal to. Omitted or "auto"
 # names jj-diff when it is on PATH and jj's own ui.diff-editor is unset; "none" leaves it to
 # jj's config; any other name is passed as --tool.
 diff_tool = "auto"
@@ -163,17 +181,23 @@ diff_tool = "auto"
 # is what that revision sits on above trunk() and what is stacked on it.
 outline_revset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
 
-# Move an action to another key, naming it the way `?` names it.
+# Move an action to another key by its action name (the palette shows them), as one key or a
+# sequence; "" unbinds it. Shared actions keep aragonite's names, so hunk-next = "J" moves it in the
+# dock as jj-diff and second-look would.
 [keys]
 describe = "M"
+forge = "g p"
 ```
 
 That is the whole file. Named revsets are jj's own `revset-aliases`, which the revset box
 already completes, so jojo does not keep a second list of them.
 
 A rebind moves a key rather than adding one, and jojo refuses to start on a setting it
-cannot honor (an action it does not have, two actions on one key, a theme it does not
-know), because a preference that silently does nothing is worse than one that says so.
+cannot honor (an action it does not have, two actions on one key on one screen, a key that starts a
+sequence such as `g`, a theme it does not know), because a preference that silently does nothing is
+worse than one that says so. Action names from before the 0.15 keymap (`dock-diff`, `diff-range`,
+`move-hunks`, `evolog`, `detail`, `last-failure`, `abandon-divergent`, and the rest) still rebind
+the action that does that job now, and the footer says once which to rename.
 
 The status line reports the jj command that ran (`jj rebase -r xyz --onto abc`) rather
 than a description of it, and `:` lists every action beside the command it runs. Driving

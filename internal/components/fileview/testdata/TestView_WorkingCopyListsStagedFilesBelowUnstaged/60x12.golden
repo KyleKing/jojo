@@ -5,7 +5,7 @@
 │  M         unstaged.go                                   │
 │  A          new.go                                      │
 │  M  staged  staged.go                                   │
-│  [space] stage  [C]ommit  [enter] diff  …  [esc] close   │
+│  [space] stage  [c]ommit  [enter] diff  …  [esc] close   │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯
                                                             

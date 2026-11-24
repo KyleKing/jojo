@@ -7,7 +7,9 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keys"
 
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/jj"
 )
@@ -20,10 +22,23 @@ const (
 	pickSquash
 	pickDuplicate
 	pickNew
+	pickRestore
 )
 
 var pickVerbNames = map[pickVerb]string{
-	pickRebase: "rebase", pickSquash: "squash", pickDuplicate: "duplicate", pickNew: "new",
+	pickRebase: "rebase", pickSquash: "squash", pickDuplicate: "duplicate", pickNew: "new", pickRestore: "restore",
+}
+
+// pickScreens is the keymap screen of each verb's picker, which is where its flags are live.
+var pickScreens = map[pickVerb]keys.Context{
+	pickRebase: help.PickRebase, pickSquash: help.PickSquash, pickDuplicate: help.PickDuplicate,
+	pickNew: help.PickNew, pickRestore: help.PickRestore,
+}
+
+// pickFlagVerbs is the aragonite verb whose flags each picker toggles.
+var pickFlagVerbs = map[pickVerb]string{
+	pickRebase: keys.VerbRebase, pickSquash: keys.VerbSquash, pickDuplicate: keys.VerbDuplicate,
+	pickNew: keys.VerbNew, pickRestore: keys.VerbRestore,
 }
 
 // pickDebounce is how long the destination must stay put before the preview runs, so holding j
@@ -38,25 +53,51 @@ type pickState struct {
 	sandbox    *jj.Sandbox
 	sandboxErr error
 	previewErr error
-	dest       string
-	shownFor   string
-	sources    []string
-	base       []jj.LogRow
-	preview    []jj.LogRow
-	view       logview.Model
-	session    int
-	seq        int
-	verb       pickVerb
-	scope      jj.RebaseScope
-	mode       jj.RebaseDestinationMode
-	active     bool
-	inPlace    bool
-	skip       bool
-	keep       bool
-	combine    bool
-	noEdit     bool
-	unchanged  bool
-	before     bool
+	// flags are the verb's jj flags as the - keys left them, spelled as jj spells them.
+	flags     keys.FlagSet
+	dest      string
+	shownFor  string
+	sources   []string
+	base      []jj.LogRow
+	preview   []jj.LogRow
+	view      logview.Model
+	session   int
+	seq       int
+	verb      pickVerb
+	active    bool
+	inPlace   bool
+	unchanged bool
+	before    bool
+}
+
+// placement is where the radio group of -o, -A, and -B puts what the command makes or moves.
+func (p *pickState) placement() jj.RebaseDestinationMode {
+	switch {
+	case p.flags.On("A"):
+		return jj.RebaseDestInsertAfter
+	case p.flags.On("B"):
+		return jj.RebaseDestInsertBefore
+	}
+
+	return jj.RebaseDestOnto
+}
+
+// scope is what a rebase moves, from the radio group of -r, -s, and -b.
+func (p *pickState) scope() jj.RebaseScope {
+	switch {
+	case p.flags.On("s"):
+		return jj.RebaseScopeSource
+	case p.flags.On("b"):
+		return jj.RebaseScopeBranch
+	}
+
+	return jj.RebaseScopeRevisions
+}
+
+// interactive reports a verb whose -i hands hunk selection to the diff editor, which needs the
+// terminal and so cannot be previewed or run in the background.
+func (p *pickState) interactive() bool {
+	return (p.verb == pickSquash || p.verb == pickRestore) && p.flags.On("i")
 }
 
 type (
@@ -74,48 +115,73 @@ type (
 	}
 )
 
-// args is the jj invocation the picker stands for. A preview cannot hand jj a terminal, so the
-// combined-message squash previews with the destination's message, which draws the same graph.
+// args is the jj invocation the picker stands for. A preview cannot hand jj a terminal, so it leaves
+// out -i and squashes with the destination's message, both of which draw the same graph.
 func (p *pickState) args(forPreview bool) []string {
 	dest := []string{p.dest}
 
 	switch p.verb {
 	case pickSquash:
-		return jj.SquashIntoArgs(jj.SquashOptions{
-			Sources: p.sources, Into: p.dest, KeepEmptied: p.keep, Combine: p.combine && !forPreview,
+		args := jj.SquashIntoArgs(jj.SquashOptions{
+			Sources: p.sources, Into: p.dest, KeepEmptied: p.flags.On("k"),
+			Combine: !p.flags.On("u") && !forPreview,
 		})
+		if p.flags.On("i") && !forPreview {
+			args = append(args, "--interactive")
+		}
+
+		return args
+	case pickRestore:
+		flags := p.flags.Args()
+		if forPreview {
+			flags = slices.DeleteFunc(flags, func(f string) bool { return f == "-i" })
+		}
+
+		return jj.RestoreArgs(p.dest, p.sources[0], flags...)
 	case pickDuplicate:
 		if p.inPlace {
 			dest = nil
 		}
 
-		return jj.DuplicateArgs(p.sources, jj.PlaceOptions{Destination: dest, Mode: p.mode})
+		return jj.DuplicateArgs(p.sources, jj.PlaceOptions{Destination: dest, Mode: p.placement()})
 	case pickNew:
 		parents := slices.Clone(p.sources)
 		if !slices.Contains(parents, p.dest) {
 			parents = append(parents, p.dest)
 		}
 
-		return jj.NewArgs(jj.PlaceOptions{Destination: parents, Mode: p.mode}, p.noEdit)
+		return jj.NewArgs(jj.PlaceOptions{Destination: parents, Mode: p.placement()}, p.flags.On("n"))
 	case pickRebase:
 	}
 
 	return jj.RebaseArgs(jj.RebaseOptions{
-		Revisions: p.sources, Destination: dest, Mode: p.mode, Scope: p.scope, SkipEmptied: p.skip,
+		Revisions: p.sources, Destination: dest, Mode: p.placement(), Scope: p.scope(), Flags: p.flags.Args(),
 	})
 }
 
 // command is what the footer shows and what a preview is keyed by.
 func (p *pickState) command() string { return jj.CommandLine(p.args(false)) }
 
-// openPicker puts the log into picking mode over sources. Nothing is written: the sandbox the
-// preview runs in is a copy (see jj.Sandbox), opened behind the first frame.
-func (m *Model) openPicker(verb pickVerb, sources []string) tea.Cmd {
+// openPicker puts the log into picking mode over sources, with presets (flag letters) toggled on
+// over jj's defaults. Nothing is written: the sandbox the preview runs in is a copy (see jj.Sandbox),
+// opened behind the first frame.
+func (m *Model) openPicker(verb pickVerb, sources []string, presets ...string) tea.Cmd {
 	m.pickSession++
 	m.pick = pickState{
 		active: true, verb: verb, sources: sources, base: m.rows, session: m.pickSession,
-		view: logview.New(logview.StylesFrom(m.skin)),
+		view: logview.New(logview.StylesFrom(m.skin)), flags: keys.NewFlagSet(pickFlagVerbs[verb]),
 	}
+
+	// jojo has always squashed with the destination's message unless asked, since jj's default
+	// opens an editor whenever both sides are described.
+	if verb == pickSquash {
+		presets = append([]string{"u"}, presets...)
+	}
+
+	for _, letter := range presets {
+		m.pick.flags.Toggle(letter)
+	}
+
 	m.pick.dest = m.initialDest()
 	m.pick.inPlace = verb == pickDuplicate
 	m.pick.view.SetRows(m.rows)
@@ -149,7 +215,7 @@ func (m *Model) initialDest() string {
 		return cursor
 	case pickDuplicate:
 		return cursor
-	case pickRebase, pickSquash:
+	case pickRebase, pickSquash, pickRestore:
 	}
 
 	ids := revisionIDs(m.rows)
@@ -362,6 +428,7 @@ var destWords = map[jj.RebaseDestinationMode]string{
 // sourceWords is the chip on what the command is about, before it runs.
 var sourceWords = map[pickVerb]string{
 	pickRebase: "moving", pickSquash: "squashing", pickDuplicate: "copying", pickNew: "parent",
+	pickRestore: "restoring",
 }
 
 // pickMarks labels the rows the command is about. Before it runs that is what moves and where to;
@@ -382,9 +449,11 @@ func pickMarks(p *pickState, after bool) map[string]logview.Mark {
 	switch {
 	case p.verb == pickSquash:
 		marks[p.dest] = logview.Mark{Text: "◀ into"}
+	case p.verb == pickRestore:
+		marks[p.dest] = logview.Mark{Text: "◀ from"}
 	case p.verb == pickDuplicate && p.inPlace:
 	default:
-		marks[p.dest] = logview.Mark{Text: destWords[p.mode]}
+		marks[p.dest] = logview.Mark{Text: destWords[p.placement()]}
 	}
 
 	return marks
@@ -424,7 +493,12 @@ func (m Model) applyPick() (Model, tea.Cmd) {
 	args, what := pick.args(false), joinIDs(pick.sources)
 	closing := m.closePicker()
 
-	if pick.verb == pickSquash && pick.combine {
+	// -i and an editor for the combined message each need the terminal, which jj then holds.
+	if pick.interactive() {
+		return m, tea.Batch(closing, m.exec(pickVerbNames[pick.verb]+" "+what+undoHint, m.hunkArgs(args...)...))
+	}
+
+	if pick.verb == pickSquash && !pick.flags.On("u") {
 		return m, tea.Batch(closing, m.exec("squashed "+what+undoHint, args...))
 	}
 

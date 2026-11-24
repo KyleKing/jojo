@@ -92,11 +92,34 @@ type Model struct {
 	revision string
 	staging  *Staging
 	list     listview.Model[entry]
+	hints    Hints
 }
+
+// Hints are the footer's keys by role, which the caller builds from its keymap so a rebind reaches
+// the footer. A role left empty keeps the default key.
+type Hints struct {
+	Diff, Restore, Squash, Resolve, Stage, Commit, Close keyhint.Hint
+}
+
+// DefaultHints are the keys the panel answers, which jojo's keymap binds by default.
+func DefaultHints() Hints {
+	return Hints{
+		Diff:    keyhint.Hint{Key: "enter", What: "diff"},
+		Restore: keyhint.Hint{Key: "R", What: "restore"},
+		Squash:  keyhint.Hint{Key: "s", What: "squash"},
+		Resolve: keyhint.Hint{Key: "x", What: "resolve"},
+		Stage:   keyhint.Hint{Key: "space", What: "stage"},
+		Commit:  keyhint.Hint{Key: "c", What: "commit"},
+		Close:   keyhint.Hint{Key: "esc", What: "close"},
+	}
+}
+
+// SetHints is the footer's keys as the user has them bound.
+func (m *Model) SetHints(h Hints) { m.hints = h }
 
 // New returns a closed panel drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin, list: listview.New[entry](skin)}
+	return Model{skin: skin, list: listview.New[entry](skin), hints: DefaultHints()}
 }
 
 // Open shows the files of revision, with the cursor on the first conflict when there is one, since
@@ -179,17 +202,17 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch name {
 	case "enter":
 		return m.send(func(revision, path string) tea.Msg { return DiffMsg{Revision: revision, Path: path} })
-	case "r":
+	case "R":
 		return m.send(func(revision, path string) tea.Msg { return RestoreMsg{Revision: revision, Path: path} })
-	case "m":
+	case "s":
 		return m.send(func(revision, path string) tea.Msg { return MoveMsg{Revision: revision, Path: path} })
-	case "c":
+	case "x":
 		return m.resolve()
 	case "space":
 		return m.toggleStaged()
-	case "C":
+	case "c":
 		return m.commit()
-	case "esc", "q", "l":
+	case "esc", "q", "h":
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
@@ -280,19 +303,13 @@ func (m *Model) resolve() tea.Cmd {
 // View renders one row per file, centered in a width by height frame. The file list of @ leads with
 // git's words, since that is who the staging keys are for.
 func (m Model) View(width, height int) string {
-	hints := []keyhint.Hint{
-		{Key: "enter", What: "diff"},
-		{Key: "r", What: "restore"},
-		{Key: "m", What: "move"},
-		{Key: "c", What: "resolve"},
-		{Key: "esc", What: "close"},
-	}
+	h := m.hints
+	hints := []keyhint.Hint{h.Diff, h.Restore, h.Squash, h.Resolve, h.Close}
 
 	if m.staging != nil {
-		hints = append([]keyhint.Hint{
-			{Key: "space", What: m.spaceWord()},
-			{Key: "C", What: "commit"},
-		}, hints...)
+		stage := h.Stage
+		stage.What = m.spaceWord()
+		hints = append([]keyhint.Hint{stage, h.Commit}, hints...)
 	}
 
 	return m.list.View(width, height, m.row, hints)

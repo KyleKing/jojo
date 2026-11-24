@@ -1,9 +1,56 @@
 package model
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keys"
+
+	"github.com/kyleking/jojo/internal/components/help"
 )
 
+// screen is where the next key lands, which decides what it means: the shared keymap's contexts plus
+// jojo's modes of the log (help.Travel, help.Outline, and one picker screen per verb).
+func (m Model) screen() keys.Context {
+	switch {
+	case m.diff.IsOpen() && m.openModal() == ctxDiff:
+		return keys.View
+	case m.files.IsOpen() && m.openModal() == ctxFiles:
+		return keys.List
+	case m.pick.active:
+		return keys.Picker | pickScreens[m.pick.verb]
+	case m.travel.active:
+		return help.Travel
+	case m.focus == focusDock:
+		return keys.View
+	case m.outline.active && m.focus == focusLog:
+		return help.Outline
+	}
+
+	return keys.Log
+}
+
+// usageContext is the name the usage log files a screen's keys under.
+func usageContext(screen keys.Context) string {
+	switch {
+	case screen&keys.Picker != 0:
+		return ctxPick
+	case screen == help.Travel:
+		return ctxTravel
+	case screen == help.Outline:
+		return ctxOutline
+	case screen == keys.List:
+		return ctxFiles
+	case screen == keys.View:
+		return ctxDock
+	}
+
+	return ctxLog
+}
+
+// handleKeyPress is the one door every key comes through. Overlays with keys of their own (the
+// prompt, the panels, the palette) take theirs directly; every screen with a keymap feeds the
+// matcher, which holds a prefix while it waits and answers an action once a sequence completes.
 func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
 		m.usage.Key(ctxHelp, msg.String())
@@ -11,13 +58,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	}
 
-	if cmd, handled := m.routeToOutputOrModal(msg); handled {
-		return m, cmd
-	}
+	if ctx := m.openModal(); ctx != "" && ctx != ctxDiff && ctx != ctxFiles {
+		cmd := m.routeToModal(ctx, msg)
 
-	key, next, cmd, handled := m.routeToMode(msg)
-	if handled {
-		return next, cmd
+		return m, cmd
 	}
 
 	switch m.focus {
@@ -27,28 +71,85 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.usage.Key(ctxForge, msg.String())
 
 		return m.handleForgeKey(msg)
-	case focusDock:
-		m.usage.Key(ctxDock, msg.String())
-
-		return m.handleDockKey(msg)
-	case focusLog:
+	case focusLog, focusDock:
 	}
 
-	m.usage.Key(ctxLog, msg.String())
+	screen := m.screen()
 
-	if next, cmd, handled := m.handleRootKey(key); handled {
+	match := m.matcher.Feed(screen, msg.String())
+	if match.Pending || match.Canceled {
+		return m, nil
+	}
+
+	m.usage.Key(usageContext(screen), strings.Join(match.Keys, " "))
+
+	if match.Action == "" {
+		return m.unbound(screen, msg)
+	}
+
+	return m.dispatch(screen, match.Action)
+}
+
+// unbound is a key no binding names on screen: the log's list still pages on the keys it reads
+// itself (home, end, page up and down).
+// The past and the outline say why a verb does nothing there rather than doing nothing silently.
+func (m Model) unbound(screen keys.Context, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if screen == keys.Log {
+		return m.moveLog(msg)
+	}
+
+	if screen == help.Travel {
+		return m.dispatchTravel("")
+	}
+
+	if screen == help.Outline {
+		return m.dispatchOutline("")
+	}
+
+	return m, nil
+}
+
+// dispatch runs action on screen.
+func (m Model) dispatch(screen keys.Context, action string) (tea.Model, tea.Cmd) {
+	switch {
+	case screen&keys.Picker != 0:
+		return m.dispatchPick(action)
+	case screen == help.Travel:
+		return m.dispatchTravel(action)
+	case screen == help.Outline:
+		return m.dispatchOutline(action)
+	case screen == keys.View:
+		return m.dispatchView(action)
+	case screen == keys.List:
+		return m.dispatchList(action)
+	}
+
+	return m.dispatchLog(action)
+}
+
+// run runs action from the palette, which only lists the log's.
+func (m Model) runAction(action string) (tea.Model, tea.Cmd) { return m.dispatchLog(action) }
+
+// dispatchLog runs an action pressed in the log.
+func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
+	if key, ok := navKey(action); ok {
+		return m.moveLog(key)
+	}
+
+	if next, cmd, handled := m.globalAction(action); handled {
 		return next, cmd
 	}
 
-	if next, cmd, handled := m.panelKey(key); handled {
+	if next, cmd, handled := m.panelAction(action); handled {
 		return next, cmd
 	}
 
-	if next, cmd, handled := m.handleActionKey(key); handled {
-		return next, cmd
-	}
+	return m.revisionAction(action)
+}
 
-	cmd = m.log.Update(msg)
+// moveLog moves the log's cursor, reading further back once it reaches the last row loaded.
+func (m Model) moveLog(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	cmd := m.log.Update(key)
 
 	if m.log.AtEnd() && m.logFull {
 		m.logWindow *= 2
@@ -59,120 +160,196 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// routeToOutputOrModal opens the last failure on "!" anywhere a key is not text, and otherwise hands
-// the key to whichever overlay is open.
-func (m *Model) routeToOutputOrModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
-	if msg.String() == "!" && m.lastOutput != "" && !m.typing() {
-		m.usage.Key(ctxLog, "!")
-
-		return m.showOutput(), true
-	}
-
-	return m.routeToModal(msg)
+// navKeys are the keys the lists read for themselves, by the action that moves them, so a rebound
+// movement key reaches a list that only knows its own.
+var navKeys = map[string]tea.KeyPressMsg{
+	keys.ActionLineDown:     {Code: tea.KeyDown},
+	keys.ActionLineUp:       {Code: tea.KeyUp},
+	keys.ActionHalfPageDown: {Code: tea.KeyPgDown},
+	keys.ActionHalfPageUp:   {Code: tea.KeyPgUp},
+	keys.ActionTop:          {Code: tea.KeyHome},
+	keys.ActionBottom:       {Code: tea.KeyEnd},
+	help.ActionWorkingCopy:  {Code: '@', Text: "@"},
 }
 
-// routeToMode gives the key to the picker or to time travel while either is active, holds a chord
-// prefix, and otherwise returns the key resolved for the log.
-func (m *Model) routeToMode(msg tea.KeyPressMsg) (string, tea.Model, tea.Cmd, bool) {
-	if m.pick.active {
-		next, cmd := m.handlePickKey(msg)
+// navKey is the key a list reads for a movement action.
+func navKey(action string) (tea.KeyPressMsg, bool) {
+	key, ok := navKeys[action]
 
-		return "", next, cmd, true
-	}
-
-	key, held := m.chordKey(msg.String())
-	if held {
-		return "", *m, nil, true
-	}
-
-	if m.travel.active {
-		next, cmd := m.handleTravelKey(key, msg)
-
-		return "", next, cmd, true
-	}
-
-	if m.outline.active && m.focus == focusLog {
-		next, cmd := m.handleOutlineKey(key)
-
-		return "", next, cmd, true
-	}
-
-	return key, m, nil, false
+	return key, ok
 }
 
-// opStep is how far back [o and ]o move: older is positive.
-func opStep(key string) int {
-	if key == "]o" {
+// globalAction covers the keys that belong to the application rather than to the revision under the
+// cursor, which every screen that offers them shares.
+func (m Model) globalAction(action string) (tea.Model, tea.Cmd, bool) {
+	switch action {
+	case keys.ActionQuit, keys.ActionCancel:
+		m.quitting = true
+
+		return m, tea.Quit, true
+	case keys.ActionHelp:
+		m.openHelp()
+
+		return m, nil, true
+	case keys.ActionPalette:
+		cmd := m.palette.Open(m.paletteCommands())
+
+		return m, cmd, true
+	case keys.ActionSearch:
+		cmd := m.find.Open()
+		m.resize()
+
+		return m, cmd, true
+	case keys.ActionMessages:
+		cmd := m.showOutput()
+
+		return m, cmd, true
+	case keys.ActionSwitchPane:
+		next, cmd := m.cycleFocus()
+
+		return next, cmd, true
+	case help.ActionPreview:
+		next, cmd := m.toggleDock()
+
+		return next, cmd, true
+	}
+
+	return m, nil, false
+}
+
+// openHelp shows the legend of the screen the help key was pressed on.
+func (m *Model) openHelp() {
+	m.showHelp = true
+	m.help = m.help.For(m.screen())
+}
+
+// panelAction covers the keys that open a panel of their own or act on the whole repository, which
+// read and reload rather than act on the revision under the cursor.
+func (m Model) panelAction(action string) (tea.Model, tea.Cmd, bool) {
+	switch action {
+	case keys.ActionUndo:
+		return m, m.undo(), true
+	case keys.ActionRedo:
+		return m, m.redo(), true
+	case keys.ActionReload:
+		return m, m.loadLog(m.revset), true
+	case keys.ActionBack:
+		if len(m.log.Checked()) == 0 {
+			return m, nil, true
+		}
+
+		m.log.ClearChecked()
+
+		return m, m.say("checks cleared"), true
+	case keys.ActionShell:
+		return m, m.shell(), true
+	case help.ActionRevset:
+		m.focus = focusRevset
+
+		return m, m.revsetBox.Focus(), true
+	case help.ActionForge:
+		next, cmd := m.toggleForge()
+
+		return next, cmd, true
+	}
+
+	return m.repoAction(action)
+}
+
+// repoAction covers the panels and the reads of the repository as a whole.
+func (m Model) repoAction(action string) (tea.Model, tea.Cmd, bool) {
+	switch action {
+	case help.ActionOpLog:
+		return m, m.loadOpLog(), true
+	case help.ActionWorkspaces:
+		return m, m.loadWorkspaces(), true
+	case help.ActionBookmarks:
+		return m, m.loadBookmarks(), true
+	case help.ActionFetch:
+		return m, m.fetch(), true
+	case help.ActionConverge:
+		return m, m.previewDivergent(), true
+	case help.ActionArrange:
+		return m, m.exec("arranged, press u to undo", "arrange"), true
+	case help.ActionOpOlder, help.ActionOpNewer:
+		cmd := m.stepOp(opStep(action))
+
+		return m, cmd, true
+	case keys.ActionOutline:
+		cmd := m.openOutline()
+
+		return m, cmd, true
+	case keys.ActionRounds:
+		cmd := m.openRoundsBox()
+
+		return m, cmd, true
+	case keys.NextAction(keys.ObjRound), keys.PrevAction(keys.ObjRound):
+		cmd := m.stepRound(actionDir(action))
+
+		return m, cmd, true
+	}
+
+	return m, nil, false
+}
+
+// opStep is how far an op motion moves: older is positive.
+func opStep(action string) int {
+	if action == help.ActionOpNewer {
 		return -1
 	}
 
 	return 1
 }
 
-// chordPrefixes start the two-key bindings: [o and ]o step through the op log, [r and ]r through
-// the versions of the change in the dock, and ]] and [[ through the outline's chapters.
-var chordPrefixes = map[string]bool{"[": true, "]": true}
-
-// chordKey resolves a key against a held chord prefix, and holds a new one. A prefix followed by a
-// key that completes nothing resolves to that pair, which no handler knows, so it does nothing.
-func (m *Model) chordKey(pressed string) (string, bool) {
-	if m.chord != "" {
-		pair := m.chord + pressed
-		m.chord = ""
-
-		return m.keys.Resolve(pair), false
+// actionDir is 1 for a forward motion and -1 for a backward one.
+func actionDir(action string) int {
+	if strings.HasSuffix(action, "-prev") {
+		return -1
 	}
 
-	if chordPrefixes[pressed] && m.focus == focusLog {
-		m.chord = pressed
-
-		return "", true
-	}
-
-	return m.keys.Resolve(pressed), false
+	return 1
 }
 
-// routeToModal hands every key to whichever overlay is open, because a modal
-// sharing j and k with the log underneath would move both cursors at once.
-func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
-	ctx := m.openModal()
-	if ctx == "" {
-		return nil, false
+// cycleFocus walks Tab through the panes that are open, so a focused pane owns its own keys and a
+// mnemonic cannot mean two things at once. The revset box is left out: L focuses it, and a stray Tab
+// used to drop the next keys into it.
+func (m Model) cycleFocus() (tea.Model, tea.Cmd) {
+	m.revsetBox.Blur()
+
+	switch {
+	case (m.focus == focusLog || m.focus == focusRevset) && m.showForge:
+		m.focus = focusForge
+	case (m.focus == focusLog || m.focus == focusRevset || m.focus == focusForge) && m.docked:
+		m.focus = focusDock
+	default:
+		m.focus = focusLog
 	}
 
+	return m, nil
+}
+
+// routeToModal hands every key to whichever overlay is open, because a modal sharing j and k with
+// the log underneath would move both cursors at once.
+func (m *Model) routeToModal(ctx string, msg tea.KeyPressMsg) tea.Cmd {
 	m.recordModalKey(ctx, msg)
 
 	switch ctx {
 	case ctxOutput:
-		return m.output.Update(msg), true
+		return m.output.Update(msg)
 	case ctxConfirm:
-		return m.confirm.Update(msg), true
+		return m.confirm.Update(msg)
 	case ctxBookmarks:
-		return m.bookmarks.Update(msg), true
+		return m.bookmarks.Update(msg)
 	case ctxDetail:
-		return m.detail.Update(msg), true
-	case ctxDiff:
-		return m.diff.Update(msg), true
-	case ctxFiles:
-		return m.files.Update(msg), true
+		return m.detail.Update(msg)
 	case ctxPrompt:
-		return m.prompt.Update(msg), true
+		return m.prompt.Update(msg)
 	case ctxDestination:
-		return m.destPicker.Update(msg), true
+		return m.destPicker.Update(msg)
 	case ctxOpLog:
-		return m.opLog.Update(msg), true
-	}
-
-	return m.routeToListModal(ctx, msg), true
-}
-
-// routeToListModal is routeToModal for the list overlays and the search bar.
-func (m *Model) routeToListModal(ctx string, msg tea.KeyPressMsg) tea.Cmd {
-	switch ctx {
+		return m.opLog.Update(msg)
 	case ctxSpaces:
 		return m.spaces.Update(msg)
-	case ctxEvolog:
-		return m.evolog.Update(msg)
 	case ctxRounds:
 		return m.roundsBox.Update(msg)
 	case ctxPalette:
@@ -205,8 +382,6 @@ func (m *Model) openModal() string {
 		return ctxOpLog
 	case m.spaces.IsOpen():
 		return ctxSpaces
-	case m.evolog.IsOpen():
-		return ctxEvolog
 	case m.roundsBox.IsOpen():
 		return ctxRounds
 	case m.palette.IsOpen():
@@ -216,146 +391,6 @@ func (m *Model) openModal() string {
 	}
 
 	return ""
-}
-
-// Typing reports whether the key goes into a text field, where "!" is a character rather than a verb.
-func (m *Model) typing() bool {
-	if m.focus == focusRevset {
-		return true
-	}
-
-	switch m.openModal() {
-	case ctxPrompt, ctxDestination, ctxPalette, ctxFind, ctxOutput:
-		return true
-	}
-
-	return false
-}
-
-// handleRootKey covers the keys that belong to the application rather than to
-// the revision under the cursor.
-func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
-	switch key {
-	case "L":
-		m.focus = focusRevset
-
-		cmd := m.revsetBox.Focus()
-
-		return m, cmd, true
-	case keyTab:
-		next, cmd := m.cycleFocus()
-
-		return next, cmd, true
-	case "p":
-		next, cmd := m.toggleForge()
-
-		return next, cmd, true
-	case dockKey:
-		next, cmd := m.toggleDock()
-
-		return next, cmd, true
-	case "q", keyQuit:
-		m.quitting = true
-
-		return m, tea.Quit, true
-	case "?":
-		m.showHelp = true
-		m.help = m.help.ScrollToStart()
-
-		return m, nil, true
-	case "u":
-		return m, m.undo(), true
-	case "ctrl+r":
-		return m, m.redo(), true
-	case "ctrl+l":
-		return m, m.loadLog(m.revset), true
-	case keyEsc:
-		if len(m.log.Checked()) == 0 {
-			return m, nil, false
-		}
-
-		m.log.ClearChecked()
-
-		return m, m.say("checks cleared"), true
-	case "!":
-		cmd := m.showOutput()
-
-		return m, cmd, true
-	case "/":
-		cmd := m.find.Open()
-		m.resize()
-
-		return m, cmd, true
-	case ":":
-		cmd := m.palette.Open(m.paletteCommands())
-
-		return m, cmd, true
-	}
-
-	return m, nil, false
-}
-
-// panelKey covers the keys that open a panel of their own or fire a whole-repository action,
-// which read and reload rather than act on the revision under the cursor.
-func (m Model) panelKey(key string) (tea.Model, tea.Cmd, bool) {
-	switch key {
-	case "o":
-		return m, m.loadOpLog(), true
-	case "w":
-		return m, m.loadWorkspaces(), true
-	case "b":
-		return m, m.loadBookmarks(), true
-	case "f":
-		return m, m.fetch(), true
-	case "x":
-		return m, m.previewDivergent(), true
-	case "[o", "]o":
-		cmd := m.stepOp(opStep(key))
-
-		return m, cmd, true
-	case "I":
-		cmd := m.openOutline()
-
-		return m, cmd, true
-	case "H":
-		cmd := m.openRoundsBox()
-
-		return m, cmd, true
-	case "[r", "]r":
-		cmd := m.stepRound(motionDir(key))
-
-		return m, cmd, true
-	}
-
-	return m, nil, false
-}
-
-// cycleFocus walks Tab through the panes that are open, so a focused pane owns
-// its own keys and a mnemonic cannot mean two things at once.
-func (m Model) cycleFocus() (tea.Model, tea.Cmd) {
-	switch {
-	case m.focus == focusLog:
-		m.focus = focusRevset
-
-		cmd := m.revsetBox.Focus()
-
-		return m, cmd
-	case m.focus == focusRevset && m.showForge:
-		m.revsetBox.Blur()
-		m.focus = focusForge
-
-		return m, nil
-	case (m.focus == focusRevset || m.focus == focusForge) && m.docked:
-		m.revsetBox.Blur()
-		m.focus = focusDock
-
-		return m, nil
-	default:
-		m.revsetBox.Blur()
-		m.focus = focusLog
-
-		return m, nil
-	}
 }
 
 func (m Model) handleForgeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -373,11 +408,9 @@ func (m Model) handleForgeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handleRevsetKey types into the revset box, where Tab completes. Enter runs the revset and, like
+// Esc, hands the keys back to the log.
 func (m Model) handleRevsetKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == keyTab {
-		return m.cycleFocus()
-	}
-
 	if msg.String() == keyEsc {
 		m.revsetBox.Blur()
 		m.focus = focusLog
@@ -386,6 +419,11 @@ func (m Model) handleRevsetKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	cmd := m.revsetBox.Update(msg)
+	if msg.String() == keyEnter {
+		m.revsetBox.Blur()
+		m.focus = focusLog
+	}
+
 	m.resize()
 
 	return m, cmd
@@ -399,6 +437,10 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.help = m.help.ScrollBy(-1)
 	case "down", "j":
 		m.help = m.help.ScrollBy(1)
+	case "ctrl+u", "pgup":
+		m.help = m.help.ScrollBy(-helpPage)
+	case "ctrl+d", "pgdown":
+		m.help = m.help.ScrollBy(helpPage)
 	case "g", "home":
 		m.help = m.help.ScrollToStart()
 	case "G", keyEnd:
@@ -407,6 +449,9 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
+
+// helpPage is how far ctrl+d and ctrl+u scroll the legend.
+const helpPage = 10
 
 func (m Model) toggleForge() (tea.Model, tea.Cmd) {
 	m.showForge = !m.showForge

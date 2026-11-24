@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/components/help"
@@ -34,7 +35,12 @@ func (m Model) loadHeadOp() tea.Cmd {
 
 // helpHint is the route to the legend, which every footer ends on.
 func (m Model) helpHint() keyhint.Hint {
-	return keyhint.Hint{Key: "?", What: "help", Fresh: m.keys.Level("?")}
+	h, ok := m.keys.Hint(keys.ActionHelp)
+	if !ok {
+		return keyhint.Hint{Key: "?", What: "help"}
+	}
+
+	return h
 }
 
 // pinnedHelp is helpHint for a footer that sheds hints by priority, where help must stay.
@@ -46,56 +52,95 @@ func (m Model) pinnedHelp() keyhint.Hint {
 }
 
 // failureHint offers the whole of a failure the footer could only show one line of.
-var failureHint = keyhint.Hint{Key: "!", What: "full error"}
+func (m Model) failureHint() keyhint.Hint {
+	h, ok := m.keys.Hint(keys.ActionMessages)
+	if !ok {
+		return keyhint.Hint{}
+	}
+
+	h.What = "full error"
+
+	return h
+}
+
+// logFooter is what the log's footer offers, most used first: keyhint.Fit sheds from the end.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var logFooter = []string{
+	help.ActionDiff, help.ActionPreview, help.ActionNew, keys.ActionDescribe, help.ActionSquash,
+	help.ActionRebase, help.ActionEdit, help.ActionAbandon, keys.ActionUndo, help.ActionFiles,
+	help.ActionSplit, help.ActionDuplicate, help.ActionRestore, help.ActionCommit, help.ActionPush,
+	help.ActionFetch, help.ActionBookmarks, help.ActionOpLog, keys.ActionPalette,
+}
+
+// viewFooter is the docked diff's, while it has the keys.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var viewFooter = []string{
+	keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile), keys.ActionAgain,
+	keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionViewSideBySide, keys.ActionBack,
+}
 
 // footerHints ends on help, because the footer drops hints from the right and keeps the last.
 func (m Model) footerHints() []keyhint.Hint {
-	if m.outline.active {
-		return m.outlineHints()
-	}
+	var hints []keyhint.Hint
 
-	hints := rowHints(m.log.Selected())
-	for i := range hints {
-		hints[i].Fresh = m.keys.Level(hints[i].Key)
+	switch m.screen() {
+	case help.Outline:
+		hints = m.outlineHints()
+	case keys.View:
+		hints = m.keys.Hints(viewFooter...)
+	default:
+		hints = append(m.rowHints(m.log.Selected()), m.keys.Hints(logFooter...)...)
 	}
-
-	hints = append(hints, m.keys.Hints(help.L0, help.L2)...)
 
 	hints = append(hints, m.helpHint())
 
 	// A failure takes the last place, the one hint the footer never drops, while it is on screen.
 	if m.failing {
-		hints = append(hints, failureHint)
+		hints = append(hints, m.failureHint())
 	}
 
 	return hints
 }
 
-// rowHints is the one thing worth saying about the revision under the cursor.
-func rowHints(rev *jj.Revision) []keyhint.Hint {
+// rowHints is the one thing worth saying about the revision under the cursor, keyed by the verb
+// that answers it.
+func (m Model) rowHints(rev *jj.Revision) []keyhint.Hint {
+	var action, what string
+
 	switch {
 	case rev == nil:
 		return nil
 	case rev.Conflict:
-		return []keyhint.Hint{{Key: "c", What: "conflicted, resolve it"}}
+		action, what = help.ActionResolve, "conflicted, resolve it"
 	case rev.Immutable:
-		return []keyhint.Hint{{Key: "e", What: "immutable, an edit asks first"}}
+		action, what = help.ActionEdit, "immutable, an edit asks first"
 	case rev.Empty && !rev.WorkingCopy:
-		return []keyhint.Hint{{Key: "a", What: "empty, abandon it"}}
+		action, what = help.ActionAbandon, "empty, abandon it"
 	case rev.Divergent:
-		return []keyhint.Hint{{Key: "x", What: "divergent, converge it"}}
+		action, what = help.ActionConverge, "divergent, converge it"
 	case len(rev.LocalBookmarks) > 0:
-		return []keyhint.Hint{{Key: "b", What: "bookmarks, push from there"}}
+		action, what = help.ActionPush, "bookmarked, push it"
+	default:
+		return nil
 	}
 
-	return nil
+	h, ok := m.keys.Hint(action)
+	if !ok {
+		return nil
+	}
+
+	h.What = what
+
+	return []keyhint.Hint{h}
 }
 
 // overlayFooter is the message alone under an open overlay, whose own keys are in its own frame.
 func (m Model) overlayFooter() string {
 	var hints []keyhint.Hint
 	if m.failing {
-		hints = []keyhint.Hint{failureHint}
+		hints = []keyhint.Hint{m.failureHint()}
 	}
 
 	return m.status.View(m.width, statusbar.Context{Message: m.message, Hints: hints})
@@ -207,23 +252,8 @@ func (m Model) inspector(rev *jj.Revision, overflow []string) []string {
 // oneLineText keeps a fact on the inspector's single row.
 func oneLineText(text string) string { return strings.Join(strings.Fields(text), " ") }
 
-// outlineHints are the footer's while the outline is open: its own keys in table order, with help
-// and any failure kept at the end the way the log's footer keeps them.
+// outlineHints are the footer's while the outline is open: its own keys, most used first.
 func (m Model) outlineHints() []keyhint.Hint {
-	bindings := m.keys.ModeBindings(help.ModeOutline)
-	hints := make([]keyhint.Hint, 0, len(bindings)+len("?!"))
-
-	for i := range bindings {
-		h := bindings[i].Hint
-		h.Fresh = m.keys.Level(bindings[i].Run)
-		hints = append(hints, h)
-	}
-
-	hints = append(hints, m.helpHint())
-
-	if m.failing {
-		hints = append(hints, failureHint)
-	}
-
-	return hints
+	return m.keys.Hints(keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter), help.ActionChapterRead,
+		keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionBack)
 }

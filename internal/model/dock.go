@@ -2,9 +2,11 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/jj"
@@ -201,26 +203,69 @@ func (m Model) outlineWidth() int {
 // dockSideBySide reports whether the docked pane sits beside the log rather than under it.
 func (m Model) dockSideBySide() bool { return m.width >= dockMinSideBySide }
 
-func (m Model) handleDockKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch key := m.keys.Resolve(msg.String()); key {
-	case keyEsc, "q":
+// dispatchView runs an action in the docked diff while it has the focus, or in the full-screen diff
+// over the log, which read the same keys.
+func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
+	pane, docked := &m.dock, m.openModal() != ctxDiff
+	if !docked {
+		pane = &m.diff
+	}
+
+	if key, ok := navKey(action); ok {
+		return m, pane.Update(key)
+	}
+
+	if object, dir, ok := paneMotion(action); ok {
+		return m, pane.Motion(object, dir)
+	}
+
+	switch action {
+	case keys.ActionAgain:
+		return m, pane.Repeat(1)
+	case keys.ActionReverse:
+		return m, pane.Repeat(-1)
+	case keys.ActionViewSideBySide:
+		pane.ToggleSideBySide()
+
+		return m, nil
+	case keys.ActionBack, keys.ActionQuit:
+		if !docked {
+			return m, pane.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		}
+
 		m.focus = focusLog
 
 		return m, nil
-	case keyTab:
-		return m.cycleFocus()
-	case dockKey:
-		return m.toggleDock()
-	case "H":
+	case keys.ActionRounds:
 		cmd := m.openRoundsBox()
 
 		return m, cmd
 	}
 
-	cmd := m.dock.Update(msg)
+	if next, cmd, handled := m.globalAction(action); handled {
+		return next, cmd
+	}
 
-	return m, cmd
+	return m, nil
 }
 
-// dockKey is the binding that docks the diff beside the log.
-const dockKey = "alt+p"
+// paneObjects are the diff pane's names for the shared ] and [ objects.
+var paneObjects = map[string]string{
+	keys.ObjHunk: diffpane.ObjectHunk, keys.ObjFile: diffpane.ObjectFile,
+	keys.ObjRound: diffpane.ObjectRound, keys.ObjChapter: diffpane.ObjectChapter,
+}
+
+// paneMotion is the diff pane's object and direction for a shared motion action.
+func paneMotion(action string) (string, int, bool) {
+	noun, ok := strings.CutSuffix(action, "-next")
+	dir := 1
+
+	if !ok {
+		noun, ok = strings.CutSuffix(action, "-prev")
+		dir = -1
+	}
+
+	object, known := paneObjects[noun]
+
+	return object, dir, ok && known
+}

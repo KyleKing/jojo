@@ -41,7 +41,7 @@ func checkFirstTwo(t *testing.T) Model {
 func TestChecked_RebaseAndSquashTakeTheWholeSet(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"r", "R", "s"} {
+	for _, key := range []string{"r", "s"} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 

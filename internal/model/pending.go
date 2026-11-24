@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
-	"github.com/kyleking/jojo/internal/components/evologview"
 	"github.com/kyleking/jojo/internal/components/prompt"
+	"github.com/kyleking/jojo/internal/components/roundsview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	"github.com/kyleking/jojo/internal/jj"
 )
@@ -80,18 +80,6 @@ func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, 
 	return run(m, msg.Value)
 }
 
-// openMoveHunks asks for the destination, then hands the terminal to jj's configured diff editor,
-// which is where the hunks and lines actually get picked. Nothing here reimplements that selection.
-func (m *Model) openMoveHunks(rev jj.Revision) tea.Cmd {
-	id := rev.ChangeID
-	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
-		into := dest.Revision.ChangeID
-		return m, m.exec("moved part of "+id+" into "+into+undoHint, m.squashHunkArgs(id, into)...)
-	}
-
-	return m.destPicker.Open("move part of "+id+" into", m.rows, id)
-}
-
 // openMoveFile asks for the destination and moves one path, which needs no editor at all. It is the
 // shortest path from "this file belongs in that commit" to it being there.
 func (m *Model) openMoveFile(from, path string) tea.Cmd {
@@ -132,11 +120,13 @@ func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
 	return run(m, msg)
 }
 
-// restoreVersion puts an earlier version's content back into the change it belongs to, which leaves
-// the change's description and its place in the graph alone.
-func (m Model) restoreVersion(msg evologview.RestoreMsg) (tea.Model, tea.Cmd) {
-	from, into := msg.CommitID, m.evolog.ChangeID()
-	m.evolog.Close()
+// restoreVersion puts the content a round ended with back into the change it belongs to, which
+// leaves the change's description and its place in the graph alone.
+func (m Model) restoreVersion(msg roundsview.RestoreMsg) (tea.Model, tea.Cmd) {
+	from, into := msg.Round.To, m.rounds.change
+	if into == "" {
+		return m, nil
+	}
 
 	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
 		return m.client.Restore(ctx, from, into)
@@ -186,7 +176,6 @@ func (m Model) cancelModals() Model {
 	m.destPicker.Close()
 	m.opLog.Close()
 	m.spaces.Close()
-	m.evolog.Close()
 	m.bookmarks.Close()
 	m.detail.Close()
 	m.files.Close()

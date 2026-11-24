@@ -7,4 +7,4 @@
                                                   │ L1
                                                   │ ▎old second                                     
                                                   │ ▎new second                                     
-@  ↑ ↓ ← → move  Enter select  Esc back  q quit  Tab switch pane  n new  e edit  …  ? help          
+@  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  a abandon  u undo  …  ? help  

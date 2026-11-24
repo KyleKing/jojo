@@ -46,16 +46,11 @@ func twoRows() []jj.LogRow {
 func TestPicker_EveryVerbOpensItAndEnterLeavesIt(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"s", "r", "R", "D", "n"} {
+	for _, key := range []string{"s", "r", "R", "y", "N"} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			next, _, handled := testModel(t, twoRows()).handleActionKey(key)
-			if !handled {
-				t.Fatalf("%q was not handled", key)
-			}
-
-			opened := asModel(t, next)
+			opened := asModel(t, update(testModel(t, twoRows()), tuitest.Key(key)))
 			if !opened.pick.active {
 				t.Fatal("the picker did not open")
 			}
@@ -87,28 +82,53 @@ func TestPicker_BuildsTheCommandTheFlagsName(t *testing.T) {
 		keys []string
 	}{
 		{name: "rebase lands on the row below", keys: []string{"r"}, want: "jj rebase -r aaaa --onto bbbb"},
-		{name: "R moves descendants", keys: []string{"R"}, want: "jj rebase -s aaaa --onto bbbb"},
-		{name: "b is before", keys: []string{"r", "b"}, want: "jj rebase -r aaaa --insert-before bbbb"},
-		{name: "B is the branch", keys: []string{"r", "B", "a"}, want: "jj rebase -b aaaa --insert-after bbbb"},
-		{name: "skip emptied", keys: []string{"r", "e"}, want: "jj rebase -r aaaa --onto bbbb --skip-emptied"},
+		{name: "-s moves descendants", keys: []string{"r", "-", "s"}, want: "jj rebase -s aaaa --onto bbbb"},
+		{name: "-B is before", keys: []string{"r", "-", "B"}, want: "jj rebase -r aaaa --insert-before bbbb"},
+		{
+			name: "-b is the branch", keys: []string{"r", "-", "b", "-", "A"},
+			want: "jj rebase -b aaaa --insert-after bbbb",
+		},
+		{name: "-e skips emptied", keys: []string{"r", "-", "e"}, want: "jj rebase -r aaaa --onto bbbb --skip-emptied"},
+		{
+			name: "-d and -p are jj's own toggles", keys: []string{"r", "-", "d", "-", "p"},
+			want: "jj rebase -r aaaa --onto bbbb --keep-divergent --simplify-parents",
+		},
 		{
 			name: "squash keeps the destination message by default", keys: []string{"s"},
 			want: "jj squash --from aaaa --into bbbb --use-destination-message",
 		},
 		{
-			name: "squash can keep the emptied source and combine messages", keys: []string{"s", "e", "m"},
+			name: "squash -k keeps the emptied source, -u off combines messages",
+			keys: []string{"s", "-", "k", "-", "u"},
 			want: "jj squash --from aaaa --into bbbb --keep-emptied",
 		},
 		{
-			name: "squash ignores placement keys", keys: []string{"s", "a"},
+			name: "squash -i chooses hunks", keys: []string{"s", "-", "i"},
+			want: "jj squash --from aaaa --into bbbb --use-destination-message --interactive",
+		},
+		{
+			name: "squash has no placement flags", keys: []string{"s", "-", "A"},
 			want: "jj squash --from aaaa --into bbbb --use-destination-message",
 		},
-		{name: "duplicate starts in place", keys: []string{"D"}, want: "jj duplicate aaaa"},
-		{name: "moving a duplicate places it", keys: []string{"D", "j"}, want: "jj duplicate aaaa --onto bbbb"},
-		{name: "duplicate after", keys: []string{"D", "j", "a"}, want: "jj duplicate aaaa --insert-after bbbb"},
-		{name: "new on the cursor", keys: []string{"n"}, want: "jj new aaaa"},
-		{name: "new before, no edit", keys: []string{"n", "b", "w"}, want: "jj new --insert-before aaaa --no-edit"},
-		{name: "new elsewhere", keys: []string{"n", "j"}, want: "jj new bbbb"},
+		{name: "duplicate starts in place", keys: []string{"y"}, want: "jj duplicate aaaa"},
+		{name: "moving a duplicate places it", keys: []string{"y", "j"}, want: "jj duplicate aaaa --onto bbbb"},
+		{name: "duplicate after", keys: []string{"y", "j", "-", "A"}, want: "jj duplicate aaaa --insert-after bbbb"},
+		{name: "backspace puts it back in place", keys: []string{"y", "j", "backspace"}, want: "jj duplicate aaaa"},
+		{name: "new on the cursor", keys: []string{"N"}, want: "jj new aaaa"},
+		{
+			name: "new before, no edit", keys: []string{"N", "-", "B", "-", "n"},
+			want: "jj new --insert-before aaaa --no-edit",
+		},
+		{name: "new elsewhere", keys: []string{"N", "j"}, want: "jj new bbbb"},
+		{name: "restore starts on the parent", keys: []string{"R"}, want: "jj restore --from bbbb --into aaaa"},
+		{
+			name: "restore -d keeps descendants", keys: []string{"R", "-", "d"},
+			want: "jj restore --from bbbb --into aaaa --restore-descendants",
+		},
+		{
+			name: "a flag another verb has does nothing", keys: []string{"R", "-", "o"},
+			want: "jj restore --from bbbb --into aaaa",
+		},
 	}
 
 	for _, tc := range cases {
@@ -191,7 +211,7 @@ func TestRebaseOntoTrunkPicksAnImmutableDestination(t *testing.T) {
 		{Revision: &jj.Revision{ChangeID: "zzzz", Description: "trunk", Immutable: true}},
 	}
 
-	next, _, _ := testModel(t, rows).handleActionKey("r")
+	next := update(testModel(t, rows), tuitest.Key("r"))
 	if got := commandOf(asModel(t, next)); got != "jj rebase -r aaaa --onto zzzz" {
 		t.Errorf("rebase onto trunk built %q", got)
 	}
@@ -247,7 +267,7 @@ func TestPicker_FitsTheTerminalAtEverySize(t *testing.T) {
 
 	sizes := []struct{ width, height int }{{100, 30}, {80, 24}, {60, 20}, {40, 12}}
 
-	for _, verb := range []string{"r", "s", "D", "n"} {
+	for _, verb := range []string{"r", "s", "y", "N", "R"} {
 		for _, size := range sizes {
 			t.Run(verb+"/"+strconv.Itoa(size.width)+"x"+strconv.Itoa(size.height), func(t *testing.T) {
 				t.Parallel()
@@ -263,8 +283,8 @@ func TestPicker_FitsTheTerminalAtEverySize(t *testing.T) {
 
 				lines := strings.Split(frame, "\n")
 				footer := lines[len(lines)-1]
-				if !strings.Contains(footer, "Enter") || !strings.Contains(footer, "Esc") {
-					t.Errorf("the footer lost Enter or Esc: %q", footer)
+				if !strings.Contains(footer, "enter") || !strings.Contains(footer, "esc") {
+					t.Errorf("the footer lost enter or esc: %q", footer)
 				}
 			})
 		}
@@ -277,13 +297,13 @@ func TestChord_SecondKeyEndsIt(t *testing.T) {
 	t.Parallel()
 
 	m := asModel(t, update(testModel(t, twoRows()), tuitest.Key("[")))
-	if m.chord != "[" {
-		t.Fatalf("[ was not held, chord = %q", m.chord)
+	if got := m.matcher.Pending(); len(got) != 1 || got[0] != "[" {
+		t.Fatalf("[ was not held, pending = %q", got)
 	}
 
 	m = asModel(t, update(m, tuitest.Key("x")))
-	if m.chord != "" {
-		t.Errorf("the chord outlived its second key: %q", m.chord)
+	if got := m.matcher.Pending(); got != nil {
+		t.Errorf("the chord outlived its second key: %q", got)
 	}
 
 	m = asModel(t, update(m, tuitest.Key("j")))

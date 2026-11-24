@@ -12,24 +12,14 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// openDiffRange starts the two-step pick for a diff between any two revisions, which is the one
-// comparison jj's own log view cannot show.
-func (m *Model) openDiffRange() tea.Cmd {
+// openCompare picks the other side of a diff ending at rev, which is the one comparison jj's own
+// log view cannot show.
+func (m *Model) openCompare(rev string) tea.Cmd {
 	m.onPick = func(m Model, from destpicker.PickedMsg) (Model, tea.Cmd) {
-		cmd := m.pickDiffTo(from.Revision.ChangeID)
-
-		return m, cmd
+		return m, m.showDiff(jj.DiffTarget{From: from.Revision.ChangeID, To: rev})
 	}
 
-	return m.destPicker.Open("diff from", m.rows, "", destpicker.AllowImmutable())
-}
-
-func (m *Model) pickDiffTo(from string) tea.Cmd {
-	m.onPick = func(m Model, to destpicker.PickedMsg) (Model, tea.Cmd) {
-		return m, m.showDiff(jj.DiffTarget{From: from, To: to.Revision.ChangeID})
-	}
-
-	return m.destPicker.Open("diff "+from+" to", m.rows, from, destpicker.AllowImmutable())
+	return m.destPicker.Open("diff "+rev+" against", m.rows, rev, destpicker.AllowImmutable())
 }
 
 // diffLoadedMsg carries a diff read in the background, along with what to call it.

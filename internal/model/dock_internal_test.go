@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/tuitest"
 )
 
@@ -50,7 +51,7 @@ func dockedModel(t *testing.T, width, height int) Model {
 
 	m := asModel(t, update(testModel(t, twoRows()), tea.WindowSizeMsg{Width: width, Height: height}))
 
-	next, cmd := m.Update(tuitest.Key(dockKey))
+	next, cmd := m.Update(tuitest.Key("p"))
 	if cmd == nil {
 		t.Fatal("docking the diff started no read")
 	}
@@ -83,8 +84,7 @@ func TestDock_FollowsTheLogCursorKeepingTheFile(t *testing.T) {
 	t.Parallel()
 
 	m := dockedModel(t, 120, 20)
-	m.dock.Update(tuitest.Key("]"))
-	m.dock.Update(tuitest.Key("f"))
+	m.dock.Motion(diffpane.ObjectFile, 1)
 
 	if got := m.dock.CurrentPath(); got != "second.txt" {
 		t.Fatalf("the dock is in %q after ]f, want second.txt", got)
@@ -169,12 +169,9 @@ func TestDock_TabFocusesTheDiffAndEscReturnsToTheLog(t *testing.T) {
 
 	m := dockedModel(t, 120, 20)
 
-	for range 2 {
-		m = asModel(t, update(m, tuitest.Key("tab")))
-	}
-
+	m = asModel(t, update(m, tuitest.Key("tab")))
 	if m.focus != focusDock {
-		t.Fatalf("two tabs left focus at %d, want the dock", m.focus)
+		t.Fatalf("tab left focus at %d, want the dock", m.focus)
 	}
 
 	before := m.log.Selected().ChangeID
@@ -198,7 +195,7 @@ func TestDock_ClosingGivesTheLogItsRoomBack(t *testing.T) {
 	t.Parallel()
 
 	m := dockedModel(t, 120, 20)
-	m = asModel(t, update(m, tuitest.Key(dockKey)))
+	m = asModel(t, update(m, tuitest.Key("p")))
 
 	if m.docked || m.dock.IsOpen() {
 		t.Fatal("the second alt+p left the dock open")

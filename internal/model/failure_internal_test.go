@@ -47,23 +47,23 @@ func TestFailure_ShowsUnderAnOpenOverlay(t *testing.T) {
 	}
 }
 
-// The footer keeps one line of a failure, and "!" shows all of it, from the log and over a panel.
-func TestBang_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
+// The footer keeps one line of a failure, and gm shows all of it, from the log and over a panel.
+func TestMessages_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 	t.Parallel()
 
 	m := asModel(t, update(testModel(t, twoRows()), tea.WindowSizeMsg{Width: 100, Height: 30}))
 
-	next, _ := m.Update(tuitest.Key("!"))
+	next := pressKeys(t, m, "g", "m")
 	if asModel(t, next).output.IsOpen() {
 		t.Fatal("! opened an empty failure")
 	}
 
 	m = failed(t, m)
-	if !strings.Contains(tuitest.StripANSI(m.render()), "! full error") {
+	if !strings.Contains(tuitest.StripANSI(m.render()), "gm full error") {
 		t.Error("the footer does not offer the full error")
 	}
 
-	m = asModel(t, update(m, tuitest.Key("!")))
+	m = asModel(t, pressKeys(t, m, "g", "m"))
 	if !m.output.IsOpen() {
 		t.Fatal("! did not open the failure")
 	}

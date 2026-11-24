@@ -68,18 +68,6 @@ func (m Model) loadWorkspaces() tea.Cmd {
 	return load(m.ctx, m.client.Workspaces, showWorkspaces)
 }
 
-func (m Model) loadEvolog(changeID string) tea.Cmd {
-	client := m.client
-
-	return load(m.ctx,
-		func(ctx context.Context) ([]jj.Evolution, error) { return client.Evolog(ctx, changeID) },
-		showEvolog(changeID))
-}
-
-func showEvolog(changeID string) func(*Model, []jj.Evolution) tea.Cmd {
-	return func(m *Model, entries []jj.Evolution) tea.Cmd { return m.evolog.Open(changeID, entries) }
-}
-
 func (m Model) loadDetail(rev string) tea.Cmd {
 	client := m.client
 

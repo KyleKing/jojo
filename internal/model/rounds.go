@@ -256,6 +256,10 @@ func (m Model) handleRoundsMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		cmd := m.showWhole()
 
 		return m, cmd, true
+	case roundsview.RestoreMsg:
+		next, cmd := m.restoreVersion(msg)
+
+		return next, cmd, true
 	case roundsview.CancelledMsg:
 		return m, nil, true
 	case diffpane.MotionMsg:

@@ -66,15 +66,20 @@ had since 0.33.
 the invocation it ran, quoted so it can be pasted into a shell. A description would be a
 second thing to keep true as the flags change, and it would teach nothing.
 
-**The keymap is data.** `internal/components/help` holds the whole table: the footer, the
-help overlay, the command palette, and the root model's dispatch all read one `Keymap`, so
-a binding cannot drift between them. The palette shows each action beside the jj command it
-runs, which is why the shapes live in that table too. A rebind from `config.toml` rewrites
-that table once at startup and leaves a translation from the pressed key to the key the
-handlers switch on, so the handlers never learn that rebinding exists. A key whose action
-moved away translates to nothing rather than staying live, or the legend would be a lie.
+**The keymap is data.** `internal/components/help` merges aragonite's shared `tui/keys` table
+(`Global()`, `DiffView()`, the picker flags from `Flags(verb)`) with jojo's own jj verbs into one
+`Keymap`. The root model feeds every key to one `keys.Matcher` with the screen it is on (the log, a
+picker verb, time travel, the outline, the dock, the file list), which holds a prefix (`g`, `b`,
+`]`, `[`, `\`, `-`) while it waits and answers an action name. Dispatch, the `?` legend for that
+screen, the footers, the palette, and the which-key panel a waiting prefix floats all read that
+table, so a binding cannot drift between them. The palette shows each action beside the jj command
+it runs, which is why the shapes live there too. A rebind from `config.toml` names an action,
+so the handlers never learn that rebinding exists, and an old action name resolves through
+`help.Deprecated` with a footer warning for one release. `TestKeymap_AgreesWithShared` fails when a
+jojo key reuses a key the shared table gives another action on a screen the two share, which is
+what keeps one key meaning one thing across jojo, jj-diff, and second-look.
 
-**One list, every view.** The operation log, workspaces, bookmarks, the evolution timeline,
+**One list, every view.** The operation log, workspaces, bookmarks, the rounds box,
 the file list, the diff pane, the destination picker, and the command palette are all
 `internal/components/listview` with their own rows, keys, and messages. Scrolling, clamping,
 truncation, the warning line, the minimum frame, and hint degradation are written once, so a
@@ -158,7 +163,7 @@ refuses all three when `@-` is immutable, shared with another child, or one of s
 since rewriting it then reaches past the working copy. There is no setting: someone who does not
 think in git never presses the keys.
 
-**The docked diff follows the log, debounced.** `Alt+p` draws the diff beside the log (under it
+**The docked diff follows the log, debounced.** `p` draws the diff beside the log (under it
 below 100 columns) and the log keeps the keys. Every cursor move bumps a sequence number and waits
 120ms before reading, so holding `j` costs one jj call rather than one per row, and a read the
 cursor has already left is dropped when it lands. The new diff opens on the file the reader was in
@@ -202,9 +207,10 @@ does not keep a second list of them. A setting jojo cannot honor stops startup, 
 has nowhere to report it once it is drawing.
 
 **Whoever is open owns the keys.** An open overlay takes every key before the log sees it,
-since they share `j` and `k`. Below that, Tab cycles the log, the revset box, the forge
-pane, and the docked diff, and each handles its own bindings while focused. That is what lets `r` mean rebase in
-the log and refresh in the forge pane.
+since they share `j` and `k`. Below that, Tab cycles the log, the forge pane, and the docked diff
+(the revset box is `L`, so a stray Tab never types into it), and each screen's bindings are its own
+contexts in the keymap. That is what lets `p` dock the diff from the log and show the graph before
+the command in the picker.
 
 **Search moves the cursor, the revset changes the list.** `/` finds a revision among the
 ones already listed and steps between matches inside its own bar, because `n` is taken by

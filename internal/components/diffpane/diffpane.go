@@ -49,9 +49,9 @@ type Model struct {
 	files []int
 	paths []string
 	hunks []int
-	// prefix is a held ] or [, waiting for the object it moves over, and last the motion n repeats.
-	prefix string
-	last   motion
+	// last is the motion n repeats, and hints the keys the framed pane's footer offers.
+	last  motion
+	hints []keyhint.Hint
 	// key is what the rows on show were drawn from, and plain that they were drawn without syntax
 	// colors, which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
 	colors *colorCache
@@ -285,29 +285,11 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	name := key.String()
-
-	if m.prefix != "" {
-		return m.completeMotion(name)
-	}
-
-	if m.list.MoveKey(name) {
+	if m.list.MoveKey(key.String()) {
 		return nil
 	}
 
-	switch name {
-	case "[", "]":
-		m.prefix = name
-	case "n":
-		return m.Repeat(1)
-	case "N":
-		return m.Repeat(-1)
-	case "s":
-		cursor := m.list.Cursor()
-		m.sideBySide = !m.sideBySide
-
-		m.render()
-		m.list.Open(m.title, m.list.Items(), cursor)
+	switch key.String() {
 	case "esc", "q":
 		m.Close()
 
@@ -323,42 +305,27 @@ type motion struct {
 	dir    int
 }
 
-// completeMotion finishes a held ] or [. An object the pane holds moves its cursor; one the parent
-// holds goes up as a MotionMsg. Any other key steps a file, the way a bare ] did before the motions
-// had objects, and is then handled as itself, so a habit costs nothing.
-func (m *Model) completeMotion(name string) tea.Cmd {
-	dir := 1
-	if m.prefix == "[" {
-		dir = -1
-	}
+// Motion steps over object (ObjectHunk, ObjectFile, ObjectRound, ObjectChapter) in dir, 1 forward and
+// -1 back. An object the pane holds moves its cursor; one the parent holds goes up as a MotionMsg.
+// The keys that press it are the caller's: the shared keymap's ]h, [f, and the rest.
+func (m *Model) Motion(object string, dir int) tea.Cmd {
+	m.last = motion{object: object, dir: dir}
 
-	pressed := m.prefix
-	m.prefix = ""
-
-	object := name
-	if name == pressed {
-		object = ObjectChapter
-	}
-
-	switch object {
-	case ObjectHunk, ObjectFile, ObjectRound, ObjectChapter:
-		m.last = motion{object: object, dir: dir}
-
-		return m.move(m.last)
-	}
-
-	m.stepFile(dir)
-
-	return m.Update(tea.KeyPressMsg(tea.Key{Text: name, Code: firstRune(name)}))
+	return m.move(m.last)
 }
 
-func firstRune(s string) rune {
-	for _, r := range s {
-		return r
-	}
+// ToggleSideBySide switches between the unified and the side-by-side layout, keeping the cursor.
+func (m *Model) ToggleSideBySide() {
+	cursor := m.list.Cursor()
+	m.sideBySide = !m.sideBySide
 
-	return 0
+	m.render()
+	m.list.Open(m.title, m.list.Items(), cursor)
 }
+
+// SetHints is the footer the framed pane draws, which the caller builds from its keymap so a rebind
+// reaches it.
+func (m *Model) SetHints(hints []keyhint.Hint) { m.hints = hints }
 
 // Repeat steps the last motion again, reversed for a negative dir, and steps hunks before any
 // motion has been made, so n reads through a diff from the start.
@@ -452,13 +419,7 @@ func (m *Model) stepFile(dir int) {
 
 // View renders the diff centered in a width by height frame.
 func (m Model) View(width, height int) string {
-	return m.list.View(width, height, m.row, []keyhint.Hint{
-		{Key: "j k", What: "scroll"},
-		{Key: "]f [f", What: "file"},
-		{Key: "]h [h", What: "hunk"},
-		{Key: "s", What: "side by side"},
-		{Key: "esc", What: "close"},
-	})
+	return m.list.View(width, height, m.row, m.hints)
 }
 
 // dockRule is the column the docked pane gives up to separate itself from the log.
@@ -543,4 +504,12 @@ func paletteFor(s ui.Skin) render.Palette {
 			Operator: p.Sky,
 		},
 	}
+}
+
+func firstRune(s string) rune {
+	for _, r := range s {
+		return r
+	}
+
+	return 0
 }
