@@ -1,3 +1,9 @@
+## v0.23.0 (2026-11-24)
+
+### Feat
+
+- **log**: ]x ]b ]] motions over the log, and . repeats the last write on the cursor
+
 ## v0.22.0 (2026-11-24)
 
 ### Feat
