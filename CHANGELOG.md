@@ -1,3 +1,18 @@
+## v0.16.0 (2026-11-24)
+
+### Feat
+
+- **discover**: one palette for ? and :, gates that say why, a coach, and the jj trail
+
+### Fix
+
+- **color**: fit the skin and the renderer to one color profile on aragonite v1.25.1
+- **outline**: give the description the cells metadata columns padded
+
+### Perf
+
+- **dock**: draw only the rows on screen, so a revision costs the loop the pane, not the diff
+
 ## v0.15.0 (2026-11-24)
 
 ### BREAKING CHANGE
