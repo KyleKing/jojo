@@ -1,3 +1,9 @@
+## v0.17.0 (2026-11-24)
+
+### Feat
+
+- **stack**: submit the outline's stack as stacked pull requests
+
 ## v0.16.2 (2026-11-24)
 
 ### Fix
