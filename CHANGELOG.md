@@ -1,3 +1,13 @@
+## v0.11.0 (2026-11-24)
+
+### Feat
+
+- **hunks**: hand hunk work to jj-diff when it is installed and jj names no editor
+
+### Perf
+
+- **log**: paint the graph first and read row stats for the screen only
+
 ## v0.10.0 (2026-11-24)
 
 ### Feat
