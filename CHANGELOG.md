@@ -1,3 +1,11 @@
+## v0.9.1 (2026-11-24)
+
+### Fix
+
+- **errors**: keep failures visible, and show the whole of one on !
+- **log**: highlight the whole cursor row, not just its graph
+- **rebase**: allow trunk, main@origin and the root as rebase destinations
+
 ## v0.9.0 (2026-11-24)
 
 ### Feat
