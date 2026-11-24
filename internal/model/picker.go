@@ -331,7 +331,7 @@ func (m *Model) changed() tea.Cmd {
 
 	session, seq := m.pick.session, m.pick.seq
 
-	return tea.Tick(pickDebounce, func(time.Time) tea.Msg { return pickTickMsg{session: session, seq: seq} })
+	return m.after(pickDebounce, func(time.Time) tea.Msg { return pickTickMsg{session: session, seq: seq} })
 }
 
 // showPicked draws whichever log the picker is showing: the preview once one has landed and Tab has

@@ -116,7 +116,7 @@ func (m *Model) travelTo(index int) tea.Cmd {
 
 	seq := m.travel.seq
 
-	return tea.Tick(travelDebounce, func(time.Time) tea.Msg { return travelTickMsg{seq: seq} })
+	return m.after(travelDebounce, func(time.Time) tea.Msg { return travelTickMsg{seq: seq} })
 }
 
 func (m *Model) endTravel() {

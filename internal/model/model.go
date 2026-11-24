@@ -111,7 +111,10 @@ type Model struct {
 	onPick   picked
 	keys     help.Keymap
 	usage    *keyusage.Recorder
-	revset   string
+	// tick schedules the debounces and the message timeout: tea.Tick in the program, and whatever a
+	// test passes as Options.Ticker, so a test can wait on what a timer delivers rather than on time.
+	tick   Ticker
+	revset string
 	// startRevset is the revset the log opened on, which the revset row only spends a line on once
 	// something else is asked for.
 	startRevset string
@@ -169,6 +172,18 @@ type Model struct {
 	revsetShown bool
 }
 
+// Ticker schedules fn to run after d, the way tea.Tick does.
+type Ticker func(d time.Duration, fn func(time.Time) tea.Msg) tea.Cmd
+
+// after is d's tick through the model's Ticker.
+func (m Model) after(d time.Duration, fn func(time.Time) tea.Msg) tea.Cmd {
+	if m.tick == nil {
+		return tea.Tick(d, fn)
+	}
+
+	return m.tick(d, fn)
+}
+
 // Options are the settings a user states in config.toml, which New folds into the model rather than
 // reading itself, so a test can pass its own without a file on disk.
 type Options struct {
@@ -182,7 +197,9 @@ type Options struct {
 	DiffTool string
 	// OutlineRevset is config.toml's outline_revset, "" for DefaultOutlineRevset.
 	OutlineRevset string
-	Keys          help.Keymap
+	// Ticker replaces tea.Tick for the model's own timers, nil for tea.Tick.
+	Ticker Ticker
+	Keys   help.Keymap
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -233,6 +250,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		help:            help.New(skin, keys),
 		keys:            keys,
 		usage:           opts.Usage,
+		tick:            opts.Ticker,
 		revset:          revset,
 		startRevset:     revset,
 		logWindow:       logLimit,
@@ -386,7 +404,7 @@ func (m Model) showMessage(msg tea.Msg) (Model, tea.Cmd) {
 		m.lastOutput = shown.output
 	}
 
-	return m, tea.Tick(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
+	return m, m.after(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
 }
 
 // routeToPanes fans out what the root does not own: a pane's debounce and poll ticks are its own

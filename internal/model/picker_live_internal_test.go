@@ -118,7 +118,10 @@ func repoPrint(t *testing.T, dir string) string {
 func liveModel(t *testing.T, dir, cursorOn string) Model {
 	t.Helper()
 
-	m := New(t.Context(), jj.NewClient(dir), ui.New(theme.Macchiato()), dir, "all()", testOptions(t))
+	opts := testOptions(t)
+	opts.Ticker = instantTicks
+
+	m := New(t.Context(), jj.NewClient(dir), ui.New(theme.Macchiato()), dir, "all()", opts)
 	m = asModel(t, update(m, tea.WindowSizeMsg{Width: 100, Height: 30}))
 	m = pump(t, m, m.loadLog("all()"))
 
@@ -129,9 +132,26 @@ func liveModel(t *testing.T, dir, cursorOn string) Model {
 	return m
 }
 
+// instantTicks fires a debounce at once and drops the message timeout, so pump can wait on every
+// command to finish rather than guess from the clock which ones are timers. A debounce that fires
+// at once still drops a superseded tick, since each carries the sequence number it was set for.
+func instantTicks(_ time.Duration, fn func(time.Time) tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg := fn(time.Now())
+		if _, ok := msg.(clearMessageMsg); ok {
+			return nil
+		}
+
+		return msg
+	}
+}
+
+// cmdDeadline bounds one command, as a hang guard only: a command that outlives it is a failure,
+// never a message to drop, because dropping a slow jj call is what made these tests flake.
+const cmdDeadline = 2 * time.Minute
+
 // pump runs cmd and feeds what it returns back through Update until nothing is left, the way the
-// runtime would. A command still running after a second is a tick nothing here waits for (the
-// six-second message timeout), and is dropped.
+// runtime would. Every command runs to completion; the model's timers go through instantTicks.
 func pump(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 
@@ -141,7 +161,7 @@ func pump(t *testing.T, m Model, cmd tea.Cmd) Model {
 		next := queue[0]
 		queue = queue[1:]
 
-		for _, msg := range runCmd(next) {
+		for _, msg := range runCmd(t, next) {
 			var out tea.Cmd
 
 			model, out := m.Update(msg)
@@ -153,7 +173,9 @@ func pump(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-func runCmd(cmd tea.Cmd) []tea.Msg {
+func runCmd(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+
 	if cmd == nil {
 		return nil
 	}
@@ -166,14 +188,14 @@ func runCmd(cmd tea.Cmd) []tea.Msg {
 
 	select {
 	case msg = <-done:
-	case <-time.After(time.Second):
-		return nil
+	case <-time.After(cmdDeadline):
+		t.Fatalf("a command ran past %s", cmdDeadline)
 	}
 
 	if batch, ok := msg.(tea.BatchMsg); ok {
 		var out []tea.Msg
 		for _, c := range batch {
-			out = append(out, runCmd(c)...)
+			out = append(out, runCmd(t, c)...)
 		}
 
 		return out
@@ -185,7 +207,7 @@ func runCmd(cmd tea.Cmd) []tea.Msg {
 		var out []tea.Msg
 		for i := range v.Len() {
 			c, _ := v.Index(i).Interface().(tea.Cmd) //nolint:errcheck // the element type was checked above.
-			out = append(out, runCmd(c)...)
+			out = append(out, runCmd(t, c)...)
 		}
 
 		return out

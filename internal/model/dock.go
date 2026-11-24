@@ -107,7 +107,7 @@ func (m *Model) followDock(rev *jj.Revision) tea.Cmd {
 	m.dockSeq++
 	tick := dockTickMsg{revision: rev.ChangeID, seq: m.dockSeq}
 
-	return tea.Tick(dockDebounce, func(time.Time) tea.Msg { return tick })
+	return m.after(dockDebounce, func(time.Time) tea.Msg { return tick })
 }
 
 func (m Model) handleDockMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
