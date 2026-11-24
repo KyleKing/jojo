@@ -1,3 +1,9 @@
+## v0.13.0 (2026-11-24)
+
+### Feat
+
+- **review**: stack outline, evolog rounds, and an inspector line
+
 ## v0.12.0 (2026-11-24)
 
 ### Feat
