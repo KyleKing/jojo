@@ -156,7 +156,7 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 	}
 
 	opening := !m.outline.active
-	m.outline.view.SetChapters(msg.revset, chapters)
+	m.outline.view.SetChapters(chapters)
 
 	// The outline opens on the revision the log cursor was on, which is the chapter being asked about.
 	if rev := m.log.Selected(); opening && rev != nil {

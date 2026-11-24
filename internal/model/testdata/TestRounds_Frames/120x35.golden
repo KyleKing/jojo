@@ -1,4 +1,4 @@
-Stack outline · (trunk()..@) | (@:: ~ ::trunk()) · 4 chapters, pa…│ version 2 of 3 · snapshot · 2 hours ago
+Stack · 4 · parse-header                                          │ version 2 of 3 · snapshot · 2 hours ago
    1  kxqpmnzo     feat(parse): read the new he…  3f +120 -…  ····│ M third.txt
    2  vwtrlsqy  ×  refactor: split the reader     2f +40 -38  ····│ L1
    3  nnzolpqr  ∅  (no description set)                       ····│ ▎old third                                          
@@ -31,5 +31,5 @@ Stack outline · (trunk()..@) | (@:: ~ ::trunk()) · 4 chapters, pa…│ versio
                                                                   │ 
                                                                   │ 
                                                                   │ 
-                                                                                                               commit d4
+ stack (trunk()..@) | (@:: ~ ::trunk())                                                                        commit d4
 @  ]] chapter  [[ back a chapter  Enter read it in the dock  ]h hunk  [h back a hunk  ]r newer version  …  ? help       

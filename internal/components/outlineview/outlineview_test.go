@@ -48,7 +48,7 @@ func stack() []outlineview.Chapter {
 
 func newOutline(width, height int) outlineview.Model {
 	m := outlineview.New(ui.New(theme.Macchiato()))
-	m.SetChapters("(trunk()..@) | (@:: ~ ::trunk())", stack())
+	m.SetChapters(stack())
 	m.SetSize(width, height)
 
 	return m
@@ -100,7 +100,7 @@ func TestMove_ClampsAndKeepsTheChapterAcrossARead(t *testing.T) {
 	}
 
 	// A write reads the stack again; the cursor stays on the chapter it was on.
-	m.SetChapters("again", stack()[1:])
+	m.SetChapters(stack()[1:])
 
 	if m.Selected().ChangeID != "vwtrlsqy" {
 		t.Errorf("after a reread the cursor is on %s", m.Selected().ChangeID)
@@ -140,5 +140,36 @@ func TestSetRead_UpdatesOneChapter(t *testing.T) {
 
 	if got := m.Chapters()[2].Read; got.Read != 2 {
 		t.Errorf("strip = %+v", got)
+	}
+}
+
+// A stack is called by the bookmark nearest its tip, and by the tip's change when none has one.
+func TestName_IsTheBookmarkNearestTheTip(t *testing.T) {
+	t.Parallel()
+
+	rev := func(id string, bookmarks ...string) outlineview.Chapter {
+		return outlineview.Chapter{Rev: &jj.Revision{ChangeID: id, LocalBookmarks: bookmarks}}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		want     string
+		chapters []outlineview.Chapter
+	}{
+		{"none", "", nil},
+		{"no bookmark", "cccc", []outlineview.Chapter{rev("aaaa"), rev("cccc")}},
+		{"tip bookmark", "top", []outlineview.Chapter{rev("aaaa", "base"), rev("cccc", "top", "also")}},
+		{"bookmark below the tip", "mid", []outlineview.Chapter{rev("aaaa", "base"), rev("bbbb", "mid"), rev("cccc")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := outlineview.New(ui.New(theme.Macchiato()))
+			m.SetChapters(tc.chapters)
+
+			if got := m.Name(); got != tc.want {
+				t.Errorf("Name() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

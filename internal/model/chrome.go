@@ -1,6 +1,7 @@
 package model
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -157,9 +158,11 @@ func (m Model) inspectorRows() int {
 }
 
 // overflow is what the row the cursor is on had no room for, from whichever list is drawn.
+// While the outline is open it ends on the revset the stack was read with, which its title leaves
+// out for length.
 func (m Model) overflow() []string {
 	if m.outline.active {
-		return m.outline.view.Overflow()
+		return append(slices.Clone(m.outline.view.Overflow()), "stack "+m.outline.revset)
 	}
 
 	return m.log.Overflow()

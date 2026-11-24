@@ -65,7 +65,7 @@ func TestOutline_ReadsTheStackParentFirstAndTheDockFollows(t *testing.T) {
 	}
 
 	frame := tuitest.StripANSI(m.render())
-	if !strings.Contains(frame, "Stack outline") || !strings.Contains(frame, "]] chapter") {
+	if !strings.Contains(frame, "Stack · ") || !strings.Contains(frame, "]] chapter") {
 		t.Errorf("the frame does not draw the outline and its keys:\n%s", frame)
 	}
 }
@@ -244,7 +244,8 @@ func fakeStack() outlineLoadedMsg {
 		revs: []jj.Revision{
 			{
 				ChangeID: "kxqpmnzo", CommitID: "a1", Description: "feat(parse): read the new header format",
-				Bookmarks: []string{"parse-header"}, AuthorEmail: "a@example.com", Age: "3 hours ago",
+				Bookmarks: []string{"parse-header"}, LocalBookmarks: []string{"parse-header"},
+				AuthorEmail: "a@example.com", Age: "3 hours ago",
 			},
 			{ChangeID: "vwtrlsqy", CommitID: "b2", Description: "refactor: split the reader", Conflict: true},
 			{ChangeID: "nnzolpqr", CommitID: "c3", Empty: true},

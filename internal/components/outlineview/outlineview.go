@@ -77,7 +77,6 @@ func columns() []table.Column {
 // Model is the outline's state: the chapters, which one the cursor is on, and the room it draws in.
 type Model struct {
 	skin     ui.Skin
-	title    string
 	chapters []Chapter
 	cursor   int
 	top      int
@@ -90,13 +89,13 @@ func New(skin ui.Skin) Model { return Model{skin: skin} }
 
 // SetChapters replaces the chapters, keeping the cursor on the change it was on when the stack
 // still holds it, and otherwise on the chapter at the working copy, else the first.
-func (m *Model) SetChapters(title string, chapters []Chapter) {
+func (m *Model) SetChapters(chapters []Chapter) {
 	keep := ""
 	if rev := m.Selected(); rev != nil {
 		keep = rev.ChangeID
 	}
 
-	m.title, m.chapters, m.cursor, m.top = title, chapters, 0, 0
+	m.chapters, m.cursor, m.top = chapters, 0, 0
 
 	if keep != "" && m.Focus(keep) {
 		return
@@ -232,20 +231,34 @@ func (m Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
+// titleLine names the stack the way a reader does, by its size and the branch it is for: "Stack · 4 ·
+// parse-v2". The revset that read it is the inspector's to show, since it is long and the same for
+// every stack read the same way.
 func (m Model) titleLine() string {
-	count := strconv.Itoa(len(m.chapters)) + " chapters, parent first"
-	if len(m.chapters) == 1 {
-		count = "1 chapter"
-	}
-
-	title := m.skin.Title.Render(table.Truncate("Stack outline", m.width))
+	title := m.skin.Title.Render(table.Truncate("Stack", m.width))
 	rest := m.width - lipgloss.Width(title)
 
-	if rest <= len(" · ") {
+	if rest <= len(" · ") || len(m.chapters) == 0 {
 		return title
 	}
 
-	return title + m.skin.Muted.Render(table.Truncate(" · "+m.title+" · "+count, rest))
+	return title + m.skin.Muted.Render(table.Truncate(" · "+strconv.Itoa(len(m.chapters))+" · "+m.Name(), rest))
+}
+
+// Name is what the stack is called: the bookmark nearest its tip, since that is the branch a review
+// of it is for, else the tip's change id.
+func (m Model) Name() string {
+	for i := len(m.chapters) - 1; i >= 0; i-- {
+		if names := m.chapters[i].Rev.LocalBookmarks; len(names) > 0 {
+			return names[0]
+		}
+	}
+
+	if len(m.chapters) == 0 {
+		return ""
+	}
+
+	return m.chapters[len(m.chapters)-1].Rev.ChangeID
 }
 
 func (m Model) row(i int, layout table.Layout) string {
