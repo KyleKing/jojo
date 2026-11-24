@@ -275,7 +275,8 @@ func open(t *testing.T, sz size, dir string, env []string) *screen {
 // of a frame drawn for its old height. The renderer confines a scroll with DECSTBM and restores the
 // margins by number, so that tail sets the bottom margin to the old height. Every newline the repaint
 // then writes at that row scrolls the page up instead of moving down, and the log's first rows scroll
-// off the top, until something redraws it.
+// off the top, until something redraws it. The repaint fullMargins asks for is that redraw, and the
+// frame before it stays scrolled for as long as the program takes to run two more messages.
 func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 	t.Parallel()
 
@@ -308,23 +309,15 @@ func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 			// What a scroll inside the old frame ends with: the margins restored as 1 to its height.
 			sc.resize(tc.to, xansi.SetTopBottomMargins(1, tc.from.rows))
 
-			sc.awaitFrame("a frame for the new size", func(f []string) bool {
-				return len(f) == tc.to.rows && strings.Contains(f[len(f)-1], "help")
+			// The first frame for the new size is drawn inside the stale margins and comes out scrolled;
+			// the margin reset and the full repaint behind it arrive as messages after that frame, which
+			// under load is well past any fixed wait. So the page is awaited in place, and without the
+			// repair it stays scrolled until the deadline.
+			sc.awaitFrame(fmt.Sprintf("the page in place at %dx%d: @ on the first row, the newest commit under it",
+				tc.to.cols, tc.to.rows), func(f []string) bool {
+				return len(f) == tc.to.rows && strings.Contains(f[len(f)-1], "help") &&
+					strings.HasPrefix(strings.TrimSpace(f[0]), "@") && strings.Contains(f[1], "commit number 29")
 			})
-
-			// Give a repaint drawn inside the stale margins time to scroll the page, then read again.
-			time.Sleep(300 * time.Millisecond)
-
-			frame := sc.frame()
-
-			if !strings.HasPrefix(strings.TrimSpace(frame[0]), "@") {
-				t.Errorf("the working copy is not the first row after growing to %dx%d:\n%s",
-					tc.to.cols, tc.to.rows, strings.Join(frame, "\n"))
-			}
-
-			if !strings.Contains(frame[1], "commit number 29") {
-				t.Errorf("the newest commit is not right under the working copy:\n%s", strings.Join(frame, "\n"))
-			}
 
 			sc.quit()
 		})
