@@ -8,6 +8,7 @@ u        undo                                                       jj undo
 ctrl+r   redo                                                       jj redo
 ctrl+l   reload from the source                                     jj log
 tab      next pane                                                  
+.        repeat the last change                                     
 !        shell in the repository root                               
 K        what is this                                               jj log -r <rev> -T ...
 Y        yank a reference                                           
@@ -28,10 +29,16 @@ U        only what is unread
 H        choose the round to compare against                        jj evolog -r <rev>
 I        outline                                                    jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'
 ── Jump
+]]       next chapter                                               jj log -r 'children(<rev>)'
+[[       previous chapter                                           jj log -r 'first_parent(<rev>)'
 ]u       next unread                                                
 [u       previous unread                                            
 ]r       next round                                                 jj interdiff --from <a> --to <b>
 [r       previous round                                             jj interdiff --from <a> --to <b>
+]x       next conflict                                              jj log -r 'conflicts()'
+[x       previous conflict                                          jj log -r 'conflicts()'
+]b       next bookmarked revision                                   jj log -r 'bookmarks() | remote_bookmarks()'
+[b       previous bookmarked revision                               jj log -r 'bookmarks() | remote_bookmarks()'
 ── Look
 enter    diff the revision                                          jj diff -r <rev>
 p        dock the diff beside the log, following the cursor         jj diff -r <rev> --git

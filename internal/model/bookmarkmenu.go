@@ -32,6 +32,7 @@ const conflictSuffix = "??"
 func (m Model) bookmarkMenu(action string, rev jj.Revision) (Model, tea.Cmd, bool) {
 	switch action {
 	case help.ActionBookmarkAdvance:
+		m.noteWrite(action)
 		cmd := m.advanceTo(rev.ChangeID)
 
 		return m, cmd, true

@@ -1,4 +1,4 @@
-  wkwyyxvq          (no description set)     ╭─ keys · 70 of 70 ───────────────────────────────────╮
+  wkwyyxvq          (no description set)     ╭─ keys · 77 of 77 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
   koopqtrk          refactor: split the reade│ ── General ──────────────────────────────────────── │
   twnsvwmr  parse*  test: cover the fallbacks│ ▌ ?       help                                      │
@@ -10,6 +10,7 @@
                                              │   ctrl+r  redo                                      │
                                              │   ctrl+l  reload from the source                    │
                                              │   tab     next pane                                 │
+                                             │   .       repeat the last change · nothing to repe… │
                                              │   !       shell in the repository root              │
                                              │   K       what is this                              │
                                              │   Y       yank a reference                          │
@@ -22,7 +23,6 @@
                                              │   ctrl+d  half a page down                          │
                                              │   ctrl+u  half a page up                            │
                                              │   gt      jump to trunk()                           │
-                                             │   @       jump to the working copy                  │
                                              │ ── General · ?  help ────────────────────────────── │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │

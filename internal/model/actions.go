@@ -41,6 +41,10 @@ func (m Model) revisionAction(action string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if action == keys.ActionRepeat {
+		return m.repeat()
+	}
+
 	if cmd, handled := m.writeAction(action, *rev); handled {
 		return m, cmd
 	}
@@ -55,6 +59,7 @@ func (m Model) revisionAction(action string) (tea.Model, tea.Cmd) {
 // writeAction covers the verbs that need no argument, so they run as the key lands.
 func (m *Model) writeAction(action string, rev jj.Revision) (tea.Cmd, bool) {
 	targets := m.targets()
+	m.noteWrite(action)
 
 	switch action {
 	case help.ActionNew:

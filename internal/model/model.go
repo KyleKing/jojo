@@ -176,7 +176,9 @@ type Model struct {
 	submit submitState
 	// synced is the last sync's report while its restack is still on offer, which the coach reads.
 	synced syncReport
-	log    logview.Model
+	// last is the write . repeats.
+	last repeatable
+	log  logview.Model
 	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
 	// Each takes the keys while it is active.
 	travel travelState
@@ -428,7 +430,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
 		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
-		m.handleBookmarkMsg, m.bookmarkMenuMsg, m.syncMsg, m.handleExternalMsg, m.handleReadMsg,
+		m.handleBookmarkMsg, m.bookmarkMenuMsg, m.syncMsg, m.edgeMsgs, m.handleExternalMsg, m.handleReadMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd

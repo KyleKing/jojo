@@ -162,6 +162,10 @@ func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 
+	if next, cmd, handled := m.motionAction(action); handled {
+		return next, cmd
+	}
+
 	if next, cmd, handled := m.panelAction(action); handled {
 		return next, cmd
 	}

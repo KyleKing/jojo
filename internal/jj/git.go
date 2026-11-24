@@ -119,16 +119,21 @@ func RestackArgs() []string {
 
 // StackRoots is the change ids of RestackRevset, the stacks a restack would move.
 func (c *Client) StackRoots(ctx context.Context) ([]string, error) {
-	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", RestackRevset,
+	return c.ChangeIDs(ctx, RestackRevset)
+}
+
+// Restack rebases every stack StackRoots names onto trunk(), as one operation.
+func (c *Client) Restack(ctx context.Context) (string, error) {
+	return c.mutate(ctx, RestackArgs()...)
+}
+
+// ChangeIDs is the change ids revset names, newest first, as the log shortens them.
+func (c *Client) ChangeIDs(ctx context.Context, revset string) ([]string, error) {
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", revset,
 		"-T", `change_id.shortest(8) ++ "\n"`)
 	if err != nil {
 		return nil, err
 	}
 
 	return strings.Fields(out), nil
-}
-
-// Restack rebases every stack StackRoots names onto trunk(), as one operation.
-func (c *Client) Restack(ctx context.Context) (string, error) {
-	return c.mutate(ctx, RestackArgs()...)
 }

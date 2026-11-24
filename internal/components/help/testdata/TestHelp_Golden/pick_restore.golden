@@ -12,6 +12,11 @@ ctrl+d   half a page down
 ctrl+u   half a page up                                             
 gt       jump to trunk()                                            jj log -r 'trunk()'
 @        jump to the working copy                                   
+── Jump
+]]       next chapter                                               jj log -r 'children(<rev>)'
+[[       previous chapter                                           jj log -r 'first_parent(<rev>)'
+]b       next bookmarked revision                                   jj log -r 'bookmarks() | remote_bookmarks()'
+[b       previous bookmarked revision                               jj log -r 'bookmarks() | remote_bookmarks()'
 ── Flags
 -i       choose hunks (-i)                                          
 -d       keep descendants' content (--restore-descendants)          

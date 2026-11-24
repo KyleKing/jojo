@@ -34,11 +34,8 @@ const (
 // dispatchPick owns every key while the picker is open, so a verb pressed by habit cannot run
 // against the log underneath. A flag is "- letter" as jj spells it.
 func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
-	if action == help.ActionBookmarkBackwards {
-		m.pick.backwards = !m.pick.backwards
-		cmd := m.changed()
-
-		return m, cmd
+	if next, cmd, handled := m.pickExtra(action); handled {
+		return next, cmd
 	}
 
 	if letter, ok := strings.CutPrefix(action, pickFlagVerbs[m.pick.verb]+"-flag-"); ok {
@@ -58,8 +55,6 @@ func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
 	}
 
 	switch action {
-	case help.ActionTrunk:
-		return m, m.gotoTrunk()
 	case keys.ActionQuit, keys.ActionCancel:
 		// The program is about to exit, so the sandbox goes now rather than in a command nobody runs.
 		if m.pick.sandbox != nil {
@@ -98,6 +93,22 @@ func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// pickExtra is the picker's keys beyond the flags and the destination's movement: the bookmark
+// picker's -B, gt, and the ] and [ objects.
+func (m Model) pickExtra(action string) (Model, tea.Cmd, bool) {
+	switch action {
+	case help.ActionBookmarkBackwards:
+		m.pick.backwards = !m.pick.backwards
+		cmd := m.changed()
+
+		return m, cmd, true
+	case help.ActionTrunk:
+		return m, m.gotoTrunk(), true
+	}
+
+	return m.motionAction(action)
 }
 
 // moveDest walks the destination over the log as it was when the picker opened, which stays put

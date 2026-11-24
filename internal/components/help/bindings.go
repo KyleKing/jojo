@@ -85,7 +85,10 @@ const (
 	ActionSync        = "sync"
 	ActionSyncTracked = "sync-tracked"
 	// ActionTrunk jumps to trunk(), in the log or as a picker's destination.
-	ActionTrunk          = "trunk"
+	ActionTrunk = "trunk"
+	// ActionBookmarkNext and ActionBookmarkPrev step to the next or previous bookmarked revision.
+	ActionBookmarkNext   = "bookmark-next"
+	ActionBookmarkPrev   = "bookmark-prev"
 	ActionPush           = "push"
 	ActionBookmarks      = "bookmarks"
 	ActionBookmarkCreate = "bookmark-create"
@@ -150,7 +153,7 @@ const (
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var unsupported = []string{
-	keys.ActionRepeat, keys.ActionLabelJump, keys.ActionJumpBack, keys.ActionJumpForward,
+	keys.ActionLabelJump, keys.ActionJumpBack, keys.ActionJumpForward,
 	keys.ActionOpenFile, keys.ActionDefinition, keys.ActionReferences, keys.ActionCalls,
 	keys.ActionPageDown, keys.ActionPageUp, keys.ActionScrollDown, keys.ActionScrollUp,
 	keys.ActionSideOld, keys.ActionSideNew, keys.ActionFilter,
@@ -167,7 +170,9 @@ var unsupported = []string{
 // outline step as revisions with something left to read.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
-var objects = []string{keys.ObjHunk, keys.ObjFile, keys.ObjChapter, keys.ObjUnread, keys.ObjRound}
+var objects = []string{
+	keys.ObjHunk, keys.ObjFile, keys.ObjChapter, keys.ObjUnread, keys.ObjRound, keys.ObjConflict,
+}
 
 // pickerOnly are the shared bindings the picker answers: moving the destination, help, quitting,
 // and backing out. The rest would act on the log under it, so they are taken off its screens.
@@ -283,9 +288,15 @@ func sharedContexts(b keys.Binding) keys.Context {
 	case keys.ActionAgain, keys.ActionReverse:
 		// The repeats step a diff's motions; nowhere else in jojo has one to repeat.
 		return keys.Diff &^ PickBookmark
-	case keys.NextAction(keys.ObjHunk), keys.PrevAction(keys.ObjHunk),
-		keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
+	case keys.NextAction(keys.ObjHunk), keys.PrevAction(keys.ObjHunk):
 		ctx |= Outline
+	case keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
+		// In the log and its pickers a chapter is the graph's edge: ]] a child, [[ the first parent.
+		return keys.Diff&^PickBookmark | Outline | keys.Log | keys.Picker | pickScreens
+	case keys.NextAction(keys.ObjConflict), keys.PrevAction(keys.ObjConflict):
+		// jojo's diffs draw no conflict regions of their own (x hands them to jj-diff), so ]x steps the
+		// log's conflicted revisions.
+		return keys.Log
 	}
 
 	for _, only := range []struct {
@@ -360,6 +371,10 @@ func logBindings() []keys.Binding {
 		b(ActionSync, GroupRepo, "sync: fetch, say what moved, offer to restack onto trunk", "sync", "F"),
 		b(ActionSyncTracked, GroupRepo, "sync only the tracked bookmarks", "", []string{}...),
 		withContexts(b(ActionTrunk, keys.GroupMove, "jump to trunk()", "trunk", "g t"),
+			keys.Log|keys.Picker|pickScreens),
+		withContexts(b(ActionBookmarkNext, keys.GroupMotion, "next bookmarked revision", "bookmark", "] b"),
+			keys.Log|keys.Picker|pickScreens),
+		withContexts(b(ActionBookmarkPrev, keys.GroupMotion, "previous bookmarked revision", "", "[ b"),
 			keys.Log|keys.Picker|pickScreens),
 		b(ActionPush, GroupRepo, "push the revision's bookmarks", "push", "P"),
 		b(ActionBookmarks, GroupRepo, "bookmarks: the list", "bookmarks", "b b"),

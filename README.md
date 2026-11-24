@@ -120,6 +120,8 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `gh` / `gw` / `gm` | the forge pane, the workspaces, or every jj and gh command this session ran: the exact line, how it ended, `Enter` for all of its stderr, `Y` to copy it as a shell line, `u` to undo a write, `r` for the reads too |
 | <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
+| `]x` / `[x`, `]b` / `[b`, `]]` / `[[` | step to the next or previous conflicted revision, bookmarked revision, or along the graph's edge (`]]` a child, up the screen; `[[` the first parent). `]b`, `]]`, `[[`, and `gt` also move a picker's destination |
+| `.` | repeat the last write on the cursor with the same flags: a picker destination left on jj's default (the parent) follows the new revision, one you chose stays put |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
 
 `S` and `x` hand the terminal to jj-diff v0.10.0 or newer, then read the log again and say in the

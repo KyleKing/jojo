@@ -63,8 +63,13 @@ type pickState struct {
 	// flags are the verb's jj flags as the - keys left them, spelled as jj spells them.
 	flags keys.FlagSet
 	// bookmark is the name a bookmark picker moves, and backwards its -B (--allow-backwards).
-	bookmark  string
-	dest      string
+	bookmark string
+	// message is -m's text, typed in the footer's prompt.
+	message string
+	dest    string
+	// initial is where the destination started, jj's default; a repeat of a command left there
+	// recomputes it for the revision it repeats on.
+	initial   string
 	shownFor  string
 	sources   []string
 	base      []jj.LogRow
@@ -195,6 +200,7 @@ func (m *Model) openPicker(verb pickVerb, sources []string, presets ...string) t
 	}
 
 	m.pick.dest = m.initialDest()
+	m.pick.initial = m.pick.dest
 	m.pick.inPlace = verb == pickDuplicate
 	m.pick.view.SetRows(m.rows)
 	m.pick.view.Focus(m.pick.dest)
@@ -504,6 +510,7 @@ func markPreview(p *pickState, marks map[string]logview.Mark) {
 // applyPick runs the command the picker built, as one operation, and leaves picking mode.
 func (m Model) applyPick() (Model, tea.Cmd) {
 	pick := m.pick
+	m.rememberPick(&pick)
 	args, what := pick.args(false), joinIDs(pick.sources)
 	closing := m.closePicker()
 

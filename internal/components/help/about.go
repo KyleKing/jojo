@@ -27,6 +27,7 @@ const (
 	gitHistory = "history"
 	gitReflog  = "reflog"
 	gitPull    = "pull"
+	gitBranch  = "branch"
 )
 
 // submitWords find a stack submit: git's words for it, and the tools that made it a habit.
@@ -337,6 +338,31 @@ var abouts = map[string]about{
 	keys.ActionInspect:              {cmd: "jj log -r <rev> -T ...", also: []string{gitShow, "details"}},
 	keys.NextAction(keys.ObjRound):  {cmd: "jj interdiff --from <a> --to <b>"},
 	keys.PrevAction(keys.ObjRound):  {cmd: "jj interdiff --from <a> --to <b>"},
+	keys.ActionRepeat: {
+		also: []string{"again", "redo last", "repeat", "dot"},
+		prose: "Runs the last write again on the revision under the cursor (or the checked ones), with " +
+			"the same flags: a picker's destination left on jj's default follows the new revision (its " +
+			"own parent), one you chose stays put, so . moves the next revision onto the same place.",
+		related: []string{keys.ActionUndo},
+	},
+	keys.NextAction(keys.ObjConflict): {
+		cmd: "jj log -r 'conflicts()'", also: []string{"next conflict", "merge conflict", "unmerged"},
+		prose:   "Steps the log's cursor to the next conflicted revision below; [x the one above.",
+		related: []string{ActionResolve},
+	},
+	keys.PrevAction(keys.ObjConflict): {cmd: "jj log -r 'conflicts()'", also: []string{"previous conflict"}},
+	ActionBookmarkNext: {
+		cmd: "jj log -r 'bookmarks() | remote_bookmarks()'", also: []string{"next branch", gitBranch, "ref"},
+		prose: "Steps to the next revision carrying a bookmark, local or remote; [b the one above. In a " +
+			"picker it moves the destination.",
+	},
+	ActionBookmarkPrev: {cmd: "jj log -r 'bookmarks() | remote_bookmarks()'", also: []string{"previous branch"}},
+	keys.NextAction(keys.ObjChapter): {
+		cmd: "jj log -r 'children(<rev>)'", also: []string{"child", "next commit", "up"},
+		prose: "In the log, steps along the graph's edge to a child, up the screen; [[ steps to the first " +
+			"parent. In the outline and the dock it is the next chapter of the stack.",
+	},
+	keys.PrevAction(keys.ObjChapter): {cmd: "jj log -r 'first_parent(<rev>)'", also: []string{"parent", "HEAD~"}},
 	ActionTravelRestore: {
 		cmd: "jj op restore <op>", also: []string{"reset --hard", gitReflog},
 		prose: "Restores the whole repository to the operation on screen. u undoes that too.",

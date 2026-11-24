@@ -19,8 +19,8 @@ N        repeat the last motion backward
 [h       previous hunk                                              
 ]f       next file                                                  
 [f       previous file                                              
-]]       next chapter                                               
-[[       previous chapter                                           
+]]       next chapter                                               jj log -r 'children(<rev>)'
+[[       previous chapter                                           jj log -r 'first_parent(<rev>)'
 ]u       next unread                                                
 [u       previous unread                                            
 ]r       next round                                                 jj interdiff --from <a> --to <b>

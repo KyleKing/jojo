@@ -367,6 +367,10 @@ func (m Model) gate(action string) keys.Availability {
 		return a
 	}
 
+	if action == keys.ActionRepeat {
+		return m.repeatGate()
+	}
+
 	return m.revisionGate(action, rev)
 }
 
