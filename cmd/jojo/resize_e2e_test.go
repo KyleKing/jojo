@@ -267,8 +267,8 @@ func open(t *testing.T, sz size, dir string, env []string) *screen {
 // TestResize_GrowAfterAStaleFrameKeepsThePageInPlace pins a grown terminal that received the tail
 // of a frame drawn for its old height. The renderer confines a scroll with DECSTBM and restores the
 // margins by number, so that tail sets the bottom margin to the old height. Every newline the repaint
-// then writes at that row scrolls the page up instead of moving down, and the log sits rows above
-// the revset line it belongs under, until something redraws it.
+// then writes at that row scrolls the page up instead of moving down, and the log's first rows scroll
+// off the top, until something redraws it.
 func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 	t.Parallel()
 
@@ -295,7 +295,7 @@ func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 
 			if tc.keys != "" {
 				sc.press(tc.keys)
-				sc.awaitFrame("the dock", func(f []string) bool { return strings.Contains(f[1], "diff ") })
+				sc.awaitFrame("the dock", func(f []string) bool { return strings.Contains(f[0], "diff ") })
 			}
 
 			// What a scroll inside the old frame ends with: the margins restored as 1 to its height.
@@ -310,13 +310,13 @@ func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 
 			frame := sc.frame()
 
-			if !strings.HasPrefix(strings.TrimSpace(frame[0]), "r:") {
-				t.Errorf("the revset line is not the first row after growing to %dx%d:\n%s",
+			if !strings.HasPrefix(strings.TrimSpace(frame[0]), "@") {
+				t.Errorf("the working copy is not the first row after growing to %dx%d:\n%s",
 					tc.to.cols, tc.to.rows, strings.Join(frame, "\n"))
 			}
 
-			if !strings.Contains(frame[1], "@") {
-				t.Errorf("the working copy is not right under the revset line:\n%s", strings.Join(frame, "\n"))
+			if !strings.Contains(frame[1], "commit number 29") {
+				t.Errorf("the newest commit is not right under the working copy:\n%s", strings.Join(frame, "\n"))
 			}
 
 			sc.quit()

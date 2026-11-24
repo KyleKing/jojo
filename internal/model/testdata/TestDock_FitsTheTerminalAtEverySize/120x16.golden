@@ -1,4 +1,3 @@
-r: @                                                                                                                     
   aaaa              source                                  │ diff aaaa
   bbbb              destination                             │ M first.txt
                                                             │ L1
@@ -8,6 +7,7 @@ r: @
                                                             │ L1
                                                             │ ▎old second                                               
                                                             │ ▎new second                                               
+                                                            │ 
                                                             │ 
                                                             │ 
                                                             │ 

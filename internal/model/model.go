@@ -112,7 +112,10 @@ type Model struct {
 	keys     help.Keymap
 	usage    *keyusage.Recorder
 	revset   string
-	message  string
+	// startRevset is the revset the log opened on, which the revset row only spends a line on once
+	// something else is asked for.
+	startRevset string
+	message     string
 	// lastOutput is the full text of the last failure, which "!" shows.
 	lastOutput string
 	// diffPreference is config.toml's diff_tool, and diffTool what it resolved to.
@@ -162,6 +165,8 @@ type Model struct {
 	showHelp  bool
 	logFull   bool
 	quitting  bool
+	// revsetShown is whether the layout last gave the revset row its line.
+	revsetShown bool
 }
 
 // Options are the settings a user states in config.toml, which New folds into the model rather than
@@ -229,6 +234,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		keys:            keys,
 		usage:           opts.Usage,
 		revset:          revset,
+		startRevset:     revset,
 		logWindow:       logLimit,
 		stats:           statsCache{},
 		statsAsked:      map[string]bool{},
@@ -282,6 +288,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	after, ok := next.(Model)
 	if !ok {
 		return next, cmd
+	}
+
+	// Focusing or leaving the revset box, or a log read under another revset, adds or drops the
+	// revset row, which every pane under it is sized around.
+	if after.revsetShown != after.revsetRow() {
+		after.resize()
 	}
 
 	if colorize := tea.Batch(after.dock.Colorize(), after.diff.Colorize()); colorize != nil {
@@ -451,6 +463,7 @@ func (m *Model) resize() {
 	}
 
 	m.forge.SetSize(m.width, forgeHeight)
+	m.revsetShown = m.revsetRow()
 
 	width, height := m.width, m.logHeight()
 
@@ -483,7 +496,34 @@ func (m Model) logHeight() int {
 		findHeight = findRows
 	}
 
-	return max(0, m.height-footerRows-revsetRows-forgeHeight-findHeight-m.inspectorRows())
+	return max(0, m.height-footerRows-m.revsetHeight()-forgeHeight-findHeight-m.inspectorRows())
+}
+
+// revsetRow reports whether the revset box gets its row: while it is being edited, and once the log
+// shows anything but the revset it opened on. The opening revset is already in the footer, so a row
+// repeating it is a line taken from the log for nothing.
+func (m Model) revsetRow() bool {
+	return m.focus == focusRevset || m.revsetBox.Focused() ||
+		m.revset != m.startRevset || m.revsetBox.Value() != m.startRevset
+}
+
+// revsetHeight is the rows above the log: the revset row when it shows, and the banner that stands
+// in its place while the log shows the past.
+func (m Model) revsetHeight() int {
+	if m.travel.active || m.revsetRow() {
+		return revsetRows
+	}
+
+	return 0
+}
+
+// revsetPane is the revset row as a pane, none when it is hidden.
+func (m Model) revsetPane() []string {
+	if !m.revsetRow() {
+		return nil
+	}
+
+	return []string{m.revsetBox.View(m.width)}
 }
 
 // View renders the log above the footer, with the help legend over both.
@@ -546,7 +586,7 @@ func (m Model) render() string {
 		return m.modeFrame()
 	}
 
-	panes := []string{m.revsetBox.View(m.width), m.logPane()}
+	panes := append(m.revsetPane(), m.logPane())
 	if m.find.IsOpen() {
 		panes = append(panes, m.find.View(m.width))
 	}
@@ -564,7 +604,7 @@ func (m Model) render() string {
 // steps aside, since neither mode's rows are the ones it would be following.
 func (m Model) modeFrame() string {
 	if m.pick.active {
-		panes := []string{m.revsetBox.View(m.width), m.pick.view.View()}
+		panes := append(m.revsetPane(), m.pick.view.View())
 		if m.showForge {
 			panes = append(panes, m.forge.View())
 		}

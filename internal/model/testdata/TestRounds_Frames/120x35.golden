@@ -1,4 +1,3 @@
-r: @                                                                                                                     
 Stack outline · (trunk()..@) | (@:: ~ ::trunk()) · 4 chapters, pa…│ version 2 of 3 · snapshot · 2 hours ago
    1  kxqpmnzo     feat(parse): read the new he…  3f +120 -…  ····│ M third.txt
    2  vwtrlsqy  ×  refactor: split the reader     2f +40 -38  ····│ L1
@@ -8,6 +7,7 @@ Stack outline · (trunk()..@) | (@:: ~ ::trunk()) · 4 chapters, pa…│ versio
                                                                   │ L1
                                                                   │ ▎old second                                         
                                                                   │ ▎new second                                         
+                                                                  │ 
                                                                   │ 
                                                                   │ 
                                                                   │ 
