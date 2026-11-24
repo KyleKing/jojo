@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/jj"
@@ -73,7 +74,7 @@ func Columns() []table.Column {
 func Cells(r jj.Revision) map[string]string {
 	return map[string]string{
 		ColChange:    r.ChangeID,
-		ColBookmarks: strings.Join(r.Bookmarks, " "),
+		ColBookmarks: glyph.Settle(strings.Join(r.Bookmarks, " ")),
 		ColDesc:      description(r),
 		ColSize:      size(r),
 		ColAuthor:    authorHandle(r.AuthorEmail),
@@ -81,9 +82,11 @@ func Cells(r jj.Revision) map[string]string {
 	}
 }
 
+// description is the row's description, settled so an emoji a terminal measures differently cannot
+// move the columns after it.
 func description(r jj.Revision) string {
 	if r.Description != "" {
-		return r.Description
+		return glyph.Settle(r.Description)
 	}
 
 	if r.Empty {

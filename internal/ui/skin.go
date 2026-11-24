@@ -89,10 +89,16 @@ func (s Skin) SignBar() bool {
 	return s.Diff.Sign(true) == skin.SignBar
 }
 
-// forTerminal fits the diff faces to the terminal's colors: a 256-color terminal needs deeper
-// tints than a truecolor one, or both sides quantize into the same grey.
+// forTerminal fits every background to the terminal's color profile: blended tints in truecolor,
+// greys in 256 colors (the cube's dark greens and reds are saturated blocks), none in 16.
 func forTerminal(s Skin) Skin {
-	s.Diff = skin.Diff(s.Palette, colorprofile.Detect(os.Stdout, os.Environ()) == colorprofile.TrueColor)
+	return ForProfile(s, theme.Profile(os.Stdout, os.Environ()))
+}
+
+// ForProfile refits s to profile, which is what main also hands tea.WithColorProfile.
+func ForProfile(s Skin, profile colorprofile.Profile) Skin {
+	s.Skin = skin.For(s.Palette, accent(s.Palette), profile)
+	s.Diff = skin.DiffFor(s.Palette, profile)
 
 	return s
 }
@@ -158,7 +164,7 @@ const (
 func (s Skin) OverlayStyles() overlay.Styles {
 	frame := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(s.Accent.GetForeground()).
+		BorderForeground(s.Edge.GetForeground()).
 		Padding(overlayPaddingV, overlayPaddingH)
 
 	return overlay.Styles{Frame: frame, Elision: s.Muted}
@@ -169,7 +175,7 @@ func (s Skin) OverlayStyles() overlay.Styles {
 func (s Skin) PanelStyles() keyhint.PanelStyles {
 	return keyhint.PanelStyles{
 		Frame: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-			BorderForeground(s.Palette.Overlay0).Padding(0, 1),
+			BorderForeground(s.Edge.GetForeground()).Padding(0, 1),
 		Styles: s.FooterHintStyles(),
 		Count:  s.Muted,
 		On:     s.Accent,

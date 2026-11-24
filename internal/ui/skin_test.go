@@ -2,6 +2,7 @@ package ui_test
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -63,4 +64,28 @@ func downsample(t *testing.T, s string) string {
 	}
 
 	return buf.String()
+}
+
+// The skin is refit to the profile the renderer draws at: in truecolor the diff washes are the two
+// tints, and in 256 colors they are something else, not the truecolor tint quantized into the cube's
+// near-black greys. A tmux with COLORTERM=truecolor is a truecolor terminal.
+func TestForProfile_FitsTheDiffWashToTheProfile(t *testing.T) {
+	t.Parallel()
+
+	base := ui.New(theme.Macchiato())
+	truecolor := ui.ForProfile(base, colorprofile.TrueColor)
+	ansi256 := ui.ForProfile(base, colorprofile.ANSI256)
+
+	if truecolor.Diff.AddWash == truecolor.Diff.RemoveWash {
+		t.Error("in truecolor the added and removed washes are the same color")
+	}
+
+	if truecolor.Diff.AddWash == ansi256.Diff.AddWash {
+		t.Error("the 256-color wash is the truecolor one, left to quantize")
+	}
+
+	env := []string{"TERM=tmux-256color", "COLORTERM=truecolor", "TTY_FORCE=1"}
+	if got := theme.Profile(os.Stdout, env); got != colorprofile.TrueColor {
+		t.Errorf("tmux with COLORTERM=truecolor is %v, want truecolor", got)
+	}
 }

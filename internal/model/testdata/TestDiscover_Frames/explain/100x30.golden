@@ -1,8 +1,9 @@
   wkwyyxvq          (no description set)     ╭─ keys · 58 of 58 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
-  koopqtrk          refactor: split the reade│   d       describe                                  │
-  twnsvwmr  parse*  test: cover the fallbacks│   D       describe in $EDITOR                       │
-  nptwozlo          release 0.13.0           │   c       commit @: describe it and start a new one │
+  koopqtrk          refactor: split the reade│   E       edit the revision's content in the diff … │
+  twnsvwmr  parse*  test: cover the fallbacks│   d       describe                                  │
+  nptwozlo          release 0.13.0           │   D       describe in $EDITOR                       │
+                                             │   c       commit @: describe it and start a new one │
                                              │   S       split into commits, one column each, in … │
                                              │   a       abandon                                   │
                                              │   A       absorb into the revisions that last touc… │
@@ -14,7 +15,6 @@
                                              │ ── Pick where it goes ───────────────────────────── │
                                              │   N       new, choosing where it goes               │
                                              │ ▌ s       squash, choosing where into               │
-                                             │                                                     │
                                              │ ── Pick where it goes · s  squash, choosing where i │
                                              │ Moves the revision's changes into another one you   │
                                              │ pick, its parent by default, and drops the revision │

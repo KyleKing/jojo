@@ -12,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/icons"
+	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/config"
@@ -81,6 +83,8 @@ func configure() (ui.Skin, help.Keymap, config.Config, error) {
 	if err != nil {
 		return ui.Skin{}, help.Keymap{}, settings, fmt.Errorf("reading theme: %w", err)
 	}
+
+	skin.Icons = icons.New(icons.Resolve(settings.Icons), skin.Palette)
 
 	keys, err := help.NewKeymap(settings.Keys)
 	if err != nil {
@@ -168,7 +172,10 @@ func run() error {
 			Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
 			Ledger: ledger, CoachLayout: layout,
 		})
-	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
+	// The renderer downsamples to the profile the skin was fitted to, detected the one way, so the two
+	// never disagree under tmux with COLORTERM set.
+	profile := tea.WithColorProfile(theme.Profile(os.Stdout, os.Environ()))
+	if _, err := tea.NewProgram(app, tea.WithContext(ctx), profile).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
 	}
 

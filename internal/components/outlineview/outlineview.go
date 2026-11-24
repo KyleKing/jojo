@@ -11,6 +11,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/empty"
+	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -475,12 +476,12 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colChange:
 		return m.change(rev, width)
 	case colDesc:
-		text = rev.Description
+		text = glyph.Settle(rev.Description)
 		if text == "" {
 			text, face = noDescription, m.skin.Muted.Italic(true)
 		}
 	case colBookmarks:
-		text, face = bookmarkText(c), m.skin.Bookmark
+		text, face = glyph.Settle(bookmarkText(c)), m.skin.Bookmark
 	case colSize:
 		return m.size(rev, width)
 	case colForge:

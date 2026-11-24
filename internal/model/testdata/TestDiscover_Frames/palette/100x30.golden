@@ -6,7 +6,6 @@
                                              │   R      restore content from another revision (th… │
                                              │   A      absorb into the revisions that last touch… │
                                              │          rebase with descendants, choosing where    │
-                                             │                                                     │
                                              │ ── Rewrite · n  new on the revision (two or more ch │
                                              │ Starts a new, empty change on top of the revision   │
                                              │ and makes it @, the working copy. With two or more  │
@@ -14,6 +13,7 @@
                                              │ was, which is jj's stash: nothing is ever lost.     │
                                              │ runs   jj new <revs>                                │
                                              │ also   N new… c commit e edit                       │
+                                             │                                                     │
                                              │                                                     │
                                              │                                                     │
                                              │                                                     │

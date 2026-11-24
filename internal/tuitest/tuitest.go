@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/kyleking/aragonite/tui/framecheck"
 )
 
 // namedKeys maps the key names accepted by Keys to their tea.Key code.
@@ -97,7 +98,26 @@ func StripANSI(s string) string {
 
 // AssertGolden compares frame against testdata/<TestName>.golden, updating
 // it when the test binary was run with -update.
+//
+// The frame is held to framecheck first: a golden compares bytes, so a frame drawn a cell off when it
+// was recorded would otherwise pass forever.
 func AssertGolden(tb testing.TB, frame string) {
 	tb.Helper()
+	framecheck.Require(tb, tb.Name(), StripANSI(frame))
+	golden.RequireEqual(tb, StripANSI(frame))
+}
+
+// AssertGraphGolden is AssertGolden for a frame that draws jj's graph, whose branch arms meet a node
+// glyph rather than a line, which framecheck's corner rule would read as an arm with nothing to join.
+// Every other rule still holds.
+func AssertGraphGolden(tb testing.TB, frame string) {
+	tb.Helper()
+
+	for _, f := range framecheck.Check(StripANSI(frame)) {
+		if f.Rule != framecheck.Corner {
+			tb.Errorf("%s: %s", tb.Name(), f)
+		}
+	}
+
 	golden.RequireEqual(tb, StripANSI(frame))
 }

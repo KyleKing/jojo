@@ -39,7 +39,7 @@ type Styles struct {
 	MarkMuted lipgloss.Style
 }
 
-// Mark is a chip drawn ahead of a row's description, such as "◀ onto" on the destination a picker
+// Mark is a chip drawn ahead of a row's description, such as "◂ onto" on the destination a picker
 // has under its cursor.
 type Mark struct {
 	Text  string

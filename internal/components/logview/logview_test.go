@@ -135,7 +135,7 @@ func TestViewAtWidths(t *testing.T) {
 			t.Parallel()
 
 			m := newModel(fixture(), width, len(fixture()))
-			tuitest.AssertGolden(t, tuitest.StripANSI(m.View()))
+			tuitest.AssertGraphGolden(t, tuitest.StripANSI(m.View()))
 		})
 	}
 }

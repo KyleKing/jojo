@@ -3,8 +3,8 @@
 │                                                          │
 │  ── files in wcwcwcwc, staged in idxidxid ─────────────  │
 │  M         unstaged.go                                   │
-│  A          new.go                                      │
-│  M  staged  staged.go                                   │
+│  A         new.go                                        │
+│  M  staged staged.go                                     │
 │  [space] stage  [c]ommit  [enter] diff  …  [esc] close   │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

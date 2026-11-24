@@ -420,9 +420,9 @@ func (m *Model) showPicked() {
 
 // destWords is the chip on the destination, naming the flag that places what moves against it.
 var destWords = map[jj.RebaseDestinationMode]string{
-	jj.RebaseDestOnto:         "◀ onto",
-	jj.RebaseDestInsertAfter:  "◀ after",
-	jj.RebaseDestInsertBefore: "◀ before",
+	jj.RebaseDestOnto:         "◂ onto",
+	jj.RebaseDestInsertAfter:  "◂ after",
+	jj.RebaseDestInsertBefore: "◂ before",
 }
 
 // sourceWords is the chip on what the command is about, before it runs.
@@ -448,9 +448,9 @@ func pickMarks(p *pickState, after bool) map[string]logview.Mark {
 
 	switch {
 	case p.verb == pickSquash:
-		marks[p.dest] = logview.Mark{Text: "◀ into"}
+		marks[p.dest] = logview.Mark{Text: "◂ into"}
 	case p.verb == pickRestore:
-		marks[p.dest] = logview.Mark{Text: "◀ from"}
+		marks[p.dest] = logview.Mark{Text: "◂ from"}
 	case p.verb == pickDuplicate && p.inPlace:
 	default:
 		marks[p.dest] = logview.Mark{Text: destWords[p.placement()]}

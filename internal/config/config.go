@@ -32,6 +32,9 @@ type Config struct {
 	// the footer, or "band" for a labeled band of every next step, why, and the jj command it runs.
 	// The palette's :next switches it for the session.
 	CoachLayout string `toml:"coach_layout"`
+	// Icons is how a file's type is drawn beside its name: "unicode" (the default), "nerd" for a Nerd
+	// Font, or "none". ARAGONITE_ICONS still wins, as it does in jj-diff and second-look.
+	Icons string `toml:"icons"`
 }
 
 // Path is where jojo looks: $XDG_CONFIG_HOME/jojo/config.toml, or ~/.config/jojo/config.toml. It

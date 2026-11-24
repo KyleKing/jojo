@@ -13,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/display"
 	aforge "github.com/kyleking/aragonite/forge"
+	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/region"
 
 	"github.com/kyleking/jojo/internal/forge"
@@ -282,7 +283,7 @@ func facts(status forge.Status) []region.Fact {
 	pr := status.PR
 
 	return []region.Fact{
-		{Label: "PR", Value: fmt.Sprintf("#%d %s", pr.Number, pr.Title)},
+		{Label: "PR", Value: fmt.Sprintf("#%d %s", pr.Number, glyph.Settle(pr.Title))},
 		{Label: "Status", Value: display.PRStatusDisplay(*pr)},
 		{Label: "Review", Value: reviewValue(pr)},
 		{Label: "Mergeable", Value: emptyDash(pr.Mergeable)},
@@ -292,12 +293,12 @@ func facts(status forge.Status) []region.Fact {
 }
 
 func reviewValue(pr *aforge.PullRequest) string {
-	glyph := display.PRReviewGlyph(pr)
-	if glyph == "" {
+	mark := display.PRReviewGlyph(pr)
+	if mark == "" {
 		return display.PRReviewStatus(*pr)
 	}
 
-	return display.PRReviewStatus(*pr) + " " + glyph
+	return display.PRReviewStatus(*pr) + " " + mark
 }
 
 func emptyDash(s string) string {

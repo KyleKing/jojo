@@ -702,8 +702,9 @@ func (m Model) discovered(frame string, keep int) string {
 	return strings.Join(append(m.pal.Over(lines[:body], m.width), lines[body:]...), "\n")
 }
 
-// panelShare is the fraction of the width the which-key panel may take at most: half.
-const panelShare = 2
+// panelMargin is the columns the which-key panel leaves the log at its widest, so a page of flags is
+// read whole rather than cut at half the width; it covers the log only while a prefix waits.
+const panelMargin = 4
 
 // whichKey floats the keys that can follow a waiting prefix over the bottom right of the frame, so a
 // chord never has to be remembered whole. It sits above the footer, which keeps saying where the
@@ -715,7 +716,7 @@ func (m Model) whichKey(frame string) string {
 	}
 
 	head := keyhint.Hint{Head: true, What: strings.Join(m.matcher.Pending(), "") + "…"}
-	box := keyhint.Panel(m.skin.PanelStyles(), append([]keyhint.Hint{head}, hints...), max(1, m.width/panelShare))
+	box := keyhint.Panel(m.skin.PanelStyles(), append([]keyhint.Hint{head}, hints...), max(1, m.width-panelMargin))
 
 	// The picker's footer is two rows, the live command line over its flags, and both stay in view.
 	keep := footerRows

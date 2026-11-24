@@ -50,14 +50,8 @@ github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSo
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/kyleking/aragonite v1.20.0 h1:pf+OwXrDCFSn9KggcxSr77SfCIxPHlnt6syvcL7VOQ4=
-github.com/kyleking/aragonite v1.20.0/go.mod h1:gSjm+tHd1gsx4sv20F6Ux+/cwMiKJNffMG1ZdCraPOE=
-github.com/kyleking/aragonite v1.23.4 h1:4tzidKmsqIAtc6Jct5vGrA2DZELurTxh5skjTZvmYdM=
-github.com/kyleking/aragonite v1.23.4/go.mod h1:gSjm+tHd1gsx4sv20F6Ux+/cwMiKJNffMG1ZdCraPOE=
-github.com/kyleking/jj-diff v0.8.0 h1:P9VlIoP1WRh6B9gyfefRy5gp0G5wtYiZTM0Eb8AM+2k=
-github.com/kyleking/jj-diff v0.8.0/go.mod h1:TSLKES+PvEuvLGiOPV2mLEiPJmydtuIHj8X75ok2WOk=
-github.com/kyleking/jj-diff v0.10.0 h1:86TVIG5yuq3yIIuwxcY20Bhx2tzoJhZyRD7Evi+hzkM=
-github.com/kyleking/jj-diff v0.10.0/go.mod h1:DNZN1vYqnVFe0ezQ4y5YBcipGttdvOAWPfb33wpv2o0=
+github.com/kyleking/aragonite v1.25.1 h1:lQY5CZFvjFdj87/rlia8b9SjZezJDduVrTaAtUpOnLo=
+github.com/kyleking/aragonite v1.25.1/go.mod h1:V8KtC25IuvgguJ3QOkHisv3giGtICrbM09DXBvZQr10=
 github.com/kyleking/jj-diff v0.10.1 h1:Re3flYDX5uvzhcBpdtJ2BeQK+wYIdG3sPxndHVV1hJg=
 github.com/kyleking/jj-diff v0.10.1/go.mod h1:bCdt9ec1icbRcKY+sHsMgbNi4ld//Q6pVq7N7VgkZXg=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=

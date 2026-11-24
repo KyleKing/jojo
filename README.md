@@ -208,6 +208,10 @@ outline_revset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
 # Where the next step and tips are drawn: "inline" (the line over the footer) or "band".
 coach_layout = "inline"
 
+# A file's type beside its name: "unicode" (the default), "nerd" for a Nerd Font, or "none".
+# ARAGONITE_ICONS overrides it, as in jj-diff and second-look.
+icons = "unicode"
+
 # Move an action to another key by its action name (the palette shows them), as one key or a
 # sequence; "" unbinds it. Shared actions keep aragonite's names, so hunk-next = "J" moves it in the
 # dock as jj-diff and second-look would.
