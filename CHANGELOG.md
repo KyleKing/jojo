@@ -1,3 +1,9 @@
+## v0.26.1 (2026-11-24)
+
+### Fix
+
+- **deps**: aragonite v1.31.1, whose hermetic unsets git's repository variables
+
 ## v0.26.0 (2026-11-24)
 
 ### Feat
