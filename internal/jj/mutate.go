@@ -34,6 +34,9 @@ type RebaseOptions struct {
 	Destination []string
 	Mode        RebaseDestinationMode
 	Scope       RebaseScope
+	// SkipEmptied abandons a revision the rebase leaves empty, which is what landing a stack on a
+	// trunk that already took some of it usually wants.
+	SkipEmptied bool
 }
 
 var (
@@ -162,6 +165,12 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) (string, error)
 		return "", errRebaseNoDestination
 	}
 
+	return c.mutate(ctx, RebaseArgs(opts)...)
+}
+
+// RebaseArgs is the invocation Rebase runs, exported so a preview can run the same command
+// somewhere else and the footer can show it before it runs.
+func RebaseArgs(opts RebaseOptions) []string {
 	args := []string{"rebase"}
 
 	scopeFlag := opts.Scope.flag()
@@ -174,6 +183,90 @@ func (c *Client) Rebase(ctx context.Context, opts RebaseOptions) (string, error)
 		args = append(args, destFlag, rev)
 	}
 
+	if opts.SkipEmptied {
+		args = append(args, "--skip-emptied")
+	}
+
+	return args
+}
+
+// SquashOptions describes a squash of several revisions into one.
+type SquashOptions struct {
+	Into    string
+	Sources []string
+	// KeepEmptied keeps a source the squash empties rather than abandoning it.
+	KeepEmptied bool
+	// Combine leaves the descriptions to jj, which opens an editor holding both whenever the two
+	// differ, so a caller setting it hands jj the terminal.
+	Combine bool
+}
+
+// SquashIntoArgs is the invocation squashing opts.Sources into opts.Into as one operation.
+func SquashIntoArgs(opts SquashOptions) []string {
+	args := []string{"squash"}
+	for _, from := range opts.Sources {
+		args = append(args, "--from", from)
+	}
+
+	args = append(args, "--into", opts.Into)
+
+	if !opts.Combine {
+		args = append(args, "--use-destination-message")
+	}
+
+	if opts.KeepEmptied {
+		args = append(args, "--keep-emptied")
+	}
+
+	return args
+}
+
+// PlaceOptions says where new or duplicated revisions go: onto Destination as parents, or inserted
+// after or before it.
+type PlaceOptions struct {
+	Destination []string
+	Mode        RebaseDestinationMode
+}
+
+func (p PlaceOptions) args() []string {
+	flag := p.Mode.flag()
+	args := make([]string, 0, 2*len(p.Destination))
+
+	for _, rev := range p.Destination {
+		args = append(args, flag, rev)
+	}
+
+	return args
+}
+
+// NewArgs creates a revision placed by where. With noEdit set, @ stays where it is rather than moving.
+func NewArgs(where PlaceOptions, noEdit bool) []string {
+	args := []string{"new"}
+
+	// Onto is jj new's positional form, which reads the way people type it.
+	if where.Mode == RebaseDestOnto {
+		args = append(args, where.Destination...)
+	} else {
+		args = append(args, where.args()...)
+	}
+
+	if noEdit {
+		args = append(args, "--no-edit")
+	}
+
+	return args
+}
+
+// DuplicateArgs copies revs, beside the originals when where names no destination.
+func DuplicateArgs(revs []string, where PlaceOptions) []string {
+	args := append([]string{"duplicate"}, revs...)
+
+	return append(args, where.args()...)
+}
+
+// Apply runs a write built by one of the *Args functions, so the command a preview drew and the
+// footer showed is the one that runs.
+func (c *Client) Apply(ctx context.Context, args []string) (string, error) {
 	return c.mutate(ctx, args...)
 }
 

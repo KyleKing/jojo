@@ -32,6 +32,17 @@ type Styles struct {
 	Checked   lipgloss.Style
 	Header    lipgloss.Style
 	Match     lipgloss.Style
+	// Mark and MarkMuted draw the chips a preview pins on a row: Mark for what the command is about
+	// (the destination, what moves), MarkMuted for what it touches on the way (a rewritten descendant).
+	Mark      lipgloss.Style
+	MarkMuted lipgloss.Style
+}
+
+// Mark is a chip drawn ahead of a row's description, such as "◀ onto" on the destination a picker
+// has under its cursor.
+type Mark struct {
+	Text  string
+	Muted bool
 }
 
 // SelectedMsg announces the row under the cursor so the forge pane and the
@@ -45,6 +56,7 @@ type SelectedMsg struct {
 type Model struct {
 	styles        Styles
 	checked       map[string]bool
+	marks         map[string]Mark
 	searchPattern string
 	rows          []jj.LogRow
 	matchRows     []int
@@ -86,6 +98,23 @@ func (m *Model) SetRows(rows []jj.LogRow) {
 
 	m.recomputeMatches()
 	m.scrollIntoView()
+}
+
+// SetMarks pins chips on rows by change id, replacing whatever was pinned before. Nil clears them.
+func (m *Model) SetMarks(marks map[string]Mark) { m.marks = marks }
+
+// Focus puts the cursor on the revision with changeID and reports whether the log holds one.
+func (m *Model) Focus(changeID string) bool {
+	for i, row := range m.rows {
+		if row.Revision != nil && row.Revision.ChangeID == changeID {
+			m.cursor = i
+			m.scrollIntoView()
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // SetSize records the space the log renders into.
@@ -450,11 +479,35 @@ func (m Model) cells(rev jj.Revision, layout table.Layout) string {
 			continue
 		}
 
+		if mark, ok := m.marks[rev.ChangeID]; ok && col.Key == ColDesc {
+			rendered = append(rendered, m.markedCell(mark, text[col.Key], width, m.style(rev, col.Key)))
+
+			continue
+		}
+
 		cell := table.PadTrim(text[col.Key], width, col.Align, col.Trim)
 		rendered = append(rendered, m.style(rev, col.Key).Render(cell))
 	}
 
 	return table.Join(rendered)
+}
+
+// markedCell spends the start of the description on the chip, which survives a narrow row better
+// than the description does: at 80 columns the chip is the one thing a preview has to say.
+func (m Model) markedCell(mark Mark, desc string, width int, face lipgloss.Style) string {
+	chipFace := m.styles.Mark
+	if mark.Muted {
+		chipFace = m.styles.MarkMuted
+	}
+
+	chip := table.Truncate(mark.Text, width)
+	room := width - lipgloss.Width(chip) - 1
+
+	if room <= 0 {
+		return chipFace.Render(table.Pad(chip, width, table.AlignLeft))
+	}
+
+	return chipFace.Render(chip) + " " + face.Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight))
 }
 
 // sizeCell colors the added and removed counts apart from the file count,

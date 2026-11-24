@@ -56,7 +56,10 @@ type Operation struct {
 	ID          string
 	Description string
 	Age         string
-	Current     bool
+	// Args is the command line that made the operation, "" for one jj made on its own such as a
+	// working-copy snapshot.
+	Args    string
+	Current bool
 }
 
 // Errors callers inspect with errors.Is.

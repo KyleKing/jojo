@@ -9,7 +9,6 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/destpicker"
 	"github.com/kyleking/jojo/internal/components/evologview"
-	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	"github.com/kyleking/jojo/internal/jj"
@@ -81,21 +80,6 @@ func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, 
 	return run(m, msg.Value)
 }
 
-// openSquash asks where the targets go. Several checked revisions squash into one destination in one
-// operation, which jj takes as repeated --from.
-func (m *Model) openSquash(ids []string) tea.Cmd {
-	what := joinIDs(ids)
-	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
-		cmd := m.act(what, func(ctx context.Context, c *jj.Client) (string, error) {
-			return c.SquashAll(ctx, ids, dest.Revision.ChangeID)
-		})
-
-		return m, cmd
-	}
-
-	return m.destPicker.Open("squash "+what+" into", m.rows, ids[0], destpicker.Excluding(ids...))
-}
-
 // openMoveHunks asks for the destination, then hands the terminal to jj's configured diff editor,
 // which is where the hunks and lines actually get picked. Nothing here reimplements that selection.
 func (m *Model) openMoveHunks(rev jj.Revision) tea.Cmd {
@@ -124,33 +108,6 @@ func (m *Model) openMoveFile(from, path string) tea.Cmd {
 	return m.destPicker.Open("move "+path+" into", m.rows, from)
 }
 
-// openRebase asks for the destination. Scope is decided by the key that was pressed, because jj's -r
-// and -s move different things and guessing between them rewrites the wrong revisions.
-func (m *Model) openRebase(ids []string, scope jj.RebaseScope) tea.Cmd {
-	id := joinIDs(ids)
-	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
-		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
-			return c.Rebase(ctx, jj.RebaseOptions{
-				Revisions:   ids,
-				Destination: []string{dest.Revision.ChangeID},
-				Mode:        rebaseMode(dest.Placement),
-				Scope:       scope,
-			})
-		})
-
-		return m, cmd
-	}
-
-	what := "rebase " + id
-	if scope == jj.RebaseScopeSource {
-		what += " and its descendants"
-	}
-
-	// Only what moves has to be mutable: landing on trunk() or the root rewrites nothing there.
-	return m.destPicker.Open(what+" onto", m.rows, ids[0], destpicker.WithPlacement(),
-		destpicker.AllowImmutableDestination(), destpicker.Excluding(ids...))
-}
-
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 	run := m.onSubmit
 	m.prompt.Close()
@@ -173,23 +130,6 @@ func (m Model) handlePicked(msg destpicker.PickedMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return run(m, msg)
-}
-
-var rebaseModes = map[destpicker.Placement]jj.RebaseDestinationMode{
-	destpicker.PlaceAfter:  jj.RebaseDestInsertAfter,
-	destpicker.PlaceBefore: jj.RebaseDestInsertBefore,
-}
-
-func rebaseMode(where destpicker.Placement) jj.RebaseDestinationMode {
-	return rebaseModes[where]
-}
-
-func (m Model) restoreOperation(msg oplogview.RestoreMsg) (tea.Model, tea.Cmd) {
-	op := msg.Operation.ID
-
-	return m, m.run(undoHint, func(ctx context.Context) (string, error) {
-		return m.client.OpRestore(ctx, op)
-	})
 }
 
 // restoreVersion puts an earlier version's content back into the change it belongs to, which leaves

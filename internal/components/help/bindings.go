@@ -39,9 +39,28 @@ type Binding struct {
 	// Run and Key are not.
 	Action string
 	Run    string
+	// Mode is where the key is live: "" for the log, or one of the modes the log enters (ModePick,
+	// ModeTravel), whose keys are read only while it lasts. Two modes may give one key different
+	// actions; one mode may not give it two.
+	Mode string
 	keyhint.Hint
 	Layer Layer
 }
+
+// The modes the log enters, each with keys of its own that mean nothing outside it.
+const (
+	// ModePick is the in-log destination picker that rebase, squash, duplicate, and new open.
+	ModePick = "pick"
+	// ModeTravel is the log as it stood at an earlier operation.
+	ModeTravel = "travel"
+)
+
+// The labels of the keys every mode shares, which the legend spells the same way everywhere.
+const (
+	enterLabel = "Enter"
+	escLabel   = "Esc"
+	tabLabel   = "Tab"
+)
 
 // spaceKey checks a revision in the log and stages a file in the file list of @.
 const spaceKey = "space"
@@ -52,10 +71,10 @@ const spaceKey = "space"
 var defaultBindings = []Binding{
 	{Layer: L0, Hint: keyhint.Hint{What: "Universal", Head: true}},
 	{Layer: L0, Hint: keyhint.Hint{Key: "↑ ↓ ← →", What: "move"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: "Enter", What: "select"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: "Esc", What: "back"}},
+	{Layer: L0, Hint: keyhint.Hint{Key: enterLabel, What: "select"}},
+	{Layer: L0, Hint: keyhint.Hint{Key: escLabel, What: "back"}},
 	{Layer: L0, Hint: keyhint.Hint{Key: "q", What: "quit"}},
-	{Layer: L0, Hint: keyhint.Hint{Key: "Tab", What: "switch pane"}},
+	{Layer: L0, Hint: keyhint.Hint{Key: tabLabel, What: "switch pane"}},
 
 	{Layer: L1, Hint: keyhint.Hint{What: "Vim motions", Head: true}},
 	{Layer: L1, Hint: keyhint.Hint{Key: "j / k", What: "move a line"}},
@@ -90,7 +109,7 @@ var defaultBindings = []Binding{
 	},
 	{
 		Layer: L2, Run: "enter", Action: "diff", Cmd: "jj diff -r <rev>",
-		Hint: keyhint.Hint{Key: "Enter", What: "diff the revision"},
+		Hint: keyhint.Hint{Key: enterLabel, What: "diff the revision"},
 	},
 	{
 		Layer: L2, Run: "alt+d", Action: "diff-range", Cmd: "jj diff --from <a> --to <b>",
@@ -134,7 +153,18 @@ var defaultBindings = []Binding{
 		Layer: L2, Run: "P", Action: "push", Cmd: "jj git push -r <rev>",
 		Hint: keyhint.Hint{Key: "P", What: "push the revision's bookmarks"},
 	},
-	{Layer: L2, Run: "o", Action: "op-log", Cmd: "jj op log", Hint: keyhint.Hint{Key: "o", What: "op log"}},
+	{
+		Layer: L2, Run: "o", Action: "op-log", Cmd: "jj op log",
+		Hint: keyhint.Hint{Key: "o", What: "op log, with the log as it stood at each operation"},
+	},
+	{
+		Layer: L2, Run: "[o", Action: "op-older", Cmd: "jj log --at-op <op> --ignore-working-copy",
+		Hint: keyhint.Hint{Key: "[o", What: "the log one operation back, read-only"},
+	},
+	{
+		Layer: L2, Run: "]o", Action: "op-newer", Cmd: "jj log --at-op <op> --ignore-working-copy",
+		Hint: keyhint.Hint{Key: "]o", What: "the log one operation forward"},
+	},
 	{
 		Layer: L2, Run: "v", Action: "detail", Cmd: "jj log -r <rev> -T ...",
 		Hint: keyhint.Hint{Key: "v", What: "details of the revision"},
@@ -195,13 +225,85 @@ var defaultBindings = []Binding{
 		Layer: L3, Cmd: "jj describe @- && jj new -A @- -B @",
 		Hint: keyhint.Hint{Key: "C", What: "commit what is staged"},
 	},
+
+	// The picker's keys toggle the flags of the command it is building. The provisional letters follow
+	// jjui's rebase mode, and each carries an Action so the keymap pass can move them in config.
+	{Layer: L2, Mode: ModePick, Hint: keyhint.Hint{What: "Picking where it goes (r R s D n)", Head: true}},
+	{
+		Layer: L2, Mode: ModePick,
+		Hint: keyhint.Hint{Key: "j / k", What: "move the destination; the graph redraws as it will be"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "enter", Action: "pick-apply",
+		Hint: keyhint.Hint{Key: enterLabel, What: "run it"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "esc", Action: "pick-cancel",
+		Hint: keyhint.Hint{Key: escLabel, What: "cancel, nothing ran"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "tab", Action: "pick-compare",
+		Hint: keyhint.Hint{Key: tabLabel, What: "before / after"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "o", Action: "pick-onto", Cmd: "--onto",
+		Hint: keyhint.Hint{Key: "o", What: "onto"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "a", Action: "pick-after", Cmd: "--insert-after",
+		Hint: keyhint.Hint{Key: "a", What: "after"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "b", Action: "pick-before", Cmd: "--insert-before",
+		Hint: keyhint.Hint{Key: "b", What: "before"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "h", Action: "pick-here", Cmd: "jj duplicate <rev>",
+		Hint: keyhint.Hint{Key: "h", What: "duplicate in place"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "r", Action: "pick-revisions", Cmd: "jj rebase -r",
+		Hint: keyhint.Hint{Key: "r", What: "move the revisions alone"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "s", Action: "pick-source", Cmd: "jj rebase -s",
+		Hint: keyhint.Hint{Key: "s", What: "move them with descendants"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "B", Action: "pick-branch", Cmd: "jj rebase -b",
+		Hint: keyhint.Hint{Key: "B", What: "move the whole branch"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "e", Action: "pick-emptied", Cmd: "--skip-emptied / --keep-emptied",
+		Hint: keyhint.Hint{Key: "e", What: "skip (rebase) or keep (squash) emptied revisions"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "m", Action: "pick-message", Cmd: "--use-destination-message",
+		Hint: keyhint.Hint{Key: "m", What: "squash: keep the destination's message, or combine in $EDITOR"},
+	},
+	{
+		Layer: L2, Mode: ModePick, Run: "w", Action: "pick-no-edit", Cmd: "jj new --no-edit",
+		Hint: keyhint.Hint{Key: "w", What: "new: leave @ where it is"},
+	},
+
+	// Time travel is read-only: these are the only keys it answers, and a write verb says why not.
+	{Layer: L2, Mode: ModeTravel, Hint: keyhint.Hint{What: "Viewing an earlier operation ([o o)", Head: true}},
+	{
+		Layer: L2, Mode: ModeTravel, Run: "r", Action: "travel-restore", Cmd: "jj op restore <op>",
+		Hint: keyhint.Hint{Key: "r", What: "restore the repository to it"},
+	},
+	{
+		Layer: L2, Mode: ModeTravel, Run: "esc", Action: "travel-exit",
+		Hint: keyhint.Hint{Key: escLabel, What: "back to now"},
+	},
 }
 
 // Keymap is the effective keymap: the default table with the user's rebinds applied. Build it once
 // and pass it to whatever renders or dispatches a key, so the legend, the palette, the footer, and
 // the handlers can never disagree about which key runs what.
 type Keymap struct {
-	toDefault map[string]string
+	// toDefault is one translation per mode, "" being the log's.
+	toDefault map[string]map[string]string
 	level     func(key string) int
 	bindings  []Binding
 }
@@ -278,15 +380,42 @@ func NewKeymap(overrides map[string]string) (Keymap, error) {
 // falls through and the key does nothing.
 const unbound = "\x00"
 
-// translation maps each effective key back to the key the handlers switch on, which is what makes a
-// rebind one lookup at the door rather than a rename through every switch. A key whose action moved
-// away maps to unbound, so a rebind moves a key rather than adding one.
-func translation(bindings []Binding) (map[string]string, error) {
+// translation maps each effective key back to the key the handlers switch on, one map per mode,
+// which is what makes a rebind one lookup at the door rather than a rename through every switch. A
+// key whose action moved away maps to unbound, so a rebind moves a key rather than adding one.
+func translation(bindings []Binding) (map[string]map[string]string, error) {
+	out := map[string]map[string]string{}
+
+	for _, mode := range modes(bindings) {
+		one, err := modeTranslation(bindings, mode)
+		if err != nil {
+			return nil, err
+		}
+
+		out[mode] = one
+	}
+
+	return out, nil
+}
+
+func modes(bindings []Binding) []string {
+	var out []string
+
+	for i := range bindings {
+		if !slices.Contains(out, bindings[i].Mode) {
+			out = append(out, bindings[i].Mode)
+		}
+	}
+
+	return out
+}
+
+func modeTranslation(bindings []Binding, mode string) (map[string]string, error) {
 	fromDefault := map[string]string{}
 
 	for i := range defaultBindings {
 		b := &defaultBindings[i]
-		if b.Action != "" {
+		if b.Action != "" && b.Mode == mode {
 			fromDefault[b.Action] = b.Run
 		}
 	}
@@ -295,7 +424,7 @@ func translation(bindings []Binding) (map[string]string, error) {
 
 	for i := range bindings {
 		b := &bindings[i]
-		if b.Action == "" {
+		if b.Action == "" || b.Mode != mode {
 			continue
 		}
 
@@ -323,14 +452,42 @@ func translation(bindings []Binding) (map[string]string, error) {
 	return out, nil
 }
 
-// Resolve turns a pressed key into the key the handlers know. A key nothing rebinds is its own
-// answer, so the common case costs one map miss.
-func (k Keymap) Resolve(pressed string) string {
-	if key, ok := k.toDefault[pressed]; ok {
+// Resolve turns a key pressed in the log into the key the handlers know. A key nothing rebinds is
+// its own answer, so the common case costs one map miss.
+func (k Keymap) Resolve(pressed string) string { return k.ResolveIn("", pressed) }
+
+// ResolveIn is Resolve for a key pressed while the log is in mode.
+func (k Keymap) ResolveIn(mode, pressed string) string {
+	if key, ok := k.toDefault[mode][pressed]; ok {
 		return key
 	}
 
 	return pressed
+}
+
+// ModeHints is the hint of each key live in mode, keyed by its action, as the user has bound it.
+func (k Keymap) ModeHints(mode string) map[string]keyhint.Hint {
+	out := map[string]keyhint.Hint{}
+
+	bindings := k.ModeBindings(mode)
+	for i := range bindings {
+		out[bindings[i].Action] = k.hint(&bindings[i])
+	}
+
+	return out
+}
+
+// ModeBindings is the bindings live in mode, in table order.
+func (k Keymap) ModeBindings(mode string) []Binding {
+	var out []Binding
+
+	for i := range k.bindings {
+		if b := k.bindings[i]; b.Mode == mode && b.Run != "" {
+			out = append(out, b)
+		}
+	}
+
+	return out
 }
 
 // Hints returns the actionable hints (headings excluded) for the given
@@ -340,7 +497,7 @@ func (k Keymap) Hints(layers ...Layer) []keyhint.Hint {
 
 	for i := range k.bindings {
 		b := &k.bindings[i]
-		if b.Head {
+		if b.Head || b.Mode != "" {
 			continue
 		}
 
@@ -365,12 +522,12 @@ func (k Keymap) AllHints() []keyhint.Hint {
 	return out
 }
 
-// Runnable returns the bindings the command palette can dispatch, in table order.
+// Runnable returns the bindings the command palette can dispatch from the log, in table order.
 func (k Keymap) Runnable() []Binding {
 	out := make([]Binding, 0, len(k.bindings))
 
 	for i := range k.bindings {
-		if k.bindings[i].Run != "" {
+		if k.bindings[i].Run != "" && k.bindings[i].Mode == "" {
 			out = append(out, k.bindings[i])
 		}
 	}

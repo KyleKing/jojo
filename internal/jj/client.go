@@ -124,6 +124,11 @@ func (c *Client) execute(ctx context.Context, args ...string) (string, string, e
 	c.queue <- struct{}{}
 	defer func() { <-c.queue }()
 
+	return c.executeLocked(ctx, args...)
+}
+
+// executeLocked is execute for a caller already holding the queue.
+func (c *Client) executeLocked(ctx context.Context, args ...string) (string, string, error) {
 	// Captured output is parsed, so a user's ui.color = "always" or a pager must not reach it.
 	cmd := c.jjCommand(ctx, append([]string{"--no-pager", "--color=never"}, args...)...)
 

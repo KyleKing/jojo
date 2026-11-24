@@ -132,18 +132,29 @@ func TestParseOpLog(t *testing.T) {
 		},
 		{
 			name: "empty description",
-			out:  "abc12345" + fieldSep + "" + fieldSep + "" + fieldSep + "2 minutes ago\n",
+			out:  "abc12345" + fieldSep + "" + fieldSep + "" + fieldSep + "2 minutes ago" + fieldSep + "\n",
 			want: []Operation{{ID: "abc12345", Age: "2 minutes ago"}},
 		},
 		{
 			name: "current operation marker and a long hex id shortened mid-description",
 			out: "abc12345" + fieldSep + "snapshot working copy abcdef0123456789abcdef0123456789" +
-				fieldSep + "@" + fieldSep + "now\n",
+				fieldSep + "@" + fieldSep + "now" + fieldSep + "\n",
 			want: []Operation{{
 				ID:          "abc12345",
 				Description: "snapshot working copy abcdef01",
 				Current:     true,
 				Age:         "now",
+			}},
+		},
+		{
+			name: "the command line loses its args label and its long ids",
+			out: "abc12345" + fieldSep + "rebase commit 1" + fieldSep + "" + fieldSep + "now" + fieldSep +
+				"args: jj rebase -r abcdef0123456789abcdef -o xyz\n",
+			want: []Operation{{
+				ID:          "abc12345",
+				Description: "rebase commit 1",
+				Age:         "now",
+				Args:        "jj rebase -r abcdef01 -o xyz",
 			}},
 		},
 	}

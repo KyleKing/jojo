@@ -11,15 +11,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	}
 
-	if msg.String() == "!" && m.lastOutput != "" && !m.typing() {
-		m.usage.Key(ctxLog, "!")
-		cmd := m.showOutput()
-
+	if cmd, handled := m.routeToOutputOrModal(msg); handled {
 		return m, cmd
 	}
 
-	if cmd, handled := m.routeToModal(msg); handled {
-		return m, cmd
+	key, next, cmd, handled := m.routeToMode(msg)
+	if handled {
+		return next, cmd
 	}
 
 	switch m.focus {
@@ -38,7 +36,6 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.usage.Key(ctxLog, msg.String())
 
-	key := m.keys.Resolve(msg.String())
 	if next, cmd, handled := m.handleRootKey(key); handled {
 		return next, cmd
 	}
@@ -51,7 +48,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 
-	cmd := m.log.Update(msg)
+	cmd = m.log.Update(msg)
 
 	if m.log.AtEnd() && m.logFull {
 		m.logWindow *= 2
@@ -60,6 +57,73 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, cmd
+}
+
+// routeToOutputOrModal opens the last failure on "!" anywhere a key is not text, and otherwise hands
+// the key to whichever overlay is open.
+func (m *Model) routeToOutputOrModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	if msg.String() == "!" && m.lastOutput != "" && !m.typing() {
+		m.usage.Key(ctxLog, "!")
+
+		return m.showOutput(), true
+	}
+
+	return m.routeToModal(msg)
+}
+
+// routeToMode gives the key to the picker or to time travel while either is active, holds a chord
+// prefix, and otherwise returns the key resolved for the log.
+func (m *Model) routeToMode(msg tea.KeyPressMsg) (string, tea.Model, tea.Cmd, bool) {
+	if m.pick.active {
+		next, cmd := m.handlePickKey(msg)
+
+		return "", next, cmd, true
+	}
+
+	key, held := m.chordKey(msg.String())
+	if held {
+		return "", *m, nil, true
+	}
+
+	if m.travel.active {
+		next, cmd := m.handleTravelKey(key, msg)
+
+		return "", next, cmd, true
+	}
+
+	return key, m, nil, false
+}
+
+// opStep is how far back [o and ]o move: older is positive.
+func opStep(key string) int {
+	if key == "]o" {
+		return -1
+	}
+
+	return 1
+}
+
+// chordPrefixes start the two-key bindings: [o and ]o step through the op log, the way [ and ]
+// step through files in the diff.
+var chordPrefixes = map[string]bool{"[": true, "]": true}
+
+// chordKey resolves a key against a held chord prefix, and holds a new one. A prefix followed by a
+// key that completes nothing resolves to that pair, which no handler knows, so it does nothing.
+func (m *Model) chordKey(pressed string) (string, bool) {
+	if m.chord != "" {
+		pair := m.chord + pressed
+		m.chord = ""
+
+		return m.keys.Resolve(pair), false
+	}
+
+	if chordPrefixes[pressed] && m.focus == focusLog {
+		m.chord = pressed
+
+		return "", true
+	}
+
+	return m.keys.Resolve(pressed), false
 }
 
 // routeToModal hands every key to whichever overlay is open, because a modal
@@ -172,7 +236,7 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.toggleDock()
 
 		return next, cmd, true
-	case "q", "ctrl+c":
+	case "q", keyQuit:
 		m.quitting = true
 
 		return m, tea.Quit, true
@@ -227,6 +291,10 @@ func (m Model) panelKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.fetch(), true
 	case "x":
 		return m, m.previewDivergent(), true
+	case "[o", "]o":
+		cmd := m.stepOp(opStep(key))
+
+		return m, cmd, true
 	}
 
 	return m, nil, false
@@ -303,7 +371,7 @@ func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.help = m.help.ScrollBy(1)
 	case "g", "home":
 		m.help = m.help.ScrollToStart()
-	case "G", "end":
+	case "G", keyEnd:
 		m.help = m.help.ScrollToEnd()
 	}
 

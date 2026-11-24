@@ -48,8 +48,11 @@ const footerRows = 1
 
 // Keys the root routes before any pane sees them.
 const (
-	keyTab = "tab"
-	keyEsc = "esc"
+	keyTab   = "tab"
+	keyEsc   = "esc"
+	keyEnter = "enter"
+	keyQuit  = "ctrl+c"
+	keyEnd   = "end"
 )
 
 type logLoadedMsg struct {
@@ -95,13 +98,17 @@ type Model struct {
 	output     textview.Model
 	forcible   forcible
 	pushing    pendingPush
-	onSubmit   submitted
-	onEditor   submitted
-	onPick     picked
-	keys       help.Keymap
-	usage      *keyusage.Recorder
-	revset     string
-	message    string
+	// restoring is the operation a restore confirmation is standing over.
+	restoring jj.Operation
+	// chord is the first key of a two-key binding such as [o, held until the second arrives.
+	chord    string
+	onSubmit submitted
+	onEditor submitted
+	onPick   picked
+	keys     help.Keymap
+	usage    *keyusage.Recorder
+	revset   string
+	message  string
 	// lastOutput is the full text of the last failure, which "!" shows.
 	lastOutput string
 	// diffPreference is config.toml's diff_tool, and diffTool what it resolved to.
@@ -116,10 +123,17 @@ type Model struct {
 	stats      statsCache
 	statsAsked map[string]bool
 	log        logview.Model
-	focus      focus
-	width      int
-	height     int
-	logWindow  int
+	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
+	// Each takes the keys while it is active.
+	travel travelState
+	pick   pickState
+	focus  focus
+	// pickSession numbers picker openings, so a sandbox or a preview arriving for one already closed
+	// is dropped.
+	pickSession int
+	width       int
+	height      int
+	logWindow   int
 	// dockSeq numbers the docked diff's reads, so only the newest one lands.
 	dockSeq int
 	docked  bool
@@ -203,6 +217,10 @@ func (m Model) loadLog(revset string) tea.Cmd {
 
 // Update routes messages. Keys go to handleKeyPress, the one place a binding is added.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.handleModeMsg(msg); handled {
+		return next, cmd
+	}
+
 	if next, cmd, handled := m.handleOverlayMsg(msg); handled {
 		return next, cmd
 	}
@@ -240,19 +258,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.offerDivergent(msg)
 	case messageMsg, clearMessageMsg:
 		return m.showMessage(msg)
-	case headOpMsg:
-		m.lastOp = msg.description
-
-		return m, nil
-	case diffToolMsg:
-		m.diffTool = msg.tool
-
-		return m, nil
+	case headOpMsg, diffToolMsg:
+		return m.noteState(msg), nil
 	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 	}
 
 	return m.routeToPanes(msg)
+}
+
+// noteState files what a background read learned about the repository or the machine.
+func (m Model) noteState(msg tea.Msg) Model {
+	switch msg := msg.(type) {
+	case headOpMsg:
+		m.lastOp = msg.description
+	case diffToolMsg:
+		m.diffTool = msg.tool
+	}
+
+	return m
 }
 
 // showMessage puts a status line up, or takes it down once it has had its time.
@@ -359,6 +383,8 @@ func (m *Model) resize() {
 	}
 
 	m.log.SetSize(width, height)
+	m.pick.view.SetSize(m.width, m.pickHeight())
+	m.travel.view.SetSize(m.width, m.logHeight())
 }
 
 // logHeight is the rows between the revset box and whatever sits under the log, docked diff included.
@@ -401,7 +427,7 @@ func (m Model) overlay() func(width, height int) string {
 		{m.files.View, m.files.IsOpen()},
 		{m.prompt.View, m.prompt.IsOpen()},
 		{m.destPicker.View, m.destPicker.IsOpen()},
-		{m.opLog.View, m.opLog.IsOpen()},
+		{m.opLogFrame, m.opLog.IsOpen()},
 		{m.spaces.View, m.spaces.IsOpen()},
 		{m.evolog.View, m.evolog.IsOpen()},
 		{m.palette.View, m.palette.IsOpen()},
@@ -431,6 +457,10 @@ func (m Model) render() string {
 		return view(m.width, m.height-footerRows) + "\n" + m.overlayFooter()
 	}
 
+	if m.pick.active || m.travel.active {
+		return m.modeFrame()
+	}
+
 	panes := []string{m.revsetBox.View(m.width), m.logPane()}
 	if m.find.IsOpen() {
 		panes = append(panes, m.find.View(m.width))
@@ -441,6 +471,26 @@ func (m Model) render() string {
 	}
 
 	return strings.Join(append(panes, m.footer()), "\n")
+}
+
+// modeFrame is the log while it is picking a destination or showing the past: the docked diff
+// steps aside, since neither mode's rows are the ones it would be following.
+func (m Model) modeFrame() string {
+	if m.pick.active {
+		panes := []string{m.revsetBox.View(m.width), m.pick.view.View()}
+		if m.showForge {
+			panes = append(panes, m.forge.View())
+		}
+
+		return strings.Join(append(panes, m.pickFooter()), "\n")
+	}
+
+	panes := []string{m.travelBanner(), m.travel.view.View()}
+	if m.showForge {
+		panes = append(panes, m.forge.View())
+	}
+
+	return strings.Join(append(panes, m.travelFooter()), "\n")
 }
 
 // logPane is the log, with the docked diff beside it on a wide terminal or under it on a narrow one.

@@ -51,9 +51,6 @@ func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	targets := m.targets()
 
 	switch key {
-	case "n":
-		return m.act(rev.ChangeID,
-			func(ctx context.Context, c *jj.Client) (string, error) { return c.New(ctx, targets) }), true
 	case "e":
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Edit(ctx, rev.ChangeID) }), true
@@ -63,9 +60,6 @@ func (m *Model) writeKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	case "A":
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Absorb(ctx, rev.ChangeID) }), true
-	case "D":
-		return m.act(joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) (string, error) { return c.Duplicate(ctx, targets) }), true
 	case "|":
 		return m.parallelize(), true
 	}
@@ -102,16 +96,8 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 		return m, m.loadDescribe(rev), true
 	case "alt+e":
 		return m, m.describeInEditor(rev.ChangeID, ""), true
-	case "s":
-		cmd := m.openSquash(m.targets())
-
-		return m, cmd, true
-	case "r":
-		cmd := m.openRebase(m.targets(), jj.RebaseScopeRevisions)
-
-		return m, cmd, true
-	case "R":
-		cmd := m.openRebase(m.targets(), jj.RebaseScopeSource)
+	case "s", "r", "R", "D", "n":
+		cmd := m.openVerb(key)
 
 		return m, cmd, true
 	case "S":
@@ -137,7 +123,33 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// openVerb puts the log into picking mode for the verb key names. New takes the checked revisions
+// as extra parents and nothing else, so with none checked it is a destination alone.
+func (m *Model) openVerb(key string) tea.Cmd {
+	targets := m.targets()
+
+	switch key {
+	case "s":
+		return m.openPicker(pickSquash, targets)
+	case "D":
+		return m.openPicker(pickDuplicate, targets)
+	case "n":
+		return m.openPicker(pickNew, m.log.Checked())
+	case "R":
+		cmd := m.openPicker(pickRebase, targets)
+		m.pick.scope = jj.RebaseScopeSource
+
+		return cmd
+	}
+
+	return m.openPicker(pickRebase, targets)
+}
+
 func joinIDs(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+
 	if len(ids) == 1 {
 		return ids[0]
 	}

@@ -43,7 +43,13 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return next, cmd, true
 	case confirm.CancelledMsg:
 		return m.cancelConfirm(), nil, true
-	case prompt.CancelledMsg, destpicker.CancelledMsg, oplogview.CancelledMsg, workspaceview.CancelledMsg,
+	case oplogview.CancelledMsg:
+		// Leaving the op log leaves the past it was showing.
+		m = m.cancelModals()
+		m.endTravel()
+
+		return m, nil, true
+	case prompt.CancelledMsg, destpicker.CancelledMsg, workspaceview.CancelledMsg,
 		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg,
 		fileview.CancelledMsg:
 		return m.cancelModals(), nil, true
@@ -78,10 +84,6 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		cmd := msg.open(&m)
 
 		return m, cmd, true
-	case oplogview.RestoreMsg:
-		next, cmd := m.restoreOperation(msg)
-
-		return next, cmd, true
 	case oplogview.ShowMsg:
 		next, cmd := m.showOperation(msg)
 

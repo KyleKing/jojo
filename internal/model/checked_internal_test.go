@@ -35,8 +35,9 @@ func checkFirstTwo(t *testing.T) Model {
 	return m
 }
 
-// Every verb that takes several revisions follows one rule: the checked set when there is one. Rebase
-// and squash used the cursor instead and dropped the checks without saying so.
+// Every verb that takes several revisions follows one rule: the checked set when there is one. The
+// picker names the whole set in the command it builds, and never offers a checked revision as its
+// own destination.
 func TestChecked_RebaseAndSquashTakeTheWholeSet(t *testing.T) {
 	t.Parallel()
 
@@ -45,17 +46,22 @@ func TestChecked_RebaseAndSquashTakeTheWholeSet(t *testing.T) {
 			t.Parallel()
 
 			m := asModel(t, update(checkFirstTwo(t), tuitest.Key(key)))
-			if !m.destPicker.IsOpen() {
+			if !m.pick.active {
 				t.Fatal("no picker opened")
 			}
 
-			frame := tuitest.StripANSI(m.render())
-			if !strings.Contains(frame, "aaaa and 1 more") {
-				t.Errorf("the picker does not name the checked set:\n%s", frame)
+			command := m.pick.command()
+			if !strings.Contains(command, "aaaa") || !strings.Contains(command, "bbbb") {
+				t.Errorf("the command does not name the checked set: %s", command)
 			}
 
-			if strings.Contains(frame, " two") {
-				t.Errorf("a checked revision is offered as its own destination:\n%s", frame)
+			if m.pick.dest != "cccc" {
+				t.Errorf("the destination is %q, want cccc past the checked rows", m.pick.dest)
+			}
+
+			m = asModel(t, update(m, tuitest.Key("k")))
+			if m.pick.dest != "cccc" {
+				t.Errorf("k moved the destination onto checked revision %q", m.pick.dest)
 			}
 		})
 	}

@@ -53,8 +53,9 @@ markers (`main*` for a local bookmark ahead of its remote). `LocalBookmarks` and
 `main*` to `gh` would ask about a branch that does not exist.
 
 **Undo is the confirmation.** Every routine jj edit is an operation the log can reverse,
-so describe, squash, abandon, rebase, and the rest run as the key lands and report the
-command they ran. Two things ask instead, because `jj undo` cannot reach them: a push,
+so abandon, edit, absorb, and the rest run as the key lands, a verb that needs a destination
+runs on the Enter that picks it, and each reports the command it ran. A restore chosen while
+looking at the past shows what it goes back to first. Two things ask instead, because `jj undo` cannot reach them: a push,
 which has left the machine, and a write jj refused as immutable, where the escape rewrites
 history other people may already have. The push dialog shows a real `--dry-run`, so what is
 being agreed to is jj's own answer, and the immutable dialog says what the rule is rather
@@ -86,6 +87,53 @@ editor uses, so the two tools cannot grow separate ideas of what a diff looks li
 passes its own palette in rather than inheriting jj-diff's theme. The one diff that still
 reaches jj's pager is an operation's, because `jj op show` prints a header no diff parser
 reads.
+
+**A destination is picked on the log, against the graph it will leave.** Rebase, squash,
+duplicate, and new put the log into a picking mode instead of opening a list: what moves is
+marked, the cursor walks the log as it was to choose the destination, and the graph redraws as
+it will look once the command runs, with the moved, rewritten, and new rows chipped and the
+destination marked `◀ onto`, `◀ after`, `◀ before`, or `◀ into`. The flags are footer toggles
+over the exact command line the footer shows, Enter runs that command as one operation, and Esc
+leaves nothing behind. The list picker stays where a list is the better shape: moving a file or
+hunks, and bookmarks.
+
+The preview is jj itself running the command, not a model of it, because a rebase's effect on
+descendants, merges, and conflicts is jj's to decide and a reimplementation would be wrong in
+exactly the cases worth previewing. It runs in a sandbox (`jj.Sandbox`): the repository's
+`.jj/repo` copied as hard links into the user cache directory, beside a new bare git repository
+that borrows the real objects through `objects/info/alternates`. jj only adds content-addressed
+files beside the ones it has, and the few it deletes and recreates by name (op heads, the
+change-id table's heads) are copied rather than linked, so nothing in the sandbox can reach a
+byte of the original. Every commit, `refs/jj/keep/*` ref, and exported bookmark a preview writes
+lands in the sandbox's git repository. Each preview runs the write with
+`--no-integrate-operation`, so even the sandbox's op heads never move, then reads
+`jj log --at-op` the operation it printed. A jj without that flag falls back to `op restore`
+inside the sandbox.
+
+The alternatives each wrote to the repository. Applying the command and then `jj op restore`
+leaves both operations in the log, so the next `u` undoes the restore and brings the preview
+back, and a restore would also discard anything another process wrote in between.
+`--no-integrate-operation` against the real repository leaves the op log alone but adds a keep
+ref per rewritten commit, which `git log --all` then shows. A copy of the metadata needs two more
+cares: the repository's own config is handed over as a file from `jj config list --repo` and
+`--workspace`, because a copied `config-id` makes jj copy the whole config directory into the
+user's jj config, and signing is dropped, so a signing key never prompts on a cursor move. Tests
+hash every file under `.jj` and `.git` before and after a burst of previews, a cancel, and a
+refused write.
+
+On a 3,300-commit repository with 300 operations, opening the sandbox costs 15ms of linking plus
+the snapshot and config reads (70 to 90ms in all), and a preview costs a write and a log, 50 to
+60ms on an idle machine and up to 150ms under load. Applying and restoring in place measured the
+same per move, so the safe route costs nothing in latency. The cursor waits 150ms before a
+preview runs, keeps the newest preview on screen until the next lands, and drops one that lands
+for a command no longer being built.
+
+**The past is read, never written.** The op log draws the log as it stood at the operation under
+its cursor (`jj log --at-op <op> --ignore-working-copy`), and `[o` and `]o` step through
+operations from the log itself. While the log shows the past it is read-only: a write verb would
+land on the present, which is not what is on screen, so every one says why it did nothing. `r` or
+Enter restores to the operation after a confirmation that shows what it was, and Esc returns to
+now. `u` and `Ctrl+r` stay jj's own undo and redo.
 
 **Moving part of a revision is three commands, not a mode.** A whole revision moves with
 `s`, one file with `m` in the file list (`jj squash --from --into <path>`, no editor at

@@ -125,8 +125,35 @@ func TestEnterOnNonCurrentOperationEmitsRestore(t *testing.T) {
 		t.Errorf("restored operation = %q, want %q", restored.Operation.ID, "bbb")
 	}
 
-	if m.IsOpen() {
-		t.Error("Update(enter) did not close the view")
+	// The list stays under the confirmation the restore asks for, so answering no comes back to it.
+	if !m.IsOpen() {
+		t.Error("Update(enter) closed the view before the restore was confirmed")
+	}
+}
+
+// Moving the cursor announces the operation it lands on and how far back it is, which is what
+// redraws the log beside the list as it stood there.
+func TestMovingAnnouncesTheOperationAndItsDistance(t *testing.T) {
+	t.Parallel()
+
+	m := oplogview.New(testSkin())
+	m.Open([]jj.Operation{op("aaa", "one", true), op("bbb", "two", false), op("ccc", "three", false)})
+
+	moved, ok := drainMsg[oplogview.MovedMsg](m.Update(tuitest.Key("j")))
+	if !ok {
+		t.Fatal("moving the cursor announced nothing")
+	}
+
+	if moved.Operation.ID != "bbb" || moved.Ago != 1 {
+		t.Errorf("moved to %q, %d ago; want bbb, 1 ago", moved.Operation.ID, moved.Ago)
+	}
+
+	if _, ok := drainMsg[oplogview.MovedMsg](m.Update(tuitest.Key("g"))); !ok {
+		t.Error("jumping to the top announced nothing")
+	}
+
+	if cmd := m.Update(tuitest.Key("k")); cmd != nil {
+		t.Error("a key that could not move the cursor still announced a move")
 	}
 }
 

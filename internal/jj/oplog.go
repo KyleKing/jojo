@@ -8,13 +8,16 @@ import (
 )
 
 // opLogTemplate renders one line per operation: its ID, description, whether it is the operation the
-// repo is currently at, and its age.
+// repo is currently at, its age, and the command line that made it. Version 0.47 of jj renamed tags
+// to attributes; tags still answers there with a deprecation warning on stderr, and it is the only
+// one older releases know.
 const opLogTemplate = `id.short(8) ++ "` + fieldSep + `" ++ ` +
 	`description ++ "` + fieldSep + `" ++ ` +
 	`if(current_operation,"@","") ++ "` + fieldSep + `" ++ ` +
-	`time.end().ago() ++ "\n"`
+	`time.end().ago() ++ "` + fieldSep + `" ++ ` +
+	`tags.lines().join(" ") ++ "\n"`
 
-const opLogFieldCount = 4
+const opLogFieldCount = 5
 
 // OpLog runs `jj op log` and returns each operation newest first. A non-positive limit means no limit.
 func (c *Client) OpLog(ctx context.Context, limit int) ([]Operation, error) {
@@ -64,6 +67,7 @@ func parseOpLog(out string) []Operation {
 			Description: shortenIDs(fields[1]),
 			Current:     fields[2] == "@",
 			Age:         fields[3],
+			Args:        shortenIDs(strings.TrimPrefix(fields[4], "args: ")),
 		})
 	}
 

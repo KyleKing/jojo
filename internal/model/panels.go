@@ -46,7 +46,11 @@ func load[T any](ctx context.Context, read func(context.Context) (T, error), sho
 // opLogLimit caps the operation log, which grows without bound in an active repository.
 const opLogLimit = 200
 
-func showOpLog(m *Model, ops []jj.Operation) tea.Cmd { return m.opLog.Open(ops) }
+// showOpLog opens the op log over the log as it stood at the operation under the cursor, which
+// starts at the present and follows the cursor back.
+func showOpLog(m *Model, ops []jj.Operation) tea.Cmd {
+	return tea.Batch(m.opLog.Open(ops), m.startTravel(ops, m.opLog.Ago()))
+}
 
 func showWorkspaces(m *Model, spaces []jj.Workspace) tea.Cmd { return m.spaces.Open(spaces) }
 

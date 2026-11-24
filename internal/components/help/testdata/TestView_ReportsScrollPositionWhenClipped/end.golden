@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│             edit the revset aliases            │
+│          w  new: leave @ where it is           │
 │                                                │
-│  ── Staging, in the files of @ ──────────────  │
-│      space  stage or unstage the file          │
-│          C  commit what is staged              │
-│                                   55–59 of 59  │
+│  ── Viewing an earlier operation ([o o) ─────  │
+│          r  restore the repository to it       │
+│        Esc  back to now                        │
+│                                   77–81 of 81  │
 │                                                │
 ╰────────────────────────────────────────────────╯

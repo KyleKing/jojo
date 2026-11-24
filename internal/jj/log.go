@@ -86,6 +86,28 @@ const logFieldCount = 9
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
 // A non-positive limit means no limit.
 func (c *Client) Log(ctx context.Context, revset string, limit int) ([]LogRow, error) {
+	out, err := c.executeJJ(ctx, logArgs(revset, limit)...)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseLog(out), nil
+}
+
+// LogAt is Log as the repository stood at operation op. It reads without snapshotting the working
+// copy and writes no operation, so looking at the past cannot change the present.
+func (c *Client) LogAt(ctx context.Context, op, revset string, limit int) ([]LogRow, error) {
+	args := append([]string{"--at-op", op, "--ignore-working-copy"}, logArgs(revset, limit)...)
+
+	out, err := c.executeJJ(ctx, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseLog(out), nil
+}
+
+func logArgs(revset string, limit int) []string {
 	args := []string{"log", "-T", logTemplate}
 	if revset != "" {
 		args = append(args, "-r", revset)
@@ -95,12 +117,7 @@ func (c *Client) Log(ctx context.Context, revset string, limit int) ([]LogRow, e
 		args = append(args, "-n", strconv.Itoa(limit))
 	}
 
-	out, err := c.executeJJ(ctx, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return parseLog(out), nil
+	return args
 }
 
 func parseLog(out string) []LogRow {

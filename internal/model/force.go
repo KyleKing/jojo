@@ -80,6 +80,8 @@ func (m Model) handleConfirmed(msg confirm.ConfirmedMsg) (tea.Model, tea.Cmd) {
 		m.pushing = pendingPush{}
 
 		return m, m.push(pending)
+	case confirmRestore:
+		return m.restoreConfirmed()
 	case confirmStale:
 		return m, m.run(undoHint, m.client.UpdateStaleWorkspace)
 	case confirmDivergent:
@@ -100,6 +102,7 @@ func (m Model) cancelConfirm() Model {
 	m.confirm.Close()
 	m.forcible = forcible{}
 	m.pushing = pendingPush{}
+	m.restoring = jj.Operation{}
 
 	return m
 }

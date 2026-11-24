@@ -96,12 +96,14 @@ the handlers read. The ones worth knowing before you start:
 | `Alt+p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it |
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks; a bookmark new to the remote is pushed by name, which tracks it, and a revision with none goes up under jj's generated `push-<change id>` (`jj git push -c`), each shown in the confirmation first |
-| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
+| `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate; `n` `s` `D` open the picker below |
 | `d` / `Alt+e` | describe in a prompt that holds the whole description, body and trailers included (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
 | `i` / `I` | squash hunks into the parent, or into any revision you pick |
-| `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
+| `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root, in the picker below |
+| in the picker | `j` / `k` choose the destination on the log while the graph redraws as it will be after the command; `o` `a` `b` onto, after, or before it; `r` `s` `B` move the revisions, them with descendants, or the branch (rebase); `e` skip emptied (rebase) or keep emptied (squash); `m` combine messages in `$EDITOR` (squash); `w` no-edit (new); `h` duplicate in place; `Tab` before or after; `Enter` runs the command the footer shows as one operation; `Esc` leaves nothing behind |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
-| `o` | the operation log, with restore, revert, and per-operation diff drawn in the diff pane |
+| `o` | the operation log, drawing the log as it stood at the operation under the cursor, with restore (after a confirmation), revert, and per-operation diff drawn in the diff pane |
+| `[o` / `]o` | step the log back or forward one operation, read-only: `r` restores to it, `o` opens the op log there, `Esc` comes back to now |
 | `E` | the evolution of the revision, with interdiff and restore |
 | `w` | the workspace panel, with add and forget |
 | `p` | the forge pane |

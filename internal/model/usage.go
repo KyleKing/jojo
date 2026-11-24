@@ -31,6 +31,8 @@ const (
 	ctxLog         = "log"
 	ctxOpLog       = "oplog"
 	ctxPalette     = "palette"
+	ctxPick        = "pick"
+	ctxTravel      = "travel"
 	ctxOutput      = "output"
 	ctxPrompt      = "prompt"
 	ctxSpaces      = "spaces"
@@ -49,6 +51,18 @@ func (m *Model) recordModalKey(ctx string, msg tea.KeyPressMsg) {
 	}
 
 	m.usage.Key(ctx, msg.String())
+}
+
+// modeKeys is a mode's own bindings, as the user has bound them, plus the movement every mode keeps.
+func modeKeys(keys help.Keymap, mode string) []keyusage.Binding {
+	out := []keyusage.Binding{bind("quit", "q", "ctrl+c"), bind("help", "?")}
+
+	bindings := keys.ModeBindings(mode)
+	for i := range bindings {
+		out = append(out, bind(bindings[i].What, bindings[i].Run))
+	}
+
+	return append(out, listMoves()...)
 }
 
 func bind(what string, keys ...string) keyusage.Binding {
@@ -83,7 +97,9 @@ func UsageKeymap(keys help.Keymap) keyusage.Keymap {
 	}
 
 	return keyusage.Keymap{
-		ctxLog: append(logKeys, listMoves()...),
+		ctxLog:    append(logKeys, listMoves()...),
+		ctxPick:   modeKeys(keys, help.ModePick),
+		ctxTravel: modeKeys(keys, help.ModeTravel),
 		ctxForge: {
 			bind("refresh", "r"),
 			bind("back to the log", "esc"),

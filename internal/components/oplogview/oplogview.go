@@ -32,6 +32,13 @@ type RevertMsg struct {
 // CancelledMsg is sent when Esc, q, or o dismisses the view.
 type CancelledMsg struct{}
 
+// MovedMsg is sent when the cursor lands on another operation, so the log beside the list can be
+// redrawn as it stood there. Ago counts the operations since, 0 for the current one.
+type MovedMsg struct {
+	Operation jj.Operation
+	Ago       int
+}
+
 // Model is the operation log.
 type Model struct {
 	skin ui.Skin
@@ -62,6 +69,14 @@ func (m *Model) Open(ops []jj.Operation) tea.Cmd {
 	return nil
 }
 
+// OpenAt shows ops with the cursor on index, which is how time travel hands its place to the list.
+func (m *Model) OpenAt(ops []jj.Operation, index int) {
+	m.list.Open("operation log", ops, index)
+}
+
+// Ago is how many operations the one under the cursor is behind the current one.
+func (m Model) Ago() int { return m.list.Cursor() }
+
 // Close hides the view.
 func (m *Model) Close() { m.list.Close() }
 
@@ -76,8 +91,14 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	name := key.String()
+	before := m.list.Cursor()
+
 	if m.list.MoveKey(name) {
-		return nil
+		if m.list.Cursor() == before {
+			return nil
+		}
+
+		return m.emit(func(op jj.Operation) tea.Msg { return MovedMsg{Operation: op, Ago: m.list.Cursor()} })
 	}
 
 	switch name {
@@ -106,11 +127,20 @@ func (m *Model) emit(build func(jj.Operation) tea.Msg) tea.Cmd {
 }
 
 // restore refuses the operation the repository is already at, which would report a move that never
-// happened.
+// happened. The list stays open under the confirmation it leads to, so a no comes back to it.
 func (m *Model) restore() tea.Cmd {
-	return m.guarded("already at this operation", func(op jj.Operation) tea.Msg {
-		return RestoreMsg{Operation: op}
-	})
+	op, ok := m.list.Selected()
+	if !ok {
+		return nil
+	}
+
+	if op.Current {
+		m.list.Warn("already at this operation")
+
+		return nil
+	}
+
+	return func() tea.Msg { return RestoreMsg{Operation: op} }
 }
 
 // revert refuses the current operation, which has nothing after it to keep and would only be a
@@ -168,6 +198,21 @@ func (m Model) row(op jj.Operation, selected bool) listview.Row {
 	}
 
 	text := marker + table.Pad(op.Age, ageWidth, table.AlignLeft) + " " + op.ID + " " + op.Description
+	if op.Args == "" || selected {
+		return listview.Row{Text: joinArgs(text, op.Args), Style: style}
+	}
 
-	return listview.Row{Text: text, Style: style}
+	// The command line is what a reader recognizes an operation by, the description what jj calls it.
+	return listview.Row{Drawn: style.Render(text) + m.skin.Muted.Render(argsGap+op.Args)}
+}
+
+// argsGap sets the command line apart from the description it follows.
+const argsGap = "  · "
+
+func joinArgs(text, args string) string {
+	if args == "" {
+		return text
+	}
+
+	return text + argsGap + args
 }
