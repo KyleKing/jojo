@@ -1,3 +1,9 @@
+## v0.9.0 (2026-11-24)
+
+### Feat
+
+- **help**: draw the key legend's groups as labeled rules
+
 ## v0.8.0 (2026-11-24)
 
 ### Feat
