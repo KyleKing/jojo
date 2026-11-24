@@ -11,6 +11,21 @@ mise run build
 ./jojo --repo path/to/repo
 ```
 
+Each row says how big its revision is, and `p` docks the diff beside the log, following the cursor:
+
+![The log, each row's size, and the diff docked beside it](docs/images/log.gif)
+
+`s`, `r`, `y`, `N`, and `R` turn the log into a destination picker that previews the graph as it
+will be after the command, and the footer is the live `jj` line:
+
+![Squash in the destination picker, the graph previewed](docs/images/picker.gif)
+
+`:` finds a verb by jj's word or git's (`amend` finds squash), and `?` explains a key:
+
+![The command palette finding squash from a git word](docs/images/palette.gif)
+
+The recordings run on an invented repository (`demo/scene.sh`); `mise run demo` makes them again.
+
 The requirements and the survey of what exists were relocated from
 [jj-diff](https://github.com/KyleKing/jj-diff) on 2026-09-02 once that project settled on
 staying a diff tool.
