@@ -1,3 +1,9 @@
+## v0.12.0 (2026-11-24)
+
+### Feat
+
+- **log**: pick destinations on a previewed log, and travel the op log
+
 ## v0.11.0 (2026-11-24)
 
 ### Feat
