@@ -60,6 +60,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	now := time.Now()
 	m.coach.Press(now)
 
+	if !m.welcomeKey(msg.String(), now) {
+		return m, m.coach.WakeAt(now)
+	}
+
 	next, cmd := m.routeKey(msg)
 
 	return next, tea.Batch(cmd, m.coach.WakeAt(now))

@@ -105,8 +105,10 @@ type Model struct {
 	// pal is the palette, `:` to search and run and `?` to browse and explain, and coach what it
 	// suggests next and teaches; trail is every jj call the client made. All three are pointers, so
 	// the copies Update makes of the model share them.
-	pal        *palette.Model
-	coach      *coach.Coach[logState]
+	pal   *palette.Model
+	coach *coach.Coach[logState]
+	// welcome is the first-run card, a pointer so the copies Update makes share whether it is up.
+	welcome    *coach.Welcome
 	trail      *trail.Trail
 	about      map[string]palette.About
 	trailView  trailview.Model
@@ -252,7 +254,8 @@ type Options struct {
 	JJDiff func(context.Context) jjdiff.Tool
 	// Ticker replaces tea.Tick for the model's own timers, nil for tea.Tick.
 	Ticker Ticker
-	// Ledger is where the coach remembers what it has shown and what was run, across sessions; nil
+	// Ledger is where the coach remembers what it has shown and what was run, across sessions, and
+	// whether the welcome card was dismissed; nil
 	// keeps it in memory for this session alone.
 	Ledger *coach.Ledger
 	// Trail is where every jj call is recorded, nil for a new one.
@@ -358,6 +361,10 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	}
 
 	m.coach = newCoach(km, opts.Ledger)
+	// The card asks the ledger the caller passed, not the coach's in-memory stand-in for none, which
+	// is fresh on every launch and would greet the reader every time.
+	m.welcome = newWelcome(km)
+	m.welcome.OpenIfDue(opts.Ledger)
 	m.submit.ghMissing = m.submit.gh.Installed()
 	m.outline.view.SetEmptyHints(km.Hints(keys.ActionBack, help.ActionRevset))
 
@@ -722,7 +729,10 @@ func (m Model) overlay() func(width, height int) string {
 	return nil
 }
 
-func (m Model) render() string {
+func (m Model) render() string { return m.withWelcome(m.screenFrame()) }
+
+// screenFrame is the frame under the welcome card.
+func (m Model) screenFrame() string {
 	if m.quitting || m.width == 0 {
 		return ""
 	}

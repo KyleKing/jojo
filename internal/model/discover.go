@@ -499,6 +499,8 @@ func (m Model) screenCommands() []palette.Entry {
 			"next step", "coach", "hint"),
 		command(cmdTipsOff, "stop tips about keys not yet used", "", "tips"),
 		command(cmdTipsOn, "show tips about keys not yet used", "", "tips"),
+		command(coach.WelcomeAction, coach.WelcomeEntry().What, coach.WelcomeEntry().Prose[0],
+			coach.WelcomeEntry().Also...),
 	}
 }
 
@@ -534,6 +536,10 @@ func (m Model) runPalette(run palette.RunMsg) (tea.Model, tea.Cmd) {
 		where := map[bool]string{true: "in a band", false: "in the line over the footer"}[m.band]
 
 		return m, m.say("next steps " + where)
+	case coach.WelcomeAction:
+		m.welcome.Open()
+
+		return m, nil
 	case cmdTipsOff, cmdTipsOn:
 		m.coach.Ledger().SetTipsOff(run.Action == cmdTipsOff)
 

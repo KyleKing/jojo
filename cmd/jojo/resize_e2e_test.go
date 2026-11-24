@@ -210,6 +210,17 @@ func isolated(t *testing.T) []string {
 
 	home := t.TempDir()
 
+	// A reader who has dismissed the welcome card, so every screen opens on what it tests.
+	state := filepath.Join(home, ".local", "state", "jojo")
+	if err := os.MkdirAll(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	welcomed := `{"first":"2026-01-01T00:00:00Z","welcomed":"2026-01-01T00:00:00Z","tips":{},"ran":{}}`
+	if err := os.WriteFile(filepath.Join(state, "coach.json"), []byte(welcomed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
 	return append(os.Environ(),
 		"HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
 		"XDG_DATA_HOME="+filepath.Join(home, ".local", "share"),

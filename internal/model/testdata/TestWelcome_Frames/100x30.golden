@@ -1,0 +1,30 @@
+  wkwyyxvq          (no description set)                                   2f +14 -3                
+  rnzxmskv          parse: read the new header format                       6f +0 -0                
+  koopqtrk          refactor: split the reader                                                      
+  twnsvwmr  parse*  test: cover the fallbacks                                                       
+  nptwozlo          release 0.13.0                                                                  
+
+
+
+                  ╭─ Welcome to jojo ────────────────────────────────────────────╮
+                  │ Your jj log: read changes, mark what you have read, and      │
+                  │ submit the stack for review.                                 │
+                  │                                                              │
+                  │ n      new on the revision (two or more checked: a merge)    │
+                  │ space  mark the hunk read                                    │
+                  │ ]u     next unread                                           │
+                  │ I      outline                                               │
+                  │ P      submit the stack as stacked pull requests (a plan fi… │
+                  │                                                              │
+                  │ ?      every key, and why one is off here                    │
+                  │ :      find and run any command by name                      │
+                  ╰─ any key to start · esc closes ──────────────────────────────╯
+
+
+
+
+
+
+
+ ▸ next  @ has changes but no description · d describe                               commit 7f3a91c2
+parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  a abandon  …  ? help  

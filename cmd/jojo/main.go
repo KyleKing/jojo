@@ -178,12 +178,7 @@ func run() error {
 		return fmt.Errorf("reading coach_layout: %w", err)
 	}
 
-	// The coach's ledger is local state, always on and holding no keystrokes: which tips were shown
-	// and when each action last ran. A ledger that cannot be read starts fresh in memory.
-	ledger, err := coach.OpenLedger(model.UsageApp)
-	if err != nil {
-		ledger, _ = coach.LedgerAt("") //nolint:errcheck // an in-memory ledger reads no file and cannot fail
-	}
+	ledger := openLedger()
 
 	opts := model.Options{
 		Keys: keys, Seen: pressed, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
@@ -200,6 +195,28 @@ func run() error {
 	profile := tea.WithColorProfile(theme.Profile(os.Stdout, os.Environ()))
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx), profile).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
+	}
+
+	return saveLedger(ledger)
+}
+
+// openLedger is the coach's ledger: local state, always on and holding no keystrokes, which says
+// which tips were shown, when each action last ran, and whether the welcome card was dismissed. A
+// ledger that cannot be opened is nil: the model keeps one in memory, and the welcome card, which
+// asks this one, stays down rather than greeting the reader on every launch.
+func openLedger() *coach.Ledger {
+	ledger, err := coach.OpenLedger(model.UsageApp)
+	if err != nil {
+		return nil
+	}
+
+	return ledger
+}
+
+// saveLedger writes the ledger back, nothing when there is none.
+func saveLedger(ledger *coach.Ledger) error {
+	if ledger == nil {
+		return nil
 	}
 
 	if err := ledger.Save(); err != nil {
