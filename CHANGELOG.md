@@ -1,3 +1,9 @@
+## v0.24.0 (2026-11-24)
+
+### Feat
+
+- **picker**: -m writes the message in a footer prompt; squash -o/-A/-B into a new commit
+
 ## v0.23.0 (2026-11-24)
 
 ### Feat
