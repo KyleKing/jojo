@@ -1,8 +1,8 @@
 Stack · 4 · parse-header                              │ version 2 of 3 · snapshot · 2 hours ago
-   1  kxqpmnzo     feat(parse): rea…  3f +120 -…  ····│ M third.txt
-   2  vwtrlsqy  ×  refactor: split …  2f +40 -38  ····│ L1
-   3  nnzolpqr  ∅  (no description …              ····│ ▎old third                                                      
-   4  yqosmzxt  @  test: cover the …              ····│ ▎new third                                                      
+  1  kxqpmnzo    feat(parse): read…  3f +120 -14  ····│ M third.txt
+  2  vwtrlsqy ×  refactor: split t…   2f +40 -38  ····│ L1
+  3  nnzolpqr ∅  (no description s…               ····│ ▎old third                                                      
+  4  yqosmzxt @  test: cover the f…               ····│ ▎new third                                                      
                                                       │ M second.txt
                                                       │ L1
                                                       │ ▎old second                                                     

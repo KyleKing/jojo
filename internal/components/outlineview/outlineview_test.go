@@ -2,6 +2,7 @@ package outlineview_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -169,6 +170,44 @@ func TestName_IsTheBookmarkNearestTheTip(t *testing.T) {
 
 			if got := m.Name(); got != tc.want {
 				t.Errorf("Name() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A description is cut only once the row has nothing left to give it: from the width the outline's
+// content needs, no row cuts its description, and below it every cell a metadata column pads past
+// its widest goes to the description instead. The change id and its flag sit one space apart, with
+// no column of their own for the flag.
+func TestView_DescriptionTakesTheSpareCells(t *testing.T) {
+	t.Parallel()
+
+	for width := 40; width <= 160; width += 3 {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m := newOutline(width, 8)
+			cut := false
+
+			for range stack() {
+				m.Move(-1)
+			}
+
+			for range stack() {
+				if over := m.Overflow(); len(over) > 0 && over[0] == m.Selected().Description {
+					cut = true
+				}
+
+				m.Move(1)
+			}
+
+			if width >= m.ContentWidth() && cut {
+				t.Errorf("a description is cut at %d columns, though the content needs %d", width, m.ContentWidth())
+			}
+
+			frame := tuitest.StripANSI(m.View())
+			if !strings.Contains(frame, "vwtrlsqy ×  refactor") {
+				t.Errorf("the flag is not one space after the change id:\n%s", frame)
 			}
 		})
 	}

@@ -5,6 +5,7 @@
 package outlineview
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,7 +30,6 @@ type Chapter struct {
 const (
 	colNumber    = "number"
 	colChange    = "change"
-	colFlags     = "flags"
 	colDesc      = "desc"
 	colBookmarks = "bookmarks"
 	colSize      = "size"
@@ -45,18 +45,17 @@ const (
 	prioRead
 )
 
-// Column widths, in display cells: the change id is pinned the way the log pins it, and the rest
-// bound how much a row's metadata may take before it collapses.
+// Column widths, in display cells: the change id is pinned the way the log pins it, with its flag
+// glyph a space after it, and the rest bound how much a row's metadata may take before it collapses.
+// No metadata column is ever wider than its widest cell, so every cell it would pad goes to the
+// description instead.
 const (
-	numberMin    = 2
-	numberMax    = 2
-	changeWidth  = 8
+	changeWidth  = 8 + len(" ") + 1
 	descMin      = 24
 	descBeside   = 14
 	descWeight   = 4
 	bookmarksMin = 6
 	bookmarksMax = 18
-	sizeMin      = 10
 	sizeMax      = 14
 	forgeMin     = 8
 	forgeMax     = 22
@@ -77,30 +76,106 @@ type Model struct {
 func New(skin ui.Skin) Model { return Model{skin: skin} }
 
 // columns is the outline's table, less the bookmark and forge columns when no chapter has anything
-// to put in them, so a stack with no branches yet spends no width on blanks.
+// to put in them, so a stack with no branches yet spends no width on blanks. Each metadata column is
+// capped at its widest cell, so the description takes every cell the rest leave.
 func (m Model) columns() []table.Column {
+	digits := len(strconv.Itoa(len(m.chapters)))
 	cols := []table.Column{
-		{Key: colNumber, Min: numberMin, Max: numberMax, Align: table.AlignRight},
+		{Key: colNumber, Min: digits, Max: digits, Align: table.AlignRight},
 		{Key: colChange, Min: changeWidth, Max: changeWidth},
-		{Key: colFlags, Min: 1, Max: 1},
 		{Key: colDesc, Min: m.descMin(), Weight: descWeight},
 	}
 
-	if m.any(func(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }) {
+	if widest := m.widest(bookmarkText); widest > 0 {
+		lo, hi := fitBounds(bookmarksMin, bookmarksMax, widest)
 		cols = append(cols, table.Column{
-			Key: colBookmarks, Min: bookmarksMin, Max: bookmarksMax, Weight: 1, Priority: prioBookmarks,
+			Key: colBookmarks, Min: lo, Max: hi, Weight: 1, Priority: prioBookmarks,
 		})
 	}
 
+	// A size is read whole or not at all, so its column is as wide as the widest one: it collapses
+	// before it cuts.
+	size := min(sizeMax, max(1, m.widest(func(c Chapter) string { return sizeText(c.Rev) })))
 	cols = append(cols, table.Column{
-		Key: colSize, Min: sizeMin, Max: sizeMax, Priority: prioSize, Align: table.AlignRight,
+		Key: colSize, Min: size, Max: size, Priority: prioSize, Align: table.AlignRight,
 	})
 
-	if m.any(func(c Chapter) string { return c.Forge }) {
-		cols = append(cols, table.Column{Key: colForge, Min: forgeMin, Max: forgeMax, Weight: 1, Priority: prioForge})
+	if widest := m.widest(func(c Chapter) string { return c.Forge }); widest > 0 {
+		lo, hi := fitBounds(forgeMin, forgeMax, widest)
+		cols = append(cols, table.Column{Key: colForge, Min: lo, Max: hi, Weight: 1, Priority: prioForge})
 	}
 
 	return append(cols, table.Column{Key: colRead, Min: readmark.Width, Max: readmark.Width, Priority: prioRead})
+}
+
+// layout fits the columns to the outline's width, the description first: it takes the spare cells
+// until the widest description is whole, then the metadata columns share what is left up to their
+// widest cells, and whatever still remains goes back to the description so a row spans the width.
+func (m Model) layout() table.Layout {
+	width := m.width - table.Gutter
+	cols := m.columns()
+	whole := max(m.descMin(), m.widest(description))
+
+	first := slices.Clone(cols)
+	for i := range first {
+		first[i].Weight = 0
+		if first[i].Key == colDesc {
+			first[i].Weight, first[i].Max = 1, whole
+		}
+	}
+
+	l := table.FitCompact(first, width)
+	if l.Width(colDesc) < whole || l.Total() >= width {
+		return l
+	}
+
+	second := slices.Clone(cols)
+	for i := range second {
+		if second[i].Key == colDesc {
+			second[i].Min, second[i].Max, second[i].Weight = whole, whole, 0
+		}
+	}
+
+	l = table.FitCompact(second, width)
+
+	spare := width - l.Total()
+	if spare <= 0 {
+		return l
+	}
+
+	third := make([]table.Column, 0, len(l.Columns))
+	for _, c := range l.Columns {
+		w := l.Width(c.Key)
+		if c.Key == colDesc {
+			w += spare
+		}
+
+		c.Min, c.Max, c.Weight = w, w, 0
+		third = append(third, c)
+	}
+
+	return table.FitCompact(third, width)
+}
+
+// fitBounds caps a column's bounds at the widest cell it holds, so it never pads past its content:
+// a column whose content is narrower than its least is exactly that wide.
+func fitBounds(least, most, widest int) (int, int) {
+	most = min(most, widest)
+
+	return min(least, most), most
+}
+
+// bookmarkText is a chapter's bookmarks as its row writes them.
+func bookmarkText(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }
+
+// widest is the widest text any chapter has for a column, 0 when none has any.
+func (m Model) widest(text func(Chapter) string) int {
+	w := 0
+	for _, c := range m.chapters {
+		w = max(w, lipgloss.Width(text(c)))
+	}
+
+	return w
 }
 
 // descMin is the narrowest the description goes before a column is dropped. Beside the docked diff
@@ -117,37 +192,17 @@ func (m Model) descMin() int {
 // SetBeside says whether the outline shares the terminal's width with the docked diff.
 func (m *Model) SetBeside(beside bool) { m.beside = beside }
 
-// any reports whether text has something to say for some chapter.
-func (m Model) any(text func(Chapter) string) bool {
-	for _, c := range m.chapters {
-		if text(c) != "" {
-			return true
-		}
-	}
-
-	return false
-}
-
 // ContentWidth is how wide the outline is when no row is cut: each column as wide as its widest
 // cell, within its bounds, and the title. A caller laying the outline beside something else gives
 // it this much and the rest to its neighbor, rather than a share its short rows would leave blank.
 func (m Model) ContentWidth() int {
-	widest := func(text func(Chapter) string) int {
-		w := 0
-		for _, c := range m.chapters {
-			w = max(w, lipgloss.Width(text(c)))
-		}
-
-		return w
-	}
-
 	natural := map[string]int{
 		colNumber:    len(strconv.Itoa(len(m.chapters))),
-		colChange:    widest(func(c Chapter) string { return c.Rev.ChangeID }),
-		colDesc:      widest(description),
-		colBookmarks: widest(func(c Chapter) string { return strings.Join(c.Rev.Bookmarks, " ") }),
-		colSize:      widest(func(c Chapter) string { return sizeText(c.Rev) }),
-		colForge:     widest(func(c Chapter) string { return c.Forge }),
+		colChange:    changeWidth,
+		colDesc:      m.widest(description),
+		colBookmarks: m.widest(bookmarkText),
+		colSize:      m.widest(func(c Chapter) string { return sizeText(c.Rev) }),
+		colForge:     m.widest(func(c Chapter) string { return c.Forge }),
 	}
 
 	total := table.Gutter
@@ -327,7 +382,7 @@ func (m Model) View() string {
 		lines = append(lines, m.skin.Muted.Render(empty))
 	}
 
-	layout := table.FitCompact(m.columns(), m.width-table.Gutter)
+	layout := m.layout()
 
 	for i := m.top; i < len(m.chapters) && len(lines) < m.height; i++ {
 		lines = append(lines, m.row(i, layout))
@@ -404,19 +459,14 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colNumber:
 		text, face = strconv.Itoa(i+1), m.skin.Muted
 	case colChange:
-		text, face = rev.ChangeID, m.skin.ChangeIDPrefix
-		if rev.WorkingCopy {
-			face = m.skin.WorkingCopy
-		}
-	case colFlags:
-		text, face = flags(rev), m.flagFace(rev)
+		return m.change(rev, width)
 	case colDesc:
 		text = rev.Description
 		if text == "" {
 			text, face = noDescription, m.skin.Muted.Italic(true)
 		}
 	case colBookmarks:
-		text, face = strings.Join(rev.Bookmarks, " "), m.skin.Bookmark
+		text, face = bookmarkText(c), m.skin.Bookmark
 	case colSize:
 		return m.size(rev, width)
 	case colForge:
@@ -430,6 +480,19 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	}
 
 	return face.Render(table.PadTrim(text, width, col.Align, table.TrimRight))
+}
+
+// change is the change id and, a space after it, the one glyph its state comes down to, so the flag
+// costs one cell rather than a column and its gutter.
+func (m Model) change(rev *jj.Revision, width int) string {
+	idFace := m.skin.ChangeIDPrefix
+	if rev.WorkingCopy {
+		idFace = m.skin.WorkingCopy
+	}
+
+	id := table.PadTrim(rev.ChangeID, max(0, width-len(" ")-1), table.AlignLeft, table.TrimRight)
+
+	return idFace.Render(id) + " " + m.flagFace(rev).Render(flags(rev))
 }
 
 // flags is the one glyph a chapter's state comes down to: a conflict outranks emptiness, which
@@ -505,7 +568,7 @@ func (m Model) Overflow() []string {
 	}
 
 	c := m.chapters[m.cursor]
-	layout := table.FitCompact(m.columns(), m.width-table.Gutter)
+	layout := m.layout()
 	whole := map[string]string{
 		colDesc: rev.Description, colBookmarks: strings.Join(rev.Bookmarks, " "), colForge: c.Forge,
 	}
