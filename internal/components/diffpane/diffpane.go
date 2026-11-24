@@ -483,6 +483,17 @@ func (m Model) DockView(width, height int, focused bool) string {
 
 func (m Model) row(i int, selected bool) listview.Row {
 	line := m.sheet.row(i)
+
+	// A read hunk's label, or a file read whole, is drawn muted behind ReadGlyph, as the dock draws it.
+	if m.read != nil && m.isRead(i) {
+		style := m.skin.Muted
+		if selected {
+			style = m.skin.Selected
+		}
+
+		return listview.Row{Text: ReadGlyph + " " + ansi.Strip(line), Style: style}
+	}
+
 	if selected {
 		return listview.Row{Text: line, Style: m.skin.Selected}
 	}

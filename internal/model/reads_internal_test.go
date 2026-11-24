@@ -74,21 +74,44 @@ func refsOf(t *testing.T, dir, change string) []seen.Ref {
 	return seen.Parse([]byte(jjRun(t, dir, "diff", "--git", "-r", change)))
 }
 
-// Space on a hunk in the dock marks it read and on the next press unread; on a file's heading it
-// marks the file. Every mark is on disk before the next key, where another process would find it.
+// readPanes are the two diffs the read keys work in, each opened on the log's cursor: the dock beside
+// the log (p, then tab to focus it) and the full-screen diff over it (enter). The read tests run in
+// both, since the two share one code path and must answer every key the same way.
+var readPanes = []struct {
+	view func(*Model) readView
+	name string
+	open []string
+}{
+	{name: "dock", open: []string{"p", "tab"}, view: (*Model).dockReads},
+	{name: "full screen", open: []string{"enter"}, view: (*Model).fullReads},
+}
+
+// Space on a hunk marks it read and on the next press unread; on a file's heading it marks the
+// file. Every mark is on disk before the next key, where another process would find it.
 func TestReads_SpaceMarksTheHunkThenTheFile(t *testing.T) {
 	t.Parallel()
 
-	dir := readsRepo(t)
-	store := seen.Open(t.TempDir())
-	change := changeFor(t, dir, "two")
-	refs := refsOf(t, dir, change)
+	for _, pane := range readPanes {
+		t.Run(pane.name, func(t *testing.T) {
+			t.Parallel()
 
-	if len(refs) != 3 {
-		t.Fatalf("two has %d hunks, want 3", len(refs))
+			dir := readsRepo(t)
+			store := seen.Open(t.TempDir())
+			change := changeFor(t, dir, "two")
+			refs := refsOf(t, dir, change)
+
+			if len(refs) != 3 {
+				t.Fatalf("two has %d hunks, want 3", len(refs))
+			}
+
+			m := press(t, readsModel(t, dir, "two", store), append(pane.open, "]", "h", "space")...)
+			assertSpaceMarks(t, m, store, change, refs)
+		})
 	}
+}
 
-	m := press(t, readsModel(t, dir, "two", store), "p", "tab", "]", "h", "space")
+func assertSpaceMarks(t *testing.T, m Model, store *seen.Store, change string, refs []seen.Ref) {
+	t.Helper()
 
 	if !strings.HasPrefix(m.message, "hunk read · 2 hunks left") {
 		t.Errorf("space said %q", m.message)
@@ -122,12 +145,11 @@ func TestReads_SpaceMarksTheHunkThenTheFile(t *testing.T) {
 		t.Errorf("space on a.txt reached b.txt too, or said %q", m.message)
 	}
 
-	m = press(t, m, "space")
+	press(t, m, "space")
+
 	if !store.Unread(change, string(refs[0].ID)) {
 		t.Error("space on a file already read did not mark it unread")
 	}
-
-	_ = m
 }
 
 // A mark follows the hunk's text: rebasing the change elsewhere keeps the hunk read, and changing a
@@ -205,31 +227,44 @@ func TestReads_ASecondWorkspaceSeesTheSameMarks(t *testing.T) {
 }
 
 // U draws only what is unread. A hunk marked read under it stays drawn until the cursor leaves it,
-// ]u steps the unread ones and says when it runs out, and with nothing left the dock says the change
+// ]u steps the unread ones and says when it runs out, and with nothing left the pane says the change
 // is read.
 func TestReads_OnlyUnreadHoldsAMarkUntilTheCursorLeaves(t *testing.T) {
 	t.Parallel()
 
-	dir := readsRepo(t)
-	store := seen.Open(t.TempDir())
-	change := changeFor(t, dir, "two")
+	for _, pane := range readPanes {
+		t.Run(pane.name, func(t *testing.T) {
+			t.Parallel()
 
-	m := press(t, readsModel(t, dir, "two", store), "p", "tab", "U")
-	if len(m.marks.shown) != 3 || !strings.HasPrefix(m.message, "only unread: 3 of 3 hunks") {
-		t.Fatalf("U shows %d hunks, said %q", len(m.marks.shown), m.message)
+			dir := readsRepo(t)
+			store := seen.Open(t.TempDir())
+			m := press(t, readsModel(t, dir, "two", store), append(pane.open, "U")...)
+
+			assertOnlyUnread(t, m, pane.view, changeFor(t, dir, "two"))
+		})
+	}
+}
+
+func assertOnlyUnread(t *testing.T, m Model, view func(*Model) readView, change string) {
+	t.Helper()
+
+	shown := func() int { return len(view(&m).state.shown) }
+
+	if shown() != 3 || !strings.HasPrefix(m.message, "only unread: 3 of 3 hunks") {
+		t.Fatalf("U shows %d hunks, said %q", shown(), m.message)
 	}
 
 	m = press(t, m, "]", "u", "space")
-	if len(m.marks.shown) != 3 {
-		t.Errorf("the hunk just marked was taken away under the cursor: %d shown", len(m.marks.shown))
+	if shown() != 3 {
+		t.Errorf("the hunk just marked was taken away under the cursor: %d shown", shown())
 	}
 
 	m = press(t, m, "]", "u")
-	if len(m.marks.shown) != 2 {
-		t.Errorf("after ]u left the read hunk %d are shown, want 2", len(m.marks.shown))
+	if shown() != 2 {
+		t.Errorf("after ]u left the read hunk %d are shown, want 2", shown())
 	}
 
-	if path, k, ok := m.dock.HunkAt(); !ok || path != "a.txt" || k != 0 {
+	if path, k, ok := view(&m).pane.HunkAt(); !ok || path != "a.txt" || k != 0 {
 		t.Errorf("]u landed on %s hunk %d, want a.txt's second hunk, now its first", path, k)
 	}
 
@@ -239,18 +274,41 @@ func TestReads_OnlyUnreadHoldsAMarkUntilTheCursorLeaves(t *testing.T) {
 	}
 
 	m = press(t, m, "space", "[", "u", "space", "k")
-	if m.unreadIn(change) != 0 || len(m.marks.shown) != 0 {
-		t.Fatalf("%d left unread, %d shown", m.unreadIn(change), len(m.marks.shown))
+	if m.unreadIn(change) != 0 || shown() != 0 {
+		t.Fatalf("%d left unread, %d shown", m.unreadIn(change), shown())
 	}
 
-	frame := tuitest.StripANSI(m.render())
-	if !strings.Contains(frame, change+" is read") {
+	if frame := tuitest.StripANSI(m.render()); !strings.Contains(frame, change+" is read") {
 		t.Errorf("an all-read change under U draws no card:\n%s", frame)
 	}
 
 	m = press(t, m, "]", "u")
 	if !strings.Contains(m.message, "all 3 hunks read") {
 		t.Errorf("]u with nothing unread said %q", m.message)
+	}
+}
+
+// A mark made in the full-screen diff is the dock's too: esc back to the log and the dock draws the
+// hunk read and the log row counts it.
+func TestReads_TheFullScreenDiffAndTheDockShareMarks(t *testing.T) {
+	t.Parallel()
+
+	dir := readsRepo(t)
+	store := seen.Open(t.TempDir())
+	change := changeFor(t, dir, "two")
+
+	m := press(t, readsModel(t, dir, "two", store), "enter", "]", "h", "space", "esc")
+	if m.diff.IsOpen() || m.marks.full.change != "" {
+		t.Fatal("esc left the full-screen diff, or its change, behind")
+	}
+
+	if s := m.strips[change]; s.Read != 1 {
+		t.Errorf("the log counts %+v after a mark in the full-screen diff", s)
+	}
+
+	m = press(t, m, "p")
+	if !strings.Contains(tuitest.StripANSI(m.render()), "✓ ") {
+		t.Error("the dock does not draw the hunk marked in the full-screen diff")
 	}
 }
 
@@ -308,6 +366,21 @@ func TestReads_GatesSayWhy(t *testing.T) {
 	m = press(t, readsModel(t, dir, "two", seen.Open(t.TempDir())), "]", "u")
 	if !strings.Contains(m.message, "no diff here is counted yet") {
 		t.Errorf("]u in a log with nothing counted said %q", m.message)
+	}
+
+	// A full-screen diff that is not one change's whole diff (a file's, two revisions') keeps none.
+	m = asModel(t, update(m, diffLoadedMsg{title: "diff a.txt in two", text: dockFirstDiff}))
+	for _, keys := range [][]string{{"space"}, {"]", "u"}, {"U", "U"}} {
+		m = press(t, m, keys...)
+
+		want := "read marks are kept on one change's whole diff, and this is diff a.txt in two"
+		if keys[0] == "U" {
+			want = "every hunk" // U is a mode, not a mark: it toggles anywhere
+		}
+
+		if !strings.Contains(m.message, want) {
+			t.Errorf("%v in a file's diff said %q", keys, m.message)
+		}
 	}
 }
 
@@ -371,6 +444,50 @@ func TestReads_Frames(t *testing.T) {
 			plain := tuitest.StripANSI(frame)
 			if !strings.Contains(plain, "◌1") || !strings.Contains(plain, "✓ ") {
 				t.Errorf("the frame does not draw the unread count and the read hunk:\n%s", plain)
+			}
+
+			tuitest.AssertGolden(t, frame)
+		})
+	}
+}
+
+// The full-screen diff with marks at both sizes: a hunk drawn read and the read keys in its footer.
+func TestReads_FullScreenFrames(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{80, 24}, {100, 30}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			store := seen.Open(t.TempDir())
+			refs := seen.Parse([]byte(dockFirstDiff))
+
+			if err := store.Mark("yqosmzxt", true, refs, refs[0].ID); err != nil {
+				t.Fatal(err)
+			}
+
+			opts := testOptions(t)
+			opts.Reads = store
+
+			m := New(t.Context(), jj.NewClient(t.TempDir()), ui.New(theme.Macchiato()), t.TempDir(), "@", opts)
+			m, _ = m.applyLog(logLoadedMsg{revset: "@", rows: twoRows()})
+			m = asModel(t, update(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]}))
+			m = asModel(t, update(m, diffLoadedMsg{
+				title: "diff yqosmzxt", text: dockFirstDiff, change: "yqosmzxt", hunks: refs,
+			}))
+
+			frame := m.render()
+			assertFits(t, frame, size[0], size[1], 0)
+
+			plain := tuitest.StripANSI(frame)
+			for _, want := range []string{"✓ ", "[space] read"} {
+				if !strings.Contains(plain, want) {
+					t.Errorf("the full-screen diff lacks %q:\n%s", want, plain)
+				}
+			}
+
+			if size[0] >= 100 && !strings.Contains(plain, "only [U]nread") {
+				t.Errorf("the full-screen footer does not tell U from ]u:\n%s", plain)
 			}
 
 			tuitest.AssertGolden(t, frame)

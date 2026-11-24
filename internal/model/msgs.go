@@ -59,6 +59,7 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case diffpane.CancelledMsg:
 		// Only the diff closes, since it may be drawn over the file list that opened it.
 		m.diff.Close()
+		leaveChange(m.fullReads())
 
 		return m, nil, true
 	case diffLoadedMsg:

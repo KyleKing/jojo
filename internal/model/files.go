@@ -248,8 +248,15 @@ func fileHints(km help.Keymap) fileview.Hints {
 	return h
 }
 
-// diffHints are the full-screen diff's footer keys as the user has them bound.
-func diffHints(km help.Keymap) []keyhint.Hint {
-	return km.Hints(keys.ActionLineDown, keys.NextAction(keys.ObjFile), keys.NextAction(keys.ObjHunk),
-		keys.ActionAgain, keys.ActionViewSideBySide, keys.ActionBack)
+// diffHints are the full-screen diff's footer keys as the user has them bound, the read marks' among
+// them while it shows one change's whole diff and marks can be kept.
+func diffHints(km help.Keymap, reads bool) []keyhint.Hint {
+	actions := []string{keys.ActionLineDown, keys.NextAction(keys.ObjFile), keys.NextAction(keys.ObjHunk)}
+	if reads {
+		actions = append(actions, keys.ActionRead, keys.NextAction(keys.ObjUnread), keys.ActionOnlyUnread)
+	}
+
+	actions = append(actions, keys.ActionAgain, keys.ActionViewSideBySide, keys.ActionBack)
+
+	return tellOnlyUnread(km, km.Hints(actions...))
 }

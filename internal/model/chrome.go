@@ -94,14 +94,7 @@ func (m Model) footerHints() []keyhint.Hint {
 	case help.Outline:
 		hints = m.outlineHints()
 	case keys.View:
-		hints = m.keys.HintsAt(m.gate, viewFooter...)
-		// ]u and U share a word in the shared table; the footer tells them apart.
-		only := m.keys.Label(keys.ActionOnlyUnread)
-		for i := range hints {
-			if hints[i].Key == only {
-				hints[i].What = "only unread"
-			}
-		}
+		hints = tellOnlyUnread(m.keys, m.keys.HintsAt(m.gate, viewFooter...))
 	default:
 		hints = m.keys.HintsAt(m.gate, logFooter...)
 		if next, ok := m.nextStep(); ok {

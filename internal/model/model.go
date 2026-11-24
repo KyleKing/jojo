@@ -267,7 +267,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	files.SetHints(fileHints(km))
 
 	diff := diffpane.New(skin)
-	diff.SetHints(diffHints(km))
+	diff.SetHints(diffHints(km, false))
 
 	log := opts.Trail
 	if log == nil {
@@ -658,7 +658,7 @@ func (m Model) overlay() func(width, height int) string {
 		{m.confirm.View, m.confirm.IsOpen()},
 		{m.bookmarks.View, m.bookmarks.IsOpen()},
 		{m.detail.View, m.detail.IsOpen()},
-		{m.diff.View, m.diff.IsOpen()},
+		{m.diffFrame, m.diff.IsOpen()},
 		{m.files.View, m.files.IsOpen()},
 		{m.prompt.View, m.prompt.IsOpen()},
 		{m.destPicker.View, m.destPicker.IsOpen()},
@@ -784,9 +784,19 @@ func (m Model) modeFrame() string {
 	return strings.Join(append(panes, m.travelFooter()), "\n")
 }
 
+// diffFrame is the full-screen diff, or the card saying its change is read once U has nothing left
+// to draw.
+func (m Model) diffFrame(width, height int) string {
+	if card := m.readCard(m.fullReads(), width, height); card != nil {
+		return strings.Join(card, "\n")
+	}
+
+	return m.diff.View(width, height)
+}
+
 // dockView is the docked diff, or the card saying its change is read once U has nothing left to draw.
 func (m Model) dockView(width, height int) string {
-	if card := m.readCard(width, height); card != nil {
+	if card := m.readCard(m.dockReads(), width, height); card != nil {
 		return strings.Join(card, "\n")
 	}
 

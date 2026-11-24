@@ -145,14 +145,14 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 
 	if msg.cacheKey != "" {
 		m.interdiffs[msg.cacheKey] = msg.text
-		m.leaveChange()
+		leaveChange(m.dockReads())
 		m.showDockText(msg.title, msg.prose+msg.text, "")
 
 		return m
 	}
 
 	m.noteRead(msg.revision, msg.commit, msg.hunks)
-	m.showChange(msg.revision, "diff "+msg.revision, msg.text, m.dock.CurrentPath())
+	m.showChange(m.dockReads(), msg.revision, "diff "+msg.revision, msg.text, m.dock.CurrentPath())
 
 	return m
 }
@@ -192,7 +192,7 @@ func (m Model) outlineWidth() int {
 func (m Model) dockSideBySide() bool { return m.width >= dockMinSideBySide }
 
 // dispatchView runs an action in the docked diff while it has the focus, or in the full-screen diff
-// over the log, which read the same keys.
+// over the log, which read the same keys, the read marks' included.
 func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
 	pane, docked := &m.dock, m.openModal() != ctxDiff
 	if !docked {
@@ -220,7 +220,7 @@ func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case keys.ActionRead:
-		cmd := m.markDock()
+		cmd := m.markPane(m.activeReads())
 
 		return m, cmd
 	case keys.ActionOnlyUnread:

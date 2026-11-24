@@ -259,13 +259,13 @@ var abouts = map[string]about{
 	},
 	keys.ActionOnlyUnread: {
 		also:    append([]string{"hide read", "hide viewed", "only new"}, readWords...),
-		prose:   "The docked diff draws only the hunks not yet read. U again draws every hunk.",
+		prose:   "The diff, docked or full screen, draws only the hunks not yet read. U again draws every hunk.",
 		related: []string{keys.ActionRead, keys.NextAction(keys.ObjUnread)},
 	},
 	keys.NextAction(keys.ObjUnread): {
 		also: append([]string{"next unread", "next unviewed"}, readWords...),
-		prose: "Steps to the next hunk not yet read in the dock, or in the log and the outline to the " +
-			"next revision with one; n repeats it.",
+		prose: "Steps to the next hunk not yet read in the diff, docked or full screen, or in the log and " +
+			"the outline to the next revision with one; n repeats it.",
 		related: []string{keys.ActionRead, keys.ActionOnlyUnread},
 	},
 	keys.PrevAction(keys.ObjUnread): {also: append([]string{"previous unread"}, readWords...)},

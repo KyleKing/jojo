@@ -239,7 +239,10 @@ without one, `noReads` answers and every read key says marks are off. A mark is 
 from. The outline counts every chapter's hunks behind the first frame, one diff at a time, so `]u`
 knows where to go, and a revision not counted yet is stepped over and named. A hunk marked read
 under `U` stays drawn until the cursor leaves it. Coming back from jj-diff reloads every scope, since
-it may have saved marks of its own.
+it may have saved marks of its own. The dock and the full-screen diff are each a `readView` (a pane
+and the change it holds), and every read key acts through whichever has the keys, so the two answer
+`Space`, `]u`, `[u`, and `U` from one code path; the full-screen one keeps marks only on one change's
+whole diff, not a file's or a comparison's, and says so.
 
 **What a row had no room for goes on one line.** The inspector over the footer says the whole of
 what the cursor row cut or collapsed at this width (description, bookmarks, author, age), with the

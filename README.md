@@ -98,7 +98,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `Tab` | cycle the log, the forge pane, and the docked diff |
 | `Enter` / `=` | diff the revision, or diff it against another revision you pick |
 | `p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it, and there `]h` / `[h` step hunks, `]f` / `[f` files, `n` / `N` repeat the last motion, `\s` switches to side by side |
-| `Space` / `]u` / `[u` / `U` | read marks, in the dock: `Space` marks the hunk read (again: unread; on a file's heading, the file), `]u` / `[u` step to the next or previous unread hunk, `U` draws only what is unread. In the log and the outline `]u` / `[u` step revisions with unread hunks, whose rows end with the count (`◌3`), and `Space` in the outline marks the whole chapter. A mark follows the hunk's text, so it survives a rebase, and every workspace and jj-diff share it |
+| `Space` / `]u` / `[u` / `U` | read marks, in the dock and in the full-screen diff (`Enter`) alike: `Space` marks the hunk read (again: unread; on a file's heading, the file), `]u` / `[u` step to the next or previous unread hunk, `U` draws only what is unread. In the log and the outline `]u` / `[u` step revisions with unread hunks, whose rows end with the count (`◌3`), and `Space` in the outline marks the whole chapter. A mark follows the hunk's text, so it survives a rebase, and every workspace and jj-diff share it |
 | `l` / `K` | the files the revision touches, or its details |
 | `n` / `N` | new on the revision (two or more checked: a merge), or new placed with the picker below |
 | `e` / `E` | edit the revision, or edit its content in the diff editor (`jj diffedit`) |

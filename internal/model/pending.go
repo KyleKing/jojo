@@ -180,6 +180,7 @@ func (m Model) cancelModals() Model {
 	m.detail.Close()
 	m.files.Close()
 	m.diff.Close()
+	leaveChange(m.fullReads())
 	m.onSubmit, m.onPick, m.onEditor = nil, nil, nil
 
 	return m

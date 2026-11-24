@@ -96,7 +96,7 @@ func (m Model) viewAction(action string, rev jj.Revision) (tea.Cmd, bool) {
 
 		return m.previewPush(joinIDs(targets), jj.PushOptions{Revisions: targets}), true
 	case help.ActionDiff:
-		return m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
+		return m.showRevisionDiff(rev), true
 	case help.ActionCompare:
 		return m.openCompare(rev.ChangeID), true
 	}

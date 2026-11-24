@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/empty"
+	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -63,23 +64,57 @@ type heldHunk struct {
 	set  bool
 }
 
+// paneReads is what one diff pane keeps about the change it shows, for its read marks.
+type paneReads struct {
+	// change is the change whose whole diff the pane shows, "" while it shows a round, another kind
+	// of diff, or nothing, and text that diff.
+	change string
+	text   string
+	title  string
+	// shown is the pane's hunks in order, the change's whole list or, under U, the ones drawn, and
+	// byPath the same grouped by file, which is how the pane names a hunk.
+	shown  []seen.Ref
+	byPath map[string][]seen.Ref
+	held   heldHunk
+}
+
 // readsState is what the screen keeps about read marks beyond the store.
 type readsState struct {
 	// live is each change's whole hunk list as last read, by change id. A map, so the copies Update
 	// makes of the model share it.
 	live map[string]liveHunks
-	// change is the change whose whole diff the dock shows, "" while it shows a round or nothing,
-	// and text that diff.
-	change string
-	text   string
-	title  string
-	// shown is the dock's hunks in order, the change's whole list or, under U, the ones drawn, and
-	// byPath the same grouped by file, which is how the pane names a hunk.
-	shown  []seen.Ref
-	byPath map[string][]seen.Ref
-	held   heldHunk
-	// only is U: the dock draws only the hunks not yet read.
+	// dock is the docked diff's, and full the full-screen diff's, which Enter opens over the log.
+	dock paneReads
+	full paneReads
+	// only is U: both panes draw only the hunks not yet read.
 	only bool
+}
+
+// readView is one diff pane that keeps read marks, with what it holds: the dock or the full-screen
+// diff. Every read key acts through one, so the two answer space, ]u, [u, and U the same way.
+type readView struct {
+	pane  *diffpane.Model
+	state *paneReads
+	full  bool
+}
+
+// dockReads is the docked diff as a readView.
+func (m *Model) dockReads() readView {
+	return readView{pane: &m.dock, state: &m.marks.dock}
+}
+
+// fullReads is the full-screen diff as a readView.
+func (m *Model) fullReads() readView {
+	return readView{pane: &m.diff, state: &m.marks.full, full: true}
+}
+
+// activeReads is the pane the read keys act in: the full-screen diff while it is open, else the dock.
+func (m *Model) activeReads() readView {
+	if m.openModal() == ctxDiff {
+		return m.fullReads()
+	}
+
+	return m.dockReads()
 }
 
 // marksOff reports whether marks cannot be kept, which every read key then says.
@@ -136,43 +171,52 @@ func (m *Model) reloadMarks() {
 	}
 }
 
-// showChange puts a change's whole diff in the dock, filtered to what is unread under U, landing on
-// keep's file when it is still drawn.
-func (m *Model) showChange(changeID, title, text, keep string) {
-	m.marks.change, m.marks.text, m.marks.title, m.marks.held = changeID, text, title, heldHunk{}
-	m.drawChange(keep)
+// showChange puts a change's whole diff in v, filtered to what is unread under U, landing on keep's
+// file when it is still drawn.
+func (m *Model) showChange(v readView, changeID, title, text, keep string) {
+	*v.state = paneReads{change: changeID, text: text, title: title}
+	m.drawChange(v, keep)
 }
 
-// drawChange draws the change the dock holds, through U's filter when it is on.
-func (m *Model) drawChange(keep string) {
-	refs := m.marks.live[m.marks.change].refs
-	text, shown := m.marks.text, refs
+// drawChange draws the change v holds, through U's filter when it is on.
+func (m *Model) drawChange(v readView, keep string) {
+	st := v.state
+	refs := m.marks.live[st.change].refs
+	text, shown := st.text, refs
 
 	if m.marks.only {
 		filtered, kept, ok := filterDiff(text, refs, func(r seen.Ref) bool {
-			return m.reads.Unread(m.marks.change, string(r.ID))
+			return m.reads.Unread(st.change, string(r.ID))
 		})
 		if ok {
 			text, shown = filtered, kept
 		}
 	}
 
-	m.marks.shown, m.marks.byPath = shown, groupByPath(shown)
-	m.showDockText(m.marks.title, text, keep)
+	st.shown, st.byPath = shown, groupByPath(shown)
 
-	change, byPath, reads := m.marks.change, m.marks.byPath, m.reads
-	m.dock.SetRead(func(path string, k int) bool {
+	switch {
+	case !v.full:
+		m.showDockText(st.title, text, keep)
+	case keep == "":
+		v.pane.Open(st.title, text, m.width)
+	default:
+		v.pane.Show(st.title, text, m.width, keep)
+	}
+
+	change, byPath, reads := st.change, st.byPath, m.reads
+	v.pane.SetRead(func(path string, k int) bool {
 		in := byPath[path]
 
 		return k < len(in) && !reads.Unread(change, string(in[k].ID))
 	})
 }
 
-// leaveChange says the dock no longer shows a change as it stands (a round is up), so read keys are
-// refused and no hunk draws as read.
-func (m *Model) leaveChange() {
-	m.marks.change, m.marks.shown, m.marks.byPath, m.marks.held = "", nil, nil, heldHunk{}
-	m.dock.SetRead(nil)
+// leaveChange says v no longer shows a change as it stands (a round, or a diff that is not one
+// change's whole diff, is up), so read keys are refused there and no hunk draws as read.
+func leaveChange(v readView) {
+	*v.state = paneReads{}
+	v.pane.SetRead(nil)
 }
 
 func groupByPath(refs []seen.Ref) map[string][]seen.Ref {
@@ -241,20 +285,21 @@ func filterDiff(gitDiff string, refs []seen.Ref, keep func(seen.Ref) bool) (stri
 	return out.String(), kept, true
 }
 
-// dockReadable is why the dock cannot keep marks right now, "" when it can.
-func (m Model) dockReadable() string {
+// readableIn is why v cannot keep marks right now, "" when it can.
+func (m Model) readableIn(v readView) string {
+	change := v.state.change
+
 	switch {
 	case m.marksOff():
 		return errMarksOff.Error()
-	case m.openModal() == ctxDiff:
-		return "read marks are kept in the docked diff: esc, then " + m.keys.Label(help.ActionPreview) +
-			" docks this one"
-	case !m.docked:
+	case !v.full && !m.docked:
 		return "the diff is not docked: " + m.keys.Label(help.ActionPreview) + " docks it"
-	case m.marks.change == "":
+	case v.full && change == "":
+		return "read marks are kept on one change's whole diff, and this is " + v.state.title
+	case change == "":
 		return "a round is on screen; marks are for the change as it stands, which ]r past the newest returns to"
-	case len(m.marks.live[m.marks.change].refs) == 0:
-		return "nothing to read: " + m.marks.change + " changes no lines"
+	case len(m.marks.live[change].refs) == 0:
+		return "nothing to read: " + change + " changes no lines"
 	}
 
 	return ""
@@ -279,7 +324,7 @@ func (m Model) readGate(screen keys.Context, action string) (keys.Availability, 
 
 	switch {
 	case screen == keys.View:
-		return m.dockGate(action, motion), true
+		return m.paneGate(m.activeReads(), action, motion), true
 	case screen == help.Outline && action == keys.ActionRead:
 		if rev := m.outline.view.Selected(); rev == nil || rev.Empty {
 			return keys.Refuse("nothing to read in an empty chapter"), true
@@ -291,13 +336,14 @@ func (m Model) readGate(screen keys.Context, action string) (keys.Availability, 
 	return keys.Allow(), true
 }
 
-// dockGate answers the read keys pressed in the docked diff.
-func (m Model) dockGate(action string, motion bool) keys.Availability {
-	if why := m.dockReadable(); why != "" && action != keys.ActionOnlyUnread {
+// paneGate answers the read keys pressed in a diff pane, docked or full screen.
+func (m Model) paneGate(v readView, action string, motion bool) keys.Availability {
+	if why := m.readableIn(v); why != "" && action != keys.ActionOnlyUnread {
 		return keys.Refuse(why)
 	}
 
-	if total := len(m.marks.live[m.marks.change].refs); motion && m.unreadIn(m.marks.change) == 0 {
+	change := v.state.change
+	if total := len(m.marks.live[change].refs); motion && m.unreadIn(change) == 0 {
 		return keys.Refuse("all " + plural(total, "hunk") + " read")
 	}
 
@@ -412,15 +458,15 @@ func (m Model) markCmd(change string, read bool, live []seen.Ref, ids []seen.ID,
 	}
 }
 
-// markDock is space in the dock: the hunk under the cursor toggles, and on a file's heading the whole
-// file goes read, or unread when all of it already is.
-func (m *Model) markDock() tea.Cmd {
-	path, k, ok := m.dock.HunkAt()
+// markPane is space in a diff pane: the hunk under the cursor toggles, and on a file's heading the
+// whole file goes read, or unread when all of it already is.
+func (m *Model) markPane(v readView) tea.Cmd {
+	path, k, ok := v.pane.HunkAt()
 	if !ok {
 		return m.say("no hunk under the cursor")
 	}
 
-	change := m.marks.change
+	change := v.state.change
 	live := m.marks.live[change].refs
 
 	if k < 0 {
@@ -439,27 +485,27 @@ func (m *Model) markDock() tea.Cmd {
 			return m.say(path + " has no hunks to read")
 		}
 
-		m.hold(path, -1)
+		m.hold(v, path, -1)
 
 		return m.markCmd(change, !all, live, ids, path+" "+readWord(!all))
 	}
 
-	in := m.marks.byPath[path]
+	in := v.state.byPath[path]
 	if k >= len(in) {
 		return m.say("no hunk under the cursor")
 	}
 
 	id := in[k].ID
 	read := m.reads.Unread(change, string(id))
-	m.hold(path, k)
+	m.hold(v, path, k)
 
 	return m.markCmd(change, read, live, []seen.ID{id}, "hunk "+readWord(read))
 }
 
 // hold keeps what was just marked drawn under U until the cursor leaves it.
-func (m *Model) hold(path string, k int) {
+func (m *Model) hold(v readView, path string, k int) {
 	if m.marks.only {
-		m.marks.held = heldHunk{path: path, k: k, set: true}
+		v.state.held = heldHunk{path: path, k: k, set: true}
 	}
 }
 
@@ -576,70 +622,80 @@ func (m Model) handleReadMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// settleHeld drops a hunk marked read under U once the cursor has left it, redrawing the filter on
-// the hunk the cursor moved to.
+// settleHeld drops a hunk marked read under U once the cursor has left it in the pane the keys act
+// in, redrawing the filter on the hunk the cursor moved to.
 func (m *Model) settleHeld() {
-	held := m.marks.held
-	if !held.set || !m.marks.only || m.marks.change == "" {
+	v := m.activeReads()
+
+	held := v.state.held
+	if !held.set || !m.marks.only || v.state.change == "" {
 		return
 	}
 
-	path, k, ok := m.dock.HunkAt()
+	path, k, ok := v.pane.HunkAt()
 	if ok && path == held.path && k == held.k {
 		return
 	}
 
-	// Where the cursor is, named by the hunk, since the filter renumbers every row.
+	v.state.held = heldHunk{}
+	m.redraw(v, path, k, ok)
+}
+
+// redraw draws v again keeping the cursor on the hunk at path's k (its heading for a negative k),
+// named by the hunk since the filter renumbers every row; ok false lands nowhere in particular.
+func (m *Model) redraw(v readView, path string, k int, ok bool) {
 	var at *seen.Ref
 
-	if ok && k >= 0 && k < len(m.marks.byPath[path]) {
-		r := m.marks.byPath[path][k]
+	if ok && k >= 0 && k < len(v.state.byPath[path]) {
+		r := v.state.byPath[path][k]
 		at = &r
 	}
 
-	m.marks.held = heldHunk{}
-	m.drawChange(path)
-	m.land(path, at)
+	m.drawChange(v, path)
+
+	if ok {
+		m.land(v, path, at)
+	}
 }
 
-// land puts the dock's cursor back on ref (or on path's heading when ref is nil) after a redraw, or
-// on the first hunk drawn after it when it is no longer drawn.
-func (m *Model) land(path string, ref *seen.Ref) {
+// land puts v's cursor back on ref (or on path's heading when ref is nil) after a redraw, or on the
+// first hunk drawn after it when it is no longer drawn.
+func (m *Model) land(v readView, path string, ref *seen.Ref) {
 	if ref == nil {
-		m.dock.JumpHunk(path, -1)
+		v.pane.JumpHunk(path, -1)
 
 		return
 	}
 
-	live := m.marks.live[m.marks.change].refs
+	live := m.marks.live[v.state.change].refs
 	from := slices.IndexFunc(live, func(r seen.Ref) bool { return r.ID == ref.ID && r.Path == ref.Path })
 
 	for _, r := range live[max(0, from):] {
-		if k := slices.IndexFunc(m.marks.byPath[r.Path], func(s seen.Ref) bool { return s.ID == r.ID }); k >= 0 {
-			m.dock.JumpHunk(r.Path, k)
+		if k := slices.IndexFunc(v.state.byPath[r.Path], func(s seen.Ref) bool { return s.ID == r.ID }); k >= 0 {
+			v.pane.JumpHunk(r.Path, k)
 
 			return
 		}
 	}
 }
 
-// stepUnreadDock moves the dock's cursor to the next (dir 1) or previous (-1) hunk not yet read.
-func (m *Model) stepUnreadDock(dir int) tea.Cmd {
-	if why := m.dockReadable(); why != "" {
+// stepUnread moves v's cursor to the next (dir 1) or previous (-1) hunk not yet read.
+func (m *Model) stepUnread(v readView, dir int) tea.Cmd {
+	if why := m.readableIn(v); why != "" {
 		return m.say(why)
 	}
 
-	shown := m.marks.shown
-	pos := m.dockPosition()
-	change := m.marks.change
+	shown := v.state.shown
+	pos := position(v)
+	change := v.state.change
 
 	for i := pos + dir; i >= 0 && i < len(shown); i += dir {
 		if !m.reads.Unread(change, string(shown[i].ID)) {
 			continue
 		}
 
-		in := m.marks.byPath[shown[i].Path]
-		m.dock.JumpHunk(shown[i].Path, slices.IndexFunc(in, func(r seen.Ref) bool { return r.ID == shown[i].ID }))
+		in := v.state.byPath[shown[i].Path]
+		v.pane.JumpHunk(shown[i].Path, slices.IndexFunc(in, func(r seen.Ref) bool { return r.ID == shown[i].ID }))
 		m.settleHeld()
 
 		return nil
@@ -652,15 +708,15 @@ func (m *Model) stepUnreadDock(dir int) tea.Cmd {
 	return m.say("no unread hunk above")
 }
 
-// dockPosition is the index in shown of the hunk under the dock's cursor. On a file's heading it sits
+// position is the index in v's shown hunks of the one under its cursor. On a file's heading it sits
 // just before the file's first hunk, and above every file it is -1.
-func (m Model) dockPosition() int {
-	path, k, ok := m.dock.HunkAt()
+func position(v readView) int {
+	path, k, ok := v.pane.HunkAt()
 	if !ok {
 		return -1
 	}
 
-	first := slices.IndexFunc(m.marks.shown, func(r seen.Ref) bool { return r.Path == path })
+	first := slices.IndexFunc(v.state.shown, func(r seen.Ref) bool { return r.Path == path })
 	if first < 0 {
 		return -1
 	}
@@ -739,25 +795,17 @@ func (m Model) stepUnreadRev(screen keys.Context, dir int) (Model, tea.Cmd) {
 	return m, m.say(say)
 }
 
-// toggleOnlyUnread is U: the dock draws only what is unread, or everything again.
+// toggleOnlyUnread is U: both diff panes draw only what is unread, or everything again, each keeping
+// its cursor on the hunk it was on.
 func (m *Model) toggleOnlyUnread() tea.Cmd {
 	m.marks.only = !m.marks.only
-	m.marks.held = heldHunk{}
 
-	if m.marks.change != "" {
-		path, k, ok := m.dock.HunkAt()
+	for _, v := range []readView{m.dockReads(), m.fullReads()} {
+		v.state.held = heldHunk{}
 
-		var at *seen.Ref
-
-		if ok && k >= 0 && k < len(m.marks.byPath[path]) {
-			r := m.marks.byPath[path][k]
-			at = &r
-		}
-
-		m.drawChange(path)
-
-		if ok {
-			m.land(path, at)
+		if v.state.change != "" && (!v.full || m.diff.IsOpen()) {
+			path, k, ok := v.pane.HunkAt()
+			m.redraw(v, path, k, ok)
 		}
 	}
 
@@ -765,39 +813,65 @@ func (m *Model) toggleOnlyUnread() tea.Cmd {
 		return m.say("every hunk")
 	}
 
-	say := "only unread"
-	if live := m.marks.live[m.marks.change].refs; m.marks.change != "" {
-		say += ": " + strconv.Itoa(len(m.marks.shown)) + " of " + plural(len(live), "hunk")
+	v := m.activeReads()
+
+	say := onlyUnread
+	if live := m.marks.live[v.state.change].refs; v.state.change != "" {
+		say += ": " + strconv.Itoa(len(v.state.shown)) + " of " + plural(len(live), "hunk")
 	}
 
-	if !m.docked {
+	if !m.docked && !v.full {
 		say += "; " + m.keys.Label(help.ActionPreview) + " docks the diff"
 	}
 
 	return m.say(say)
 }
 
-// readCard is what the dock draws under U once nothing in the change is left to read, nil otherwise.
-func (m Model) readCard(width, height int) []string {
-	if !m.marks.only || m.marks.change == "" || len(m.marks.shown) > 0 ||
-		len(m.marks.live[m.marks.change].refs) == 0 || width <= 0 || height <= 1 {
+// onlyUnread is what U is called where ]u's "unread" sits beside it.
+const onlyUnread = "only unread"
+
+// tellOnlyUnread names U's hint apart from ]u's: the two share a word in the shared table.
+func tellOnlyUnread(km help.Keymap, hints []keyhint.Hint) []keyhint.Hint {
+	only := km.Label(keys.ActionOnlyUnread)
+	for i := range hints {
+		if hints[i].Key == only {
+			hints[i].What = onlyUnread
+		}
+	}
+
+	return hints
+}
+
+// readCard is what v draws under U once nothing in its change is left to read, nil otherwise: beside
+// the log behind the dock's rule, or full width over it.
+func (m Model) readCard(v readView, width, height int) []string {
+	st := v.state
+	if !m.marks.only || st.change == "" || len(st.shown) > 0 ||
+		len(m.marks.live[st.change].refs) == 0 || width <= 0 || height <= 1 {
 		return nil
 	}
 
-	total := len(m.marks.live[m.marks.change].refs)
+	total := len(m.marks.live[st.change].refs)
 	card := empty.Empty{
-		Title: m.marks.change + " is read",
+		Title: st.change + " is read",
 		Why:   "All " + plural(total, "hunk") + " of it are marked read. U shows every hunk again.",
 		Hints: m.keys.Hints(keys.ActionOnlyUnread, keys.NextAction(keys.ObjChapter)),
+	}
+
+	if v.full {
+		card.Hints = m.keys.Hints(keys.ActionOnlyUnread, keys.ActionBack)
 	}
 
 	if len(card.Hints) > 0 {
 		card.Hints[0].What = "every hunk"
 	}
 
-	inner := diffpane.DockWidth(width)
-	rule := m.skin.Muted.Render("│ ")
-	lines := []string{rule + m.skin.Muted.Render(table.Truncate(m.marks.title, inner))}
+	inner, rule := diffpane.DockWidth(width), m.skin.Muted.Render("│ ")
+	if v.full {
+		inner, rule = width, ""
+	}
+
+	lines := []string{rule + m.skin.Muted.Render(table.Truncate(st.title, inner))}
 
 	for _, line := range empty.Card(m.skin.Skin, card, inner, height-1) {
 		lines = append(lines, rule+line)
