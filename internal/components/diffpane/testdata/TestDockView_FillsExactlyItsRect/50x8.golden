@@ -1,8 +1,8 @@
 │ diff a
 │ M first.txt
-│ @@ -1 +1 @@
-│ -old first
-│ +new first
+│ L1
+│ ▎old first                                      
+│ ▎new first                                      
 │ M second.txt
-│ @@ -1 +1 @@
-│ -old second
+│ L1
+│ ▎old second                                     

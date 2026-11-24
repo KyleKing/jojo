@@ -234,7 +234,7 @@ func TestDock_FitsTheTerminalAtEverySize(t *testing.T) {
 				}
 			}
 
-			if !strings.Contains(tuitest.StripANSI(frame), "+new first") {
+			if !strings.Contains(tuitest.StripANSI(frame), "▎new first") {
 				t.Errorf("the frame does not show the docked diff:\n%s", tuitest.StripANSI(frame))
 			}
 

@@ -88,6 +88,8 @@ func (m *Model) render() {
 		Syntax:     true,
 		WordDiff:   true,
 		SideBySide: m.sideBySide,
+		SignBar:    m.skin.SignBar(),
+		HunkLabels: true,
 	})
 
 	m.list.Open(m.title, lines, 0)
@@ -326,8 +328,10 @@ func paletteFor(s ui.Skin) render.Palette {
 		Added:       p.Green,
 		Removed:     p.Red,
 		Context:     p.Text,
-		AddedWord:   p.Surface1,
-		RemovedWord: p.Surface1,
+		AddedWash:   s.Diff.AddWash,
+		RemovedWash: s.Diff.RemoveWash,
+		AddedWord:   s.Diff.AddMark,
+		RemovedWord: s.Diff.RemoveMark,
 		Gutter:      p.Overlay0,
 		Syntax: render.SyntaxPalette{
 			Comment:  p.Overlay1,

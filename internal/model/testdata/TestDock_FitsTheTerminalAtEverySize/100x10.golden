@@ -1,10 +1,10 @@
 r: @                                                                                                 
   aaaa              source                        │ diff aaaa
   bbbb              destination                   │ M first.txt
-                                                  │ @@ -1 +1 @@
-                                                  │ -old first
-                                                  │ +new first
+                                                  │ L1
+                                                  │ ▎old first                                      
+                                                  │ ▎new first                                      
                                                   │ M second.txt
-                                                  │ @@ -1 +1 @@
-                                                  │ -old second
+                                                  │ L1
+                                                  │ ▎old second                                     
 @  [↑ ↓ ← →] move  [Enter] select  [Esc] back  [q]uit  [Tab] switch pane  [n]ew  [e]dit  …  [?] help

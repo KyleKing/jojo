@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/exp/golden v0.1.0
 	github.com/kyleking/aragonite v1.20.0
-	github.com/kyleking/jj-diff v0.7.0
+	github.com/kyleking/jj-diff v0.8.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 )
 

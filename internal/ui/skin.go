@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"os"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
@@ -47,6 +49,9 @@ type Skin struct {
 	// Icons draws a file's type beside its name: Nerd Font glyphs unless
 	// ARAGONITE_ICONS asks for plain unicode, shared with the sibling tools.
 	Icons icons.Set
+	// Diff is what a changed line is drawn with in the diff pane: its wash, the deeper mark on
+	// the words that changed, and the sign bar, the same faces second-look and jj-diff use.
+	Diff skin.DiffFaces
 }
 
 // accent returns the color that tells jojo apart from aragonite's other
@@ -73,14 +78,29 @@ func New(p theme.Palette) Skin {
 		Removed:        base.Foreground(p.Red),
 		Selected:       base.Reverse(true),
 		Icons:          icons.New(icons.Resolve(""), p),
+		Diff:           skin.Diff(p, true),
 		Palette:        p,
 	}
+}
+
+// SignBar says whether a changed line's side can be drawn as a colored bar, which it cannot under
+// NO_COLOR, where only a + or a - says which side a line is on.
+func (s Skin) SignBar() bool {
+	return s.Diff.Sign(true) == skin.SignBar
+}
+
+// forTerminal fits the diff faces to the terminal's colors: a 256-color terminal needs deeper
+// tints than a truecolor one, or both sides quantize into the same grey.
+func forTerminal(s Skin) Skin {
+	s.Diff = skin.Diff(s.Palette, colorprofile.Detect(os.Stdout, os.Environ()) == colorprofile.TrueColor)
+
+	return s
 }
 
 // Detected builds a skin for whichever flavor the terminal's background calls
 // for, which is what main starts with.
 func Detected() Skin {
-	return New(theme.Detect())
+	return forTerminal(New(theme.Detect()))
 }
 
 // ErrUnknownFlavor marks a theme name no flavor answers to.
@@ -94,9 +114,9 @@ func Flavor(name string) (Skin, error) {
 	case "":
 		return Detected(), nil
 	case "latte", "light":
-		return New(theme.Latte()), nil
+		return forTerminal(New(theme.Latte())), nil
 	case "macchiato", "dark":
-		return New(theme.Macchiato()), nil
+		return forTerminal(New(theme.Macchiato())), nil
 	}
 
 	return Skin{}, fmt.Errorf("%w: %q, want latte or macchiato", ErrUnknownFlavor, name)
