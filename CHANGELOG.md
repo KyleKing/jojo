@@ -1,3 +1,15 @@
+## v0.10.0 (2026-11-24)
+
+### Feat
+
+- **divergence**: converge divergent changes with jj converge
+
+### Fix
+
+- **undo**: use jj's own redo instead of restoring an operation
+- **oplog**: show an operation's diff in the pane instead of a pager
+- **push**: push a new bookmark by name, and a bookmarkless revision with -c
+
 ## v0.9.2 (2026-11-24)
 
 ### Fix
