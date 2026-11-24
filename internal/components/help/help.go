@@ -65,7 +65,7 @@ func (m Model) View(width, height int) string {
 	contentWidth := overlay.ContentWidth(width, styles)
 	contentHeight := overlay.ContentHeight(height, styles)
 
-	lines := keyhint.Help(m.skin.KeyHintStyles(), m.keys.AllHints(), contentWidth)
+	lines := m.legend(contentWidth)
 
 	body := contentHeight
 	clipped := len(lines) > contentHeight
@@ -87,10 +87,35 @@ func (m Model) View(width, height int) string {
 	return overlay.Center(strings.Join(visible, "\n"), width, height, styles)
 }
 
+// legend draws the keymap in one aligned column, with each group's heading drawn as a labeled
+// rule after a blank row, the same shape jj-diff and second-look give their legends. The first
+// group skips the blank row, since the frame's padding already separates it from the border.
+func (m Model) legend(width int) []string {
+	hints := m.keys.AllHints()
+	drawn := keyhint.Help(m.skin.KeyHintStyles(), hints, width)
+	out := make([]string, 0, len(drawn)+len(hints))
+
+	for i, h := range hints {
+		if !h.Head {
+			out = append(out, drawn[i])
+
+			continue
+		}
+
+		if i > 0 {
+			out = append(out, "")
+		}
+
+		out = append(out, m.skin.Rule(h.What, "", width))
+	}
+
+	return out
+}
+
 // scrollFooter reports where the visible window sits in the legend, padded
 // before it is styled so no later truncation can cut inside an escape.
 func (m Model) scrollFooter(offset, end, total, width int) string {
-	text := fmt.Sprintf("%d-%d of %d", offset+1, end, total)
+	text := fmt.Sprintf("%d–%d of %d", offset+1, end, total)
 
 	return m.skin.Subtitle.Render(table.Pad(text, width, table.AlignRight))
 }

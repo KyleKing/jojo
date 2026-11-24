@@ -1,18 +1,20 @@
 ╭──────────────────────────────────────────────────────────╮
 │                                                          │
-│             Universal                                    │
+│  ── Universal ─────────────────────────────────────────  │
 │    ↑ ↓ ← →  move                                         │
 │      Enter  select                                       │
 │        Esc  back                                         │
 │          q  quit                                         │
 │        Tab  switch pane                                  │
-│             Vim motions                                  │
+│                                                          │
+│  ── Vim motions ───────────────────────────────────────  │
 │      j / k  move a line                                  │
 │          /  search the log                               │
 │          ?  help                                         │
 │          :  command palette                              │
 │      g / G  top / bottom                                 │
-│             Mnemonics                                    │
+│                                                          │
+│  ── Mnemonics ─────────────────────────────────────────  │
 │          n  new                                          │
 │          e  edit                                         │
 │          d  describe                                     │
@@ -33,8 +35,6 @@
 │          b  bookmarks                                    │
 │          f  fetch                                        │
 │          P  push the revision's bookmarks                │
-│          o  op log                                       │
-│          v  details of the revision                      │
-│                                              1-35 of 53  │
+│                                              1–35 of 57  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

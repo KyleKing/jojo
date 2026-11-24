@@ -1,10 +1,10 @@
 ╭────────────────────────────────────────────────╮
 │                                                │
-│          x  abandon divergent sides            │
 │             edit the revset aliases            │
-│             Staging, in the files of @         │
+│                                                │
+│  ── Staging, in the files of @ ──────────────  │
 │      space  stage or unstage the file          │
 │          C  commit what is staged              │
-│                                   49-53 of 53  │
+│                                   53–57 of 57  │
 │                                                │
 ╰────────────────────────────────────────────────╯
