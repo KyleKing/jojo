@@ -1,3 +1,13 @@
+## v0.8.0 (2026-11-24)
+
+### Feat
+
+- **diff**: draw the diff pane with the shared wash, sign bar, and hunk labels
+
+### Fix
+
+- **jj**: restore, move and resolve files whose paths have spaces or parentheses
+
 ## v0.7.0 (2026-11-23)
 
 ### Feat
