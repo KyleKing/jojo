@@ -1,3 +1,10 @@
+## v0.9.2 (2026-11-24)
+
+### Fix
+
+- **log**: one multi-select rule for every batch verb, counted and cleared
+- **describe**: keep the body and trailers, skip unchanged writes, offer $EDITOR
+
 ## v0.9.1 (2026-11-24)
 
 ### Fix
