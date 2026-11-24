@@ -1,3 +1,9 @@
+## v0.25.0 (2026-11-24)
+
+### Feat
+
+- **log**: ' labels the rows on screen to jump to; ctrl+o and ctrl+i walk the jump list
+
 ## v0.24.0 (2026-11-24)
 
 ### Feat
