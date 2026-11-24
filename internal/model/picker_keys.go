@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/components/help"
@@ -59,7 +60,7 @@ func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
 
 		return m, tea.Quit
 	case keys.ActionHelp:
-		m.openHelp()
+		m.openPalette(palette.Browse)
 
 		return m, nil
 	case help.ActionPickApply:

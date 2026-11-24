@@ -2,18 +2,17 @@ package help_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
-	"github.com/kyleking/aragonite/tui/theme"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jojo/internal/components/help"
-	"github.com/kyleking/jojo/internal/ui"
 )
 
 // TestKeymap_AgreesWithShared is what keeps one key meaning one thing across jojo, jj-diff, and
@@ -61,8 +60,9 @@ func defaultKeymap(t *testing.T) help.Keymap {
 	return km
 }
 
-// TestHelp_Golden pins the legend each screen's help draws, which the keymap generates, so a change to a
-// binding shows up as a reviewed diff of what the reader sees.
+// TestHelp_Golden pins the legend each screen's `?` lists, which the keymap generates, with what the
+// palette teaches about each key, so a change to a binding shows up as a reviewed diff of what the
+// reader sees.
 func TestHelp_Golden(t *testing.T) {
 	t.Parallel()
 
@@ -70,9 +70,56 @@ func TestHelp_Golden(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := help.New(ui.New(theme.Macchiato()), defaultKeymap(t)).For(screen.ctx)
-			golden.RequireEqual(t, []byte(ansi.Strip(m.View(80, 200))))
+			km := defaultKeymap(t)
+			entries := palette.FromKeymap(km.Keys(), screen.ctx, nil, help.About(km))
+
+			var b strings.Builder
+
+			for _, section := range palette.Groups(entries) {
+				fmt.Fprintf(&b, "── %s\n", section.Name)
+
+				for _, hit := range section.Hits {
+					fmt.Fprintf(&b, "%-8s %-58s %s\n", hit.Key, hit.What, hit.Cmd)
+				}
+			}
+
+			golden.RequireEqual(t, []byte(b.String()))
 		})
+	}
+}
+
+// Every action the keymap binds has something to teach in the palette, a git word maps to the jj
+// verb a git user means, and an action no key presses is still reachable there.
+func TestAbout_TeachesTheVerbsAndTheirGitWords(t *testing.T) {
+	t.Parallel()
+
+	km := defaultKeymap(t)
+	about := help.About(km)
+
+	for word, action := range map[string]string{
+		"amend": help.ActionSquash, "fixup": help.ActionSquash, "stash": help.ActionNew,
+		"checkout": help.ActionEdit, "branch": help.ActionBookmarkCreate, "commit": help.ActionCommit,
+		"stage": help.ActionSplit, "reset": help.ActionRestore, "revert": keys.ActionUndo,
+		"cherry-pick": help.ActionDuplicate, "reflog": help.ActionOpLog, "pull": help.ActionFetch,
+	} {
+		if !slices.Contains(about[action].Also, word) {
+			t.Errorf("%q does not find %s", word, action)
+		}
+	}
+
+	for _, action := range []string{help.ActionSquash, help.ActionRebase, help.ActionNew, keys.ActionUndo} {
+		if about[action].Cmd == "" || len(about[action].Prose) == 0 {
+			t.Errorf("%s has no command or prose to teach", action)
+		}
+	}
+
+	if !strings.Contains(about[help.ActionSquash].Flags, "-i") {
+		t.Errorf("squash's flags are %q, want its picker's", about[help.ActionSquash].Flags)
+	}
+
+	only := km.PaletteOnly()
+	if !slices.ContainsFunc(only, func(b keys.Binding) bool { return b.Action == help.ActionArrange }) {
+		t.Errorf("palette-only verbs are %v, want arrange among them", only)
 	}
 }
 

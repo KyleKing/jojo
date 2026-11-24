@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/empty"
+	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/jj"
@@ -65,12 +67,18 @@ const (
 type Model struct {
 	skin     ui.Skin
 	chapters []Chapter
-	cursor   int
-	top      int
-	width    int
-	height   int
-	beside   bool
+	// emptyHints are the keys out of an empty outline, which the parent names from its keymap.
+	emptyHints []keyhint.Hint
+	cursor     int
+	top        int
+	width      int
+	height     int
+	beside     bool
 }
+
+// SetEmptyHints is the keys an empty outline's card offers, named by the parent's keymap so a
+// rebind reaches it.
+func (m *Model) SetEmptyHints(hints []keyhint.Hint) { m.emptyHints = hints }
 
 // New returns an empty outline drawn in skin.
 func New(skin ui.Skin) Model { return Model{skin: skin} }
@@ -378,8 +386,14 @@ func (m Model) View() string {
 	lines := []string{m.titleLine()}
 
 	if len(m.chapters) == 0 {
-		empty := table.Truncate("  nothing in the stack between trunk() and here", m.width)
-		lines = append(lines, m.skin.Muted.Render(empty))
+		card := empty.Empty{
+			Title: "No stack here",
+			Why: "Nothing sits between trunk() and the revision the outline was opened on: it is on " +
+				"trunk, or the outline_revset in config.toml read nothing.",
+			Hints: m.emptyHints,
+		}
+
+		return strings.Join(append(lines, empty.Card(m.skin.Skin, card, m.width, m.height-1)...), "\n")
 	}
 
 	layout := m.layout()

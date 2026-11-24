@@ -12,9 +12,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/trail"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
@@ -27,13 +30,13 @@ import (
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/outlineview"
-	"github.com/kyleking/jojo/internal/components/palette"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/roundsview"
 	"github.com/kyleking/jojo/internal/components/search"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	"github.com/kyleking/jojo/internal/components/textview"
+	"github.com/kyleking/jojo/internal/components/trailview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
 	"github.com/kyleking/jojo/internal/jj"
@@ -70,7 +73,8 @@ type logLoadedMsg struct {
 
 type messageMsg struct {
 	text string
-	// output is everything a failed command wrote, kept for ! when the footer can show one line of it.
+	// output is everything a failed command wrote. The trail keeps it whole for gm; set, it marks
+	// the message as a failure, which the footer offers gm for.
 	output string
 	// wrote marks a write that went through, which ends the batch any checks were made for.
 	wrote bool
@@ -91,8 +95,15 @@ type Model struct {
 	matcher *keys.Matcher
 	// tick schedules the debounces and the message timeout: tea.Tick in the program, and whatever a
 	// test passes as Options.Ticker, so a test can wait on what a timer delivers rather than on time.
-	tick       Ticker
-	help       help.Model
+	tick Ticker
+	// pal is the palette, `:` to search and run and `?` to browse and explain, and coach what it
+	// suggests next and teaches; trail is every jj call the client made. All three are pointers, so
+	// the copies Update makes of the model share them.
+	pal        *palette.Model
+	coach      *coach.Coach[logState]
+	trail      *trail.Trail
+	about      map[string]palette.About
+	trailView  trailview.Model
 	revsetBox  revsetbox.Model
 	forge      forgepane.Model
 	prompt     prompt.Model
@@ -101,7 +112,6 @@ type Model struct {
 	spaces     workspaceview.Model
 	roundsBox  roundsview.Model
 	find       search.Model
-	palette    palette.Model
 	bookmarks  bookmarkview.Model
 	detail     detailview.Model
 	files      fileview.Model
@@ -123,8 +133,6 @@ type Model struct {
 	// something else is asked for.
 	startRevset string
 	message     string
-	// lastOutput is the full text of the last failure, which "!" shows.
-	lastOutput string
 	// jjDiff is what the probe found about jj-diff, the zero Tool until it answers, and jjDiffProbe
 	// the probe, which a test replaces.
 	jjDiff      jjdiff.Tool
@@ -169,13 +177,22 @@ type Model struct {
 	logWindow   int
 	// dockSeq numbers the docked diff's reads, so only the newest one lands.
 	dockSeq int
-	docked  bool
+	// bandShown is how many rows the band took when the layout was last sized.
+	bandShown int
+	// logBox is the log's width and height as last sized, which an empty log's card fills.
+	logBox [2]int
+	docked bool
 	// failing says the message on screen is the last failure, so the footer can offer its full text.
 	failing   bool
 	showForge bool
-	showHelp  bool
-	logFull   bool
-	quitting  bool
+	// band draws the coach's next steps as a labeled band over the footer rather than in the
+	// inspector line, which config.toml's coach_layout or :next sets.
+	band bool
+	// revsetLoaded is whether a log read has landed, so an empty log before it is not a revset that
+	// matched nothing.
+	revsetLoaded bool
+	logFull      bool
+	quitting     bool
 	// revsetShown is whether the layout last gave the revset row its line.
 	revsetShown bool
 }
@@ -209,7 +226,14 @@ type Options struct {
 	JJDiff func(context.Context) jjdiff.Tool
 	// Ticker replaces tea.Tick for the model's own timers, nil for tea.Tick.
 	Ticker Ticker
-	Keys   help.Keymap
+	// Ledger is where the coach remembers what it has shown and what was run, across sessions; nil
+	// keeps it in memory for this session alone.
+	Ledger *coach.Ledger
+	// Trail is where every jj call is recorded, nil for a new one.
+	Trail *trail.Trail
+	Keys  help.Keymap
+	// CoachLayout is config.toml's coach_layout: inline (the default) or a band over the footer.
+	CoachLayout coach.Layout
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -231,12 +255,19 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	diff := diffpane.New(skin)
 	diff.SetHints(diffHints(km))
 
+	log := opts.Trail
+	if log == nil {
+		log = trail.New(0)
+	}
+
+	client.WithTrail(log)
+
 	probe := opts.JJDiff
 	if probe == nil {
 		probe = func(ctx context.Context) jjdiff.Tool { return jjdiff.Probe(ctx, exec.LookPath, jjdiff.Exec) }
 	}
 
-	return Model{
+	m := Model{
 		ctx:         ctx,
 		jjDiffProbe: probe,
 		client:      client,
@@ -266,9 +297,12 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		dock:            diffpane.NewDocked(skin),
 		confirm:         confirm.New(skin),
 		output:          textview.New(skin),
-		palette:         palette.New(skin),
+		trailView:       trailview.New(skin),
+		pal:             palette.New(skin.Skin),
+		trail:           log,
+		about:           help.About(km),
+		band:            opts.CoachLayout == coach.Band,
 		status:          statusbar.New(skin),
-		help:            help.New(skin, km),
 		keys:            km,
 		matcher:         keys.NewMatcher(km.Keys()),
 		usage:           opts.Usage,
@@ -281,6 +315,11 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 
 		diffPreference: opts.DiffTool,
 	}
+
+	m.coach = newCoach(km, opts.Ledger)
+	m.outline.view.SetEmptyHints(km.Hints(keys.ActionBack, help.ActionRevset))
+
+	return m
 }
 
 // Init loads the log, so the first frame is an empty log rather than a blocked terminal. A [keys]
@@ -338,8 +377,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Focusing or leaving the revset box, or a log read under another revset, adds or drops the
-	// revset row, which every pane under it is sized around.
-	if after.revsetShown != after.revsetRow() {
+	// revset row, which every pane under it is sized around; the coach's band grows and shrinks with
+	// what it has to say.
+	if after.revsetShown != after.revsetRow() || after.bandShown != len(after.bandLines()) {
 		after.resize()
 	}
 
@@ -353,8 +393,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // route sends a message to whatever handles it. Keys go to handleKeyPress, the one place a binding is
 // added.
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if paste, ok := msg.(tea.PasteMsg); ok && m.pal.IsOpen() {
+		return m.paletteKey(paste)
+	}
+
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
-		m.handleModeMsg, m.handleOverlayMsg, m.handleFindMsg, m.handleBookmarkMsg, m.handleExternalMsg,
+		m.handleModeMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg, m.handleBookmarkMsg,
+		m.handleExternalMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd
@@ -421,10 +466,6 @@ func (m Model) showMessage(msg tea.Msg) (Model, tea.Cmd) {
 		m.log.ClearChecked()
 	}
 
-	if shown.output != "" {
-		m.lastOutput = shown.output
-	}
-
 	return m, m.after(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
 }
 
@@ -463,6 +504,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	}
 
 	m.revsetBox.SetError(nil)
+	m.revsetLoaded = true
 	m.revset = msg.revset
 	m.rows = msg.rows
 	m.logFull = len(msg.rows) >= m.logWindow
@@ -503,6 +545,7 @@ func (m *Model) resize() {
 
 	m.forge.SetSize(m.width, forgeHeight)
 	m.revsetShown = m.revsetRow()
+	m.bandShown = len(m.bandLines())
 	// The outline's columns depend on whether it shares the width, and the dock's share on them.
 	m.outline.view.SetBeside(m.docked && m.dockSideBySide())
 
@@ -520,6 +563,7 @@ func (m *Model) resize() {
 	}
 
 	m.log.SetSize(width, height)
+	m.logBox = [2]int{width, height}
 	m.outline.view.SetSize(width, height)
 	m.pick.view.SetSize(m.width, m.pickHeight())
 	m.travel.view.SetSize(m.width, m.logHeight())
@@ -537,7 +581,7 @@ func (m Model) logHeight() int {
 		findHeight = findRows
 	}
 
-	return max(0, m.height-footerRows-m.revsetHeight()-forgeHeight-findHeight-m.inspectorRows())
+	return max(0, m.height-footerRows-m.revsetHeight()-forgeHeight-findHeight-m.inspectorRows()-m.bandShown)
 }
 
 // revsetRow reports whether the revset box gets its row: while it is being edited, and once the log
@@ -583,8 +627,8 @@ func (m Model) overlay() func(width, height int) string {
 		view func(width, height int) string
 		open bool
 	}{
-		{m.help.View, m.showHelp},
 		{m.output.View, m.output.IsOpen()},
+		{m.trailView.View, m.trailView.IsOpen()},
 		{m.confirm.View, m.confirm.IsOpen()},
 		{m.bookmarks.View, m.bookmarks.IsOpen()},
 		{m.detail.View, m.detail.IsOpen()},
@@ -595,7 +639,6 @@ func (m Model) overlay() func(width, height int) string {
 		{m.opLogFrame, m.opLog.IsOpen()},
 		{m.spaces.View, m.spaces.IsOpen()},
 		{m.roundsBox.View, m.roundsBox.IsOpen()},
-		{m.palette.View, m.palette.IsOpen()},
 	}
 
 	for _, frame := range frames {
@@ -616,14 +659,19 @@ func (m Model) render() string {
 		// An overlay takes the frame, footer included, so a failure raised while one is open keeps a
 		// row under it rather than happening out of sight.
 		if m.message == "" || m.height <= footerRows {
-			return view(m.width, m.height)
+			return m.discovered(view(m.width, m.height), 0)
 		}
 
-		return view(m.width, m.height-footerRows) + "\n" + m.overlayFooter()
+		return m.discovered(view(m.width, m.height-footerRows)+"\n"+m.overlayFooter(), footerRows)
 	}
 
 	if m.pick.active || m.travel.active {
-		return m.whichKey(m.modeFrame())
+		keep := footerRows
+		if m.pick.active {
+			keep = pickRows
+		}
+
+		return m.discovered(m.whichKey(m.modeFrame()), keep)
 	}
 
 	panes := append(m.revsetPane(), m.logPane())
@@ -636,8 +684,22 @@ func (m Model) render() string {
 	}
 
 	panes = append(panes, m.inspector(m.dockTarget(), m.overflow())...)
+	panes = append(panes, m.bandLines()...)
 
-	return m.whichKey(strings.Join(append(panes, m.footer()), "\n"))
+	return m.discovered(m.whichKey(strings.Join(append(panes, m.footer()), "\n")), footerRows)
+}
+
+// discovered draws the open palette over the frame's rows above its last keep, which stay in view: the
+// footer says where the reader is and how to get out.
+func (m Model) discovered(frame string, keep int) string {
+	if !m.pal.IsOpen() {
+		return frame
+	}
+
+	lines := strings.Split(frame, "\n")
+	body := max(0, len(lines)-keep)
+
+	return strings.Join(append(m.pal.Over(lines[:body], m.width), lines[body:]...), "\n")
 }
 
 // panelShare is the fraction of the width the which-key panel may take at most: half.
@@ -696,6 +758,8 @@ func (m Model) logPane() string {
 	left := m.log.View()
 	if m.outline.active {
 		left = m.outline.view.View()
+	} else if m.loaded() && !m.anyRevision() {
+		left = m.emptyLog()
 	}
 
 	if !m.docked {

@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/table"
@@ -51,7 +52,8 @@ func (m Model) pinnedHelp() keyhint.Hint {
 	return h
 }
 
-// failureHint offers the whole of a failure the footer could only show one line of.
+// failureHint offers the whole of a failure the footer could only show one line of: gm opens the
+// trail on it.
 func (m Model) failureHint() keyhint.Hint {
 	h, ok := m.keys.Hint(keys.ActionMessages)
 	if !ok {
@@ -81,7 +83,9 @@ var viewFooter = []string{
 	keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionViewSideBySide, keys.ActionBack,
 }
 
-// footerHints ends on help, because the footer drops hints from the right and keeps the last.
+// footerHints ends on help, because the footer drops hints from the right and keeps the last. A key
+// the gate refuses here is drawn flat rather than dropped, and the key the coach's next step names is
+// brightened, so the footer itself points at it.
 func (m Model) footerHints() []keyhint.Hint {
 	var hints []keyhint.Hint
 
@@ -91,7 +95,10 @@ func (m Model) footerHints() []keyhint.Hint {
 	case keys.View:
 		hints = m.keys.Hints(viewFooter...)
 	default:
-		hints = append(m.rowHints(m.log.Selected()), m.keys.Hints(logFooter...)...)
+		hints = m.keys.HintsAt(m.gate, logFooter...)
+		if next, ok := m.nextStep(); ok {
+			hints = coach.Mark(hints, next)
+		}
 	}
 
 	hints = append(hints, m.helpHint())
@@ -104,38 +111,6 @@ func (m Model) footerHints() []keyhint.Hint {
 	return hints
 }
 
-// rowHints is the one thing worth saying about the revision under the cursor, keyed by the verb
-// that answers it.
-func (m Model) rowHints(rev *jj.Revision) []keyhint.Hint {
-	var action, what string
-
-	switch {
-	case rev == nil:
-		return nil
-	case rev.Conflict:
-		action, what = help.ActionResolve, "conflicted, resolve it"
-	case rev.Immutable:
-		action, what = help.ActionEdit, "immutable, an edit asks first"
-	case rev.Empty && !rev.WorkingCopy:
-		action, what = help.ActionAbandon, "empty, abandon it"
-	case rev.Divergent:
-		action, what = help.ActionConverge, "divergent, converge it"
-	case len(rev.LocalBookmarks) > 0:
-		action, what = help.ActionPush, "bookmarked, push it"
-	default:
-		return nil
-	}
-
-	h, ok := m.keys.Hint(action)
-	if !ok {
-		return nil
-	}
-
-	h.What = what
-
-	return []keyhint.Hint{h}
-}
-
 // overlayFooter is the message alone under an open overlay, whose own keys are in its own frame.
 func (m Model) overlayFooter() string {
 	var hints []keyhint.Hint
@@ -146,19 +121,13 @@ func (m Model) overlayFooter() string {
 	return m.status.View(m.width, statusbar.Context{Message: m.message, Hints: hints})
 }
 
-// fail puts err in the footer and keeps all of it for !.
+// fail puts err in the footer; the trail keeps all of what jj said for gm.
 func (m *Model) fail(err error) {
-	m.message, m.lastOutput, m.failing = err.Error(), jj.FullOutput(err), true
+	m.message, m.failing = err.Error(), true
 }
 
-// showOutput opens the last failure in full.
-func (m *Model) showOutput() tea.Cmd {
-	if m.lastOutput == "" {
-		return m.say("no failed command to show")
-	}
-
-	return m.output.Open("last failure", m.lastOutput)
-}
+// showOutput opens the trail, on the newest failure while one is on screen.
+func (m *Model) showOutput() { m.trailView.Open(m.trail, m.failing) }
 
 func (m Model) footer() string {
 	return m.status.View(m.width, statusbar.Context{
@@ -168,6 +137,7 @@ func (m Model) footer() string {
 		Checked:   len(m.log.Checked()),
 		Undo:      m.lastOp,
 		Hints:     m.footerHints(),
+		Tip:       m.tipLine(),
 	})
 }
 
@@ -242,9 +212,15 @@ func (m Model) inspector(rev *jj.Revision, overflow []string) []string {
 		facts = append(facts, oneLineText(fact))
 	}
 
-	left := table.Truncate(strings.Join(facts, inspectorGap), max(0, room))
+	// What the row cut comes first, since nothing else on screen carries it; with nothing cut the
+	// line says the coach's next step, unless the band says it instead.
+	left := m.skin.Body.Render(table.Truncate(strings.Join(facts, inspectorGap), max(0, room)))
+	if next, ok := m.nextStep(); ok && len(facts) == 0 && !m.band {
+		left = coach.Line(m.skin.Skin, next, max(0, room))
+	}
+
 	pad := max(1, m.width-1-lipgloss.Width(left)-lipgloss.Width(commit))
-	line := " " + m.skin.Body.Render(left) + strings.Repeat(" ", pad) + m.skin.Muted.Render(commit)
+	line := " " + left + strings.Repeat(" ", pad) + m.skin.Muted.Render(commit)
 
 	return []string{padLine(line, m.width)}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/components/confirm"
@@ -256,7 +257,7 @@ func (m Model) dispatchTravel(action string) (tea.Model, tea.Cmd) {
 
 		return m, tea.Quit
 	case keys.ActionHelp:
-		m.openHelp()
+		m.openPalette(palette.Browse)
 
 		return m, nil
 	case help.ActionOpLog:

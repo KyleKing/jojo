@@ -79,7 +79,10 @@ packages for theming, overlays, tables, and key hints.
 ## Keys
 
 `?` in the app is the authoritative list for the screen you are on, generated from the same table
-the footer, the palette, and the handlers read. That table is aragonite's shared `tui/keys`
+the footer, the palette, and the handlers read. Pressing a key there explains it instead of running
+it: what it does, the exact jj command shape, its flags, the keys beside it, and when you last used
+it. `/` filters, `Enter` runs. A key that can do nothing where the cursor is stays in the footer
+drawn flat, and pressing it says why (`x  kxqp has no conflict`) rather than doing nothing. That table is aragonite's shared `tui/keys`
 vocabulary merged with jojo's jj verbs, so a key means the same thing here, in jj-diff, and in
 second-look. A key that starts a sequence (`g`, `b`, `]`, `[`, `\`, `-`) waits with a panel of what
 can follow it; `Esc` drops it. The ones worth knowing before you start:
@@ -90,7 +93,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `@` | jump to the working copy |
 | `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `y` `r` `s` `P` run over all of them instead of the cursor; a write that goes through clears them |
 | `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
-| `:` | the command palette: every action, bound to a key or not, with the jj command it runs |
+| `:` | the command palette: search every action by its words, its jj command, or git's (`amend` finds squash, `stash` and `checkout` find new, `branch` finds bookmarks), and `Enter` runs it; `squash -i` opens squash's picker with `-i` on. After a run the footer names the key that would have done it. `:next` and `:tips off` are here too |
 | `L` | edit the revset, which re-filters the log as you type; `Tab` completes, `Enter` returns to the log |
 | `Tab` | cycle the log, the forge pane, and the docked diff |
 | `Enter` / `=` | diff the revision, or diff it against another revision you pick |
@@ -110,7 +113,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `bb` / `bc` | the bookmark list (set, advance, create, rename, delete, forget, track, push), or create one on the revision |
 | `o` | the operation log, drawing the log as it stood at the operation under the cursor: `Enter` restores (after a confirmation), `u` reverts that operation, `p` shows its diff |
 | `[o` / `]o` | step the log back or forward one operation, read-only: `Enter` restores to it, `o` opens the op log there, `Esc` comes back to now |
-| `gh` / `gw` / `gm` | the forge pane, the workspaces, or the full text of the last failure |
+| `gh` / `gw` / `gm` | the forge pane, the workspaces, or every jj command this session ran: the exact line, how it ended, `Enter` for all of its stderr, `Y` to copy it as a shell line, `u` to undo a write, `r` for the reads too |
 | <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
@@ -160,9 +163,25 @@ Two things ask first, because `jj undo` cannot take them back: a push, which has
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj
 refuses, jojo says why, and `y` runs the same edit again with `--ignore-immutable`.
 
+## What next
+
+The line over the footer says the one next step the log suggests, and brightens its key in the
+footer: a conflict under the cursor (`x`), an immutable revision (`n` starts a change on top
+instead), `@` with changes and no description (`d`), a described `@` (`n` starts the next change),
+a bookmark ahead of its remote (`P`). `coach_layout = "band"` in the config, or `:next` for the
+session, lists every step that holds in a band over the footer with the jj command each runs.
+
+Now and then, once you have been idle for a couple of seconds, the footer's left side offers a tip:
+a key you have not used that would help (`◇ : finds any command by name`), or a shorter way to do
+what you just did (`e` then `n` is `n` alone). Any key clears it. Tips are rare by design: none in
+a session's first minute, ten minutes apart, four a session, and one you have taken or seen three
+times never comes back. `:tips off` stops them. What has been shown and when each action last ran
+live in `$XDG_STATE_HOME/jojo/coach.json`, which holds no keystrokes and feeds the palette's
+recent list.
+
 ## Key usage
 
-jojo logs the command keys you press, per context (`log`, `forge`, `help`, and one per overlay), and never the text you type into the revset box, a prompt, search, or the palette's query. A rebound key counts under its action. It records into `$JOJO_USAGE_DIR`, else `~/Sync/.jojo/usage/` when `~/Sync` exists, and records nothing when neither is there.
+jojo logs the command keys you press, per context (`log`, `forge`, `help`, and one per overlay), and never the text you type into the revset box, a prompt, search, or the palette's query. A rebound key counts under its action, every command logs the action it ran, and a key the gate refused logs as refused, so `jojo keys` can tell what you reached for where it could not work. It records into `$JOJO_USAGE_DIR`, else `~/Sync/.jojo/usage/` when `~/Sync` exists, and records nothing when neither is there.
 
 `jojo keys` reads the log back: the bindings never pressed, the ones gone stale for 30 days, keys pressed where nothing is bound, and keys that mean different things in different contexts. Keys you have not pressed lately draw bold or underlined in the footer and `?`.
 
@@ -185,6 +204,9 @@ diff_tool = "auto"
 # The stack the outline (I) reads, {rev} standing for the revision under the cursor. Omitted, it
 # is what that revision sits on above trunk() and what is stacked on it.
 outline_revset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
+
+# Where the next step and tips are drawn: "inline" (the line over the footer) or "band".
+coach_layout = "inline"
 
 # Move an action to another key by its action name (the palette shows them), as one key or a
 # sequence; "" unbinds it. Shared actions keep aragonite's names, so hunk-next = "J" moves it in the

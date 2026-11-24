@@ -1,200 +1,31 @@
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-╭──────────────────────────────────────────────────────────────────────────────╮
-│                                                                              │
-│  ── General ───────────────────────────────────────────────────────────────  │
-│         ?  help                                                              │
-│         q  close, or quit at the root                                        │
-│       esc  back out one level                                                │
-│    ctrl+c  cancel the running command, else quit                             │
-│       tab  next pane                                                         │
-│        gm  messages and the last failure                                     │
-│                                                                              │
-│  ── Move ──────────────────────────────────────────────────────────────────  │
-│        gg  top                                                               │
-│         G  bottom                                                            │
-│    j/down  down a line                                                       │
-│      k/up  up a line                                                         │
-│    ctrl+d  half a page down                                                  │
-│    ctrl+u  half a page up                                                    │
-│                                                                              │
-│  ── Jump ──────────────────────────────────────────────────────────────────  │
-│         n  repeat the last motion                                            │
-│         N  repeat the last motion backward                                   │
-│        ]h  next hunk                                                         │
-│        [h  previous hunk                                                     │
-│        ]f  next file                                                         │
-│        [f  previous file                                                     │
-│        ]]  next chapter                                                      │
-│        [[  previous chapter                                                  │
-│        ]r  next round                                                        │
-│        [r  previous round                                                    │
-│                                                                              │
-│  ── Read ──────────────────────────────────────────────────────────────────  │
-│         H  choose the round to compare against                               │
-│                                                                              │
-│  ── View ──────────────────────────────────────────────────────────────────  │
-│        \s  side by side                                                      │
-│                                                                              │
-│  ── Look ──────────────────────────────────────────────────────────────────  │
-│         p  dock the diff beside the log, following the cursor                │
-│                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+── General
+?        help                                                       
+q        close, or quit at the root                                 
+esc      back out one level                                         
+ctrl+c   cancel the running command, else quit                      
+tab      next pane                                                  
+gm       messages and the last failure                              
+── Move
+gg       top                                                        
+G        bottom                                                     
+j/down   down a line                                                
+k/up     up a line                                                  
+ctrl+d   half a page down                                           
+ctrl+u   half a page up                                             
+── Jump
+n        repeat the last motion                                     
+N        repeat the last motion backward                            
+]h       next hunk                                                  
+[h       previous hunk                                              
+]f       next file                                                  
+[f       previous file                                              
+]]       next chapter                                               
+[[       previous chapter                                           
+]r       next round                                                 jj interdiff --from <a> --to <b>
+[r       previous round                                             jj interdiff --from <a> --to <b>
+── Read
+H        choose the round to compare against                        jj evolog -r <rev>
+── View
+\s       side by side                                               
+── Look
+p        dock the diff beside the log, following the cursor         jj diff -r <rev> --git

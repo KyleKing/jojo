@@ -28,6 +28,10 @@ type Config struct {
 	// OutlineRevset is the stack the outline (I) reads, with {rev} standing for the revision under the
 	// cursor. Empty reads what that revision sits on above trunk() and what is stacked on it.
 	OutlineRevset string `toml:"outline_revset"`
+	// CoachLayout is where the next step and tips are drawn: "inline" (the default) in the line over
+	// the footer, or "band" for a labeled band of every next step, why, and the jj command it runs.
+	// The palette's :next switches it for the session.
+	CoachLayout string `toml:"coach_layout"`
 }
 
 // Path is where jojo looks: $XDG_CONFIG_HOME/jojo/config.toml, or ~/.config/jojo/config.toml. It

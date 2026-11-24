@@ -2,9 +2,11 @@ package model
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jojo/internal/components/help"
 )
@@ -48,14 +50,24 @@ func usageContext(screen keys.Context) string {
 	return ctxLog
 }
 
-// handleKeyPress is the one door every key comes through. Overlays with keys of their own (the
-// prompt, the panels, the palette) take theirs directly; every screen with a keymap feeds the
-// matcher, which holds a prefix while it waits and answers an action once a sequence completes.
+// handleKeyPress is the one door every key comes through. Any key clears a tip the coach is showing
+// and restarts its idle clock, which arms the one timer a tip waits on.
 func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.showHelp {
-		m.usage.Key(ctxHelp, msg.String())
+	now := time.Now()
+	m.coach.Press(now)
 
-		return m.handleHelpKey(msg)
+	next, cmd := m.routeKey(msg)
+
+	return next, tea.Batch(cmd, m.coach.WakeAt(now))
+}
+
+// routeKey sends a key where it lands. The palette, while open, takes every key; overlays with keys
+// of their own (the prompt, the panels) take theirs directly; every screen with a keymap feeds the
+// matcher, which holds a prefix while it waits and answers an action once a sequence completes. An
+// action the gate refuses says why rather than doing nothing.
+func (m Model) routeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.pal.IsOpen() {
+		return m.paletteKey(msg)
 	}
 
 	if ctx := m.openModal(); ctx != "" && ctx != ctxDiff && ctx != ctxFiles {
@@ -81,11 +93,18 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.usage.Key(usageContext(screen), strings.Join(match.Keys, " "))
+	pressed := strings.Join(match.Keys, " ")
+	m.usage.Key(usageContext(screen), pressed)
 
 	if match.Action == "" {
 		return m.unbound(screen, msg)
 	}
+
+	if cmd, refused := m.refuse(screen, match.Action); refused {
+		return m, cmd
+	}
+
+	m.observe(screen, match.Action, pressed)
 
 	return m.dispatch(screen, match.Action)
 }
@@ -126,9 +145,6 @@ func (m Model) dispatch(screen keys.Context, action string) (tea.Model, tea.Cmd)
 
 	return m.dispatchLog(action)
 }
-
-// run runs action from the palette, which only lists the log's.
-func (m Model) runAction(action string) (tea.Model, tea.Cmd) { return m.dispatchLog(action) }
 
 // dispatchLog runs an action pressed in the log.
 func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
@@ -188,22 +204,22 @@ func (m Model) globalAction(action string) (tea.Model, tea.Cmd, bool) {
 
 		return m, tea.Quit, true
 	case keys.ActionHelp:
-		m.openHelp()
+		m.openPalette(palette.Browse)
 
 		return m, nil, true
 	case keys.ActionPalette:
-		cmd := m.palette.Open(m.paletteCommands())
+		m.openPalette(palette.Run)
 
-		return m, cmd, true
+		return m, nil, true
 	case keys.ActionSearch:
 		cmd := m.find.Open()
 		m.resize()
 
 		return m, cmd, true
 	case keys.ActionMessages:
-		cmd := m.showOutput()
+		m.showOutput()
 
-		return m, cmd, true
+		return m, nil, true
 	case keys.ActionSwitchPane:
 		next, cmd := m.cycleFocus()
 
@@ -215,12 +231,6 @@ func (m Model) globalAction(action string) (tea.Model, tea.Cmd, bool) {
 	}
 
 	return m, nil, false
-}
-
-// openHelp shows the legend of the screen the help key was pressed on.
-func (m *Model) openHelp() {
-	m.showHelp = true
-	m.help = m.help.For(m.screen())
 }
 
 // panelAction covers the keys that open a panel of their own or act on the whole repository, which
@@ -336,6 +346,8 @@ func (m *Model) routeToModal(ctx string, msg tea.KeyPressMsg) tea.Cmd {
 	switch ctx {
 	case ctxOutput:
 		return m.output.Update(msg)
+	case ctxTrail:
+		return m.trailView.Update(msg)
 	case ctxConfirm:
 		return m.confirm.Update(msg)
 	case ctxBookmarks:
@@ -352,8 +364,6 @@ func (m *Model) routeToModal(ctx string, msg tea.KeyPressMsg) tea.Cmd {
 		return m.spaces.Update(msg)
 	case ctxRounds:
 		return m.roundsBox.Update(msg)
-	case ctxPalette:
-		return m.palette.Update(msg)
 	}
 
 	return m.find.Update(msg)
@@ -364,6 +374,8 @@ func (m *Model) openModal() string {
 	switch {
 	case m.output.IsOpen():
 		return ctxOutput
+	case m.trailView.IsOpen():
+		return ctxTrail
 	case m.confirm.IsOpen():
 		return ctxConfirm
 	case m.bookmarks.IsOpen():
@@ -384,8 +396,6 @@ func (m *Model) openModal() string {
 		return ctxSpaces
 	case m.roundsBox.IsOpen():
 		return ctxRounds
-	case m.palette.IsOpen():
-		return ctxPalette
 	case m.find.IsOpen():
 		return ctxFind
 	}
@@ -428,30 +438,6 @@ func (m Model) handleRevsetKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	return m, cmd
 }
-
-func (m Model) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case keyEsc, "q", "?":
-		m.showHelp = false
-	case "up", "k":
-		m.help = m.help.ScrollBy(-1)
-	case "down", "j":
-		m.help = m.help.ScrollBy(1)
-	case "ctrl+u", "pgup":
-		m.help = m.help.ScrollBy(-helpPage)
-	case "ctrl+d", "pgdown":
-		m.help = m.help.ScrollBy(helpPage)
-	case "g", "home":
-		m.help = m.help.ScrollToStart()
-	case "G", keyEnd:
-		m.help = m.help.ScrollToEnd()
-	}
-
-	return m, nil
-}
-
-// helpPage is how far ctrl+d and ctrl+u scroll the legend.
-const helpPage = 10
 
 func (m Model) toggleForge() (tea.Model, tea.Cmd) {
 	m.showForge = !m.showForge

@@ -9,6 +9,9 @@ import (
 	"os/exec"
 	"strings"
 	"sync/atomic"
+	"time"
+
+	"github.com/kyleking/aragonite/trail"
 )
 
 // defaultRevsetFallback is jj's own built-in default for revsets.log, used when the config key
@@ -25,7 +28,10 @@ type Client struct {
 	// linksUnsafe is set once a preview sandbox has seen a file it hard-linked change, after which
 	// this client's sandboxes copy instead. A pointer, so IgnoringImmutable's copy shares it.
 	linksUnsafe *atomic.Bool
-	baseDir     string
+	// trail records every call this client makes, shared by the copy IgnoringImmutable returns, and
+	// nil to record nothing.
+	trail   *trail.Trail
+	baseDir string
 	// ignoreImmutable adds --ignore-immutable to every write. jj refuses to rewrite immutable
 	// revisions for a reason, so only a client built by IgnoringImmutable sets it.
 	ignoreImmutable bool
@@ -45,6 +51,18 @@ func (c *Client) IgnoringImmutable() *Client {
 func NewClient(baseDir string) *Client {
 	return &Client{baseDir: baseDir, queue: make(chan struct{}, 1), linksUnsafe: &atomic.Bool{}}
 }
+
+// WithTrail records every jj call the client makes in t from now on: its command line, whether it
+// wrote, how long it took, how it exited, and what it said on stderr, with the operation a write
+// created. It answers the client, so a caller can build and wire it in one expression.
+func (c *Client) WithTrail(t *trail.Trail) *Client {
+	c.trail = t
+
+	return c
+}
+
+// Trail is the log the client records into, nil when it records nothing.
+func (c *Client) Trail() *trail.Trail { return c.trail }
 
 // CheckInstalled reports whether a jj binary is on PATH. It deliberately does not run jj: every
 // invocation costs about as long as the first frame takes to paint, and the caller's next call
@@ -114,6 +132,14 @@ func (c *Client) executeJJ(ctx context.Context, args ...string) (string, error) 
 	return out, err
 }
 
+// writing marks a call the trail files as a write.
+type writing bool
+
+const (
+	reads  writing = false
+	writes writing = true
+)
+
 // AcquireQueue takes the command queue for a jj invocation this package does not run itself,
 // which is how the interactive verbs handed the real terminal serialize against every other
 // command. The caller must ReleaseQueue, or every later jj call waits forever.
@@ -125,14 +151,26 @@ func (c *Client) ReleaseQueue() { <-c.queue }
 // execute returns jj's stdout and, on success, the notices it writes to stderr,
 // which is where jj says what it did.
 func (c *Client) execute(ctx context.Context, args ...string) (string, string, error) {
+	return c.run(ctx, reads, args...)
+}
+
+// run is execute for a call the trail files as a read or a write.
+func (c *Client) run(ctx context.Context, write writing, args ...string) (string, string, error) {
 	c.queue <- struct{}{}
 	defer func() { <-c.queue }()
 
-	return c.executeLocked(ctx, args...)
+	return c.runLocked(ctx, write, args...)
 }
 
 // executeLocked is execute for a caller already holding the queue.
 func (c *Client) executeLocked(ctx context.Context, args ...string) (string, string, error) {
+	return c.runLocked(ctx, reads, args...)
+}
+
+// runLocked runs jj and records the call in the trail. The trail files it as the command a reader
+// would type, `jj` and args, without the --no-pager and --color=never every captured call adds,
+// which change only how jj prints.
+func (c *Client) runLocked(ctx context.Context, write writing, args ...string) (string, string, error) {
 	// Captured output is parsed, so a user's ui.color = "always" or a pager must not reach it.
 	cmd := c.jjCommand(ctx, append([]string{"--no-pager", "--color=never"}, args...)...)
 
@@ -140,11 +178,40 @@ func (c *Client) executeLocked(ctx context.Context, args ...string) (string, str
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	start := time.Now()
+	err := cmd.Run()
+
+	if c.trail != nil {
+		call := trail.Call{
+			Argv: append([]string{"jj"}, args...), Dir: c.baseDir, Write: bool(write), Start: start,
+			Took: time.Since(start), Exit: trail.ExitCode(err), Stderr: stderr.String(),
+		}
+		if write && err == nil {
+			call.Op = c.headOpLocked(ctx)
+		}
+
+		c.trail.Add(call)
+	}
+
+	if err != nil {
 		return "", "", wrapJJError(args, stderr.String())
 	}
 
 	return stdout.String(), stderr.String(), nil
+}
+
+// headOpLocked is the newest operation's id, read without snapshotting and without a trail row of
+// its own, so a write's row can be undone back to; "" when it cannot be read.
+func (c *Client) headOpLocked(ctx context.Context) string {
+	cmd := c.jjCommand(ctx, "--no-pager", "--color=never", "--ignore-working-copy",
+		"op", "log", "--no-graph", "-n", "1", "-T", "id.short(12)")
+
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(out))
 }
 
 // nothingChangedNotice is what jj prints when a command succeeds and moves
@@ -160,7 +227,7 @@ func (c *Client) mutate(ctx context.Context, args ...string) (string, error) {
 
 	ran := CommandLine(args)
 
-	_, notice, err := c.execute(ctx, args...)
+	_, notice, err := c.run(ctx, writes, args...)
 	if err != nil {
 		return ran, err
 	}
@@ -173,24 +240,9 @@ func (c *Client) mutate(ctx context.Context, args ...string) (string, error) {
 }
 
 // CommandLine renders args as the jj invocation a reader could paste into a shell, quoting only what
-// a shell would otherwise split or interpret.
+// a shell would otherwise split or interpret. It is the line the trail files the call under.
 func CommandLine(args []string) string {
-	quoted := make([]string, 0, len(args)+1)
-	quoted = append(quoted, "jj")
-
-	for _, arg := range args {
-		quoted = append(quoted, shellQuote(arg))
-	}
-
-	return strings.Join(quoted, " ")
-}
-
-func shellQuote(arg string) string {
-	if arg != "" && !strings.ContainsAny(arg, " \t\n\"'\\$`*?[]()<>|&;#~!") {
-		return arg
-	}
-
-	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	return trail.Shell(append([]string{"jj"}, args...))
 }
 
 // CommandError is a failed jj invocation. Its Error is the one line worth putting in a footer, and

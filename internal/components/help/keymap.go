@@ -184,6 +184,27 @@ func (k Keymap) Hints(actions ...string) []keyhint.Hint {
 	return out
 }
 
+// HintsAt is Hints with every hint gate refuses marked Off with its reason, so a footer draws it
+// flat rather than offering a key that would do nothing.
+func (k Keymap) HintsAt(gate keys.Gate, actions ...string) []keyhint.Hint {
+	out := make([]keyhint.Hint, 0, len(actions))
+
+	for _, a := range actions {
+		h, ok := k.Hint(a)
+		if !ok {
+			continue
+		}
+
+		if av := gate(a); !av.OK {
+			h.Off, h.Why = true, av.Why
+		}
+
+		out = append(out, h)
+	}
+
+	return out
+}
+
 // Label is action's first key as a reader types it ("gg", "]o"), "" when unbound.
 func (k Keymap) Label(action string) string {
 	b, ok := k.Binding(action)
@@ -199,22 +220,8 @@ func (k Keymap) Legend(ctx keys.Context) []keyhint.Hint {
 	return k.Keys().Legend(ctx)
 }
 
-// Runnable is what the command palette lists from the log: every action the log runs, bound or not,
-// in table order, so a palette-only action (arrange) is reachable without a key.
-func (k Keymap) Runnable() []keys.Binding {
-	var out []keys.Binding
-
-	for _, b := range k.Keys().Bindings() {
-		if b.Contexts.Overlaps(keys.Log) && runsFromPalette(b.Action) {
-			out = append(out, b)
-		}
-	}
-
-	return out
-}
-
-// paletteSkips are the log's bindings the palette leaves out: movement, and the keys that only make
-// sense typed (help, the palette itself, backing out).
+// paletteSkips are the log's bindings the palette leaves out of its palette-only rows: movement, and
+// the keys that only make sense typed (help, the palette itself, backing out).
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var paletteSkips = []string{
@@ -222,11 +229,6 @@ var paletteSkips = []string{
 	keys.ActionLineDown, keys.ActionLineUp, keys.ActionHalfPageDown, keys.ActionHalfPageUp,
 	keys.ActionTop, keys.ActionBottom, keys.ActionSwitchPane, ActionCheck,
 }
-
-func runsFromPalette(action string) bool { return !slices.Contains(paletteSkips, action) }
-
-// Cmd is the jj shape action runs, "" for one that runs no jj command.
-func Cmd(action string) string { return Cmds[action] }
 
 // Bound is every binding with a key on screen ctx, for the usage log.
 func (k Keymap) Bound(ctx keys.Context) []keys.Binding { return k.Keys().Bound(ctx) }

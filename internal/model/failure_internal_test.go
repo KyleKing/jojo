@@ -4,8 +4,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/trail"
 
 	"github.com/kyleking/jojo/internal/tuitest"
 )
@@ -47,16 +49,25 @@ func TestFailure_ShowsUnderAnOpenOverlay(t *testing.T) {
 	}
 }
 
-// The footer keeps one line of a failure, and gm shows all of it, from the log and over a panel.
+// The footer keeps one line of a failure, and gm opens the trail on it: the exact command, why it
+// failed, and enter for all of jj's stderr.
 func TestMessages_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 	t.Parallel()
 
 	m := asModel(t, update(testModel(t, twoRows()), tea.WindowSizeMsg{Width: 100, Height: 30}))
 
-	next := pressKeys(t, m, "g", "m")
-	if asModel(t, next).output.IsOpen() {
-		t.Fatal("! opened an empty failure")
+	m = asModel(t, pressKeys(t, m, "g", "m"))
+	if !m.trailView.IsOpen() || !strings.Contains(tuitest.StripANSI(m.render()), "nothing has run yet") {
+		t.Fatal("gm with nothing run did not open an empty trail that says so")
 	}
+
+	m = asModel(t, update(m, tuitest.Key("esc")))
+
+	m.trail.Add(trail.Call{
+		Argv: []string{"jj", "git", "fetch", "--all-remotes"}, Write: true, Exit: 1, Start: time.Now(),
+		Stderr: "Fetching from Git remotes: origin\nError: Could not find repository at '/nonexistent/remote.git'\n",
+	})
+	m.trail.Add(trail.Call{Argv: []string{"jj", "describe", "-m", "later"}, Write: true, Start: time.Now()})
 
 	m = failed(t, m)
 	if !strings.Contains(tuitest.StripANSI(m.render()), "gm full error") {
@@ -64,8 +75,31 @@ func TestMessages_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 	}
 
 	m = asModel(t, pressKeys(t, m, "g", "m"))
+	if !m.trailView.IsOpen() {
+		t.Fatal("gm did not open the trail")
+	}
+
+	frame := tuitest.StripANSI(m.render())
+	for _, want := range []string{
+		"jj git fetch --all-remotes", "exit 1 · Fetching from Git remotes", "jj describe -m later",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the trail lacks %q:\n%s", want, frame)
+		}
+	}
+
+	if c, ok := m.trailView.Selected(); !ok || !c.Failed() {
+		t.Errorf("the cursor is on %+v, want the failure", c)
+	}
+
+	next, show := m.Update(tuitest.Key("enter"))
+	if show == nil {
+		t.Fatal("enter on the failure asked for nothing")
+	}
+
+	m = asModel(t, update(asModel(t, next), show()))
 	if !m.output.IsOpen() {
-		t.Fatal("! did not open the failure")
+		t.Fatal("enter did not open the failure's stderr")
 	}
 
 	if frame := tuitest.StripANSI(m.render()); !strings.Contains(frame, "Error: Could not find repository") {
@@ -74,6 +108,6 @@ func TestMessages_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 
 	m = asModel(t, update(m, tuitest.Key("esc")))
 	if m.output.IsOpen() {
-		t.Error("esc left the failure open")
+		t.Error("esc left the stderr open")
 	}
 }

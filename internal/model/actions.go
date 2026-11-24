@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/help"
@@ -235,13 +236,26 @@ func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 // have rewritten anything. The jj queue is held while it runs, so no background read races its
 // writes. A sequence does not wait for the program to exit before running its next command, so
 // everything after the exit runs from execDoneMsg, which the program sends once it has.
+//
+// The trail records the program as a write, since it was handed the terminal to change something;
+// what it wrote went to the terminal, so its row has no stderr.
 func (m Model) execThen(cmd *exec.Cmd, outcome func(err error, wrote bool) tea.Msg) tea.Cmd {
-	client := m.client
+	client, log := m.client, m.trail
 	before := new(string)
 
+	var running *trail.Running
+
 	return tea.Sequence(
-		func() tea.Msg { *before = headOp(m.ctx, client); client.AcquireQueue(); return nil },
+		func() tea.Msg {
+			*before = headOp(m.ctx, client)
+			client.AcquireQueue()
+			running = log.Start(cmd.Args, cmd.Dir, true)
+
+			return nil
+		},
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
+			running.Done(err, nil)
+
 			return execDoneMsg{err: err, before: *before, outcome: outcome}
 		}),
 	)
@@ -304,18 +318,37 @@ func wrote(ran, hint string, err error) tea.Msg {
 	return messageMsg{text: ran + hint, wrote: true}
 }
 
-// run executes a jj write then reloads the log.
+// run executes a jj write then reloads the log. A write that went through is echoed from the trail,
+// the exact command the client ran and the way back: "jj squash --from wkwy --into rnzx · press u to
+// undo", so every write teaches its command line.
 func (m Model) run(hint string, mutate func(context.Context) (string, error)) tea.Cmd {
-	revset, ctx := m.revset, m.ctx
+	revset, ctx, log := m.revset, m.ctx, m.trail
 
 	return tea.Sequence(
 		func() tea.Msg {
 			ran, err := mutate(ctx)
 
-			return wrote(ran, hint, err)
+			return echoed(log, ran, hint, wrote(ran, hint, err))
 		},
 		m.loadLog(revset),
 	)
+}
+
+// echoed is msg with a write's status line taken from the trail's record of the call that ran, when
+// the trail has it.
+//
+//nolint:ireturn // a tea.Msg is the return type the runtime takes; naming a concrete one would lie.
+func echoed(log *trail.Trail, ran, hint string, msg tea.Msg) tea.Msg {
+	done, ok := msg.(messageMsg)
+	if !ok || !done.wrote {
+		return msg
+	}
+
+	if call, found := log.Last(func(c *trail.Call) bool { return c.Write && !c.Failed() && c.Shell() == ran }); found {
+		done.text = trail.Echo("", &call, strings.TrimPrefix(hint, ", "))
+	}
+
+	return done
 }
 
 // undo and redo are jj's own, which step through the operation log the way an editor's undo stack

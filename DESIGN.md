@@ -72,15 +72,22 @@ second thing to keep true as the flags change, and it would teach nothing.
 picker verb, time travel, the outline, the dock, the file list), which holds a prefix (`g`, `b`,
 `]`, `[`, `\`, `-`) while it waits and answers an action name. Dispatch, the `?` legend for that
 screen, the footers, the palette, and the which-key panel a waiting prefix floats all read that
-table, so a binding cannot drift between them. The palette shows each action beside the jj command
-it runs, which is why the shapes live there too. A rebind from `config.toml` names an action,
+table, so a binding cannot drift between them. `?` and `:` are one engine, aragonite's
+`tui/palette`, over `palette.FromKeymap(keymap, screen, gate, help.About(keymap))`: `?` browses the
+screen's keys and explains the one pressed, `:` searches and runs by action name, never by replaying
+a key. `help.About` holds what the palette teaches beyond a binding: the jj command shape, git-word
+aliases, prose, and related keys. `Model.gate` is the one switch that says why a log verb can do
+nothing where the cursor is; the footer draws it flat, the palette lists it off with the reason, and
+a press says the reason. The coach (`tui/coach`) reads the log through `logState` and the rules in
+`internal/model/discover.go`, and every jj call goes through the client's `trail.Trail`, which `gm`
+lists and a write's status line echoes. A rebind from `config.toml` names an action,
 so the handlers never learn that rebinding exists, and an old action name resolves through
 `help.Deprecated` with a footer warning for one release. `TestKeymap_AgreesWithShared` fails when a
 jojo key reuses a key the shared table gives another action on a screen the two share, which is
 what keeps one key meaning one thing across jojo, jj-diff, and second-look.
 
 **One list, every view.** The operation log, workspaces, bookmarks, the rounds box,
-the file list, the diff pane, the destination picker, and the command palette are all
+the file list, the diff pane, and the destination picker are all
 `internal/components/listview` with their own rows, keys, and messages. Scrolling, clamping,
 truncation, the warning line, the minimum frame, and hint degradation are written once, so a
 rendering fix lands in all of them.

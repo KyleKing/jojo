@@ -1,0 +1,30 @@
+  wkwyyxvq          (no description set)     ╭─ keys · 58 of 58 ───────────────────────────────────╮
+  rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
+  koopqtrk          refactor: split the reade│   d       describe                                  │
+  twnsvwmr  parse*  test: cover the fallbacks│   D       describe in $EDITOR                       │
+  nptwozlo          release 0.13.0           │   c       commit @: describe it and start a new one │
+                                             │   S       split into commits, one column each, in … │
+                                             │   a       abandon                                   │
+                                             │   A       absorb into the revisions that last touc… │
+                                             │   x       resolve the conflict, side by side in jj… │
+                                             │   X       converge divergent changes · nothing in … │
+                                             │   |       parallelize the checked revisions · need… │
+                                             │   space   check for a batch action                  │
+                                             │   B       bisect between the two checked revisions… │
+                                             │ ── Pick where it goes ───────────────────────────── │
+                                             │   N       new, choosing where it goes               │
+                                             │ ▌ s       squash, choosing where into               │
+                                             │                                                     │
+                                             │ ── Pick where it goes · s  squash, choosing where i │
+                                             │ Moves the revision's changes into another one you   │
+                                             │ pick, its parent by default, and drops the revision │
+                                             │ once it is empty. -i chooses the hunks.             │
+                                             │ runs   jj squash --from <rev> --into <dest>         │
+                                             │ flags  -t into · -u keep the destination's message  │
+                                             │        · -k keep the source if it empties · -i      │
+                                             │        choose hunks                                 │
+                                             │ also   A absorb S split                             │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+ ▸ next  @ has changes but no description · d╰─────────────────────────────────────────────────────╯
+parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  a abandon  …  ? help  

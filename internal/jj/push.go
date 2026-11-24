@@ -80,7 +80,12 @@ func (c *Client) Push(ctx context.Context, opts PushOptions) (string, error) {
 		args = append(args, "--dry-run")
 	}
 
-	_, notice, err := c.execute(ctx, args...)
+	write := writes
+	if opts.DryRun {
+		write = reads
+	}
+
+	_, notice, err := c.run(ctx, write, args...)
 	if err != nil {
 		return "", err
 	}

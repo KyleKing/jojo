@@ -184,7 +184,7 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 
-		m.message, m.lastOutput, m.failing = pushProblem(msg.err), jj.FullOutput(msg.err), true
+		m.message, m.failing = pushProblem(msg.err), true
 
 		return m, nil, true
 	}

@@ -3,58 +3,94 @@ package model
 import (
 	"testing"
 
+	"github.com/kyleking/aragonite/tui/keys"
+
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// The footer says one thing about the row under the cursor, because a footer that says everything
-// says nothing, and the order below is what a reader most needs to know first.
-func TestRowHintsSayTheOneThingThatMatters(t *testing.T) {
+// The coach's next step follows the what-next table: what is wrong first (a conflict, divergence, an
+// immutable revision, a bookmark that moved both ways), then the natural next step on @ (describe
+// it, then start the next), then what is worth knowing. The cursor's row is the first one.
+func TestNextStep_FollowsTheWhatNextTable(t *testing.T) {
 	t.Parallel()
 
+	wc := &jj.Revision{ChangeID: "wwww", WorkingCopy: true, Description: "wip", Files: 1}
+	dirtyWC := &jj.Revision{ChangeID: "wwww", WorkingCopy: true, Files: 1}
+
 	cases := []struct {
-		rev  *jj.Revision
-		name string
-		want string
-		key  string
+		name   string
+		want   string
+		key    string
+		cursor *jj.Revision
+		others []*jj.Revision
 	}{
-		{name: "no row", rev: nil, want: ""},
 		{
-			name: "conflict outranks immutable",
-			rev:  &jj.Revision{Conflict: true, Immutable: true},
-			want: "conflicted, resolve it",
-			key:  "x",
+			name:   "conflict outranks immutable",
+			cursor: &jj.Revision{ChangeID: "cccc", Conflict: true, Immutable: true},
+			want:   help.ActionResolve, key: "x",
 		},
-		{name: "immutable", rev: &jj.Revision{Immutable: true}, want: "immutable, an edit asks first"},
-		{name: "empty", rev: &jj.Revision{Empty: true}, want: "empty, abandon it"},
-		{name: "the working copy is empty on purpose", rev: &jj.Revision{Empty: true, WorkingCopy: true}, want: ""},
-		{name: "bookmark", rev: &jj.Revision{LocalBookmarks: []string{"main"}}, want: "bookmarked, push it", key: "P"},
-		{name: "ordinary revision", rev: &jj.Revision{ChangeID: "abc"}, want: ""},
+		{
+			name: "divergent", cursor: &jj.Revision{ChangeID: "dddd", Divergent: true},
+			want: help.ActionConverge, key: "X",
+		},
+		{
+			name: "immutable starts a change on top", cursor: &jj.Revision{ChangeID: "iiii", Immutable: true},
+			want: help.ActionNew, key: "n",
+		},
+		{
+			name: "bookmark moved both ways", cursor: &jj.Revision{ChangeID: "bbbb", Bookmarks: []string{"main??"}},
+			want: help.ActionBookmarks,
+		},
+		{name: "@ dirty and undescribed", cursor: dirtyWC, want: keys.ActionDescribe, key: "d"},
+		{
+			name: "@ dirty, cursor elsewhere", cursor: &jj.Revision{ChangeID: "oooo", Description: "x"},
+			others: []*jj.Revision{dirtyWC}, want: help.ActionWorkingCopy, key: "@",
+		},
+		{name: "@ described", cursor: wc, want: help.ActionNew, key: "n"},
+		{
+			name:   "bookmark ahead",
+			cursor: &jj.Revision{ChangeID: "pppp", Description: "x", Bookmarks: []string{"feat*"}},
+			others: []*jj.Revision{wc}, want: help.ActionPush, key: "P",
+		},
+		{
+			name: "empty and undescribed", cursor: &jj.Revision{ChangeID: "eeee", Empty: true},
+			others: []*jj.Revision{wc}, want: help.ActionAbandon, key: "a",
+		},
+		{
+			name:   "the working copy is empty on purpose",
+			cursor: &jj.Revision{ChangeID: "wwww", Empty: true, WorkingCopy: true},
+		},
+		{
+			name: "ordinary revision", cursor: &jj.Revision{ChangeID: "abcd", Description: "x"},
+			others: []*jj.Revision{wc},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			hints := testModel(t, nil).rowHints(tc.rev)
+			rows := []jj.LogRow{{Revision: tc.cursor}}
+			for _, r := range tc.others {
+				rows = append(rows, jj.LogRow{Revision: r})
+			}
 
+			next, ok := testModel(t, rows).nextStep()
 			if tc.want == "" {
-				if len(hints) != 0 {
-					t.Fatalf("rowHints = %v, want nothing to say", hints)
+				if ok {
+					t.Fatalf("nextStep = %+v, want nothing to say", next)
 				}
 
 				return
 			}
 
-			if len(hints) != 1 {
-				t.Fatalf("rowHints returned %d hints, want exactly one", len(hints))
+			if !ok || next.Action != tc.want {
+				t.Fatalf("nextStep = %+v (%v), want %s", next, ok, tc.want)
 			}
 
-			if tc.key != "" && hints[0].Key != tc.key {
-				t.Errorf("key = %q, want %q", hints[0].Key, tc.key)
-			}
-
-			if hints[0].What != tc.want {
-				t.Errorf("hint = %q, want %q", hints[0].What, tc.want)
+			if tc.key != "" && next.Key != tc.key {
+				t.Errorf("key = %q, want %q", next.Key, tc.key)
 			}
 		})
 	}

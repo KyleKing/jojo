@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/coach"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/config"
@@ -150,12 +151,29 @@ func run() error {
 
 	seen := loadSeen(rec, keys)
 
+	layout, err := coach.ParseLayout(settings.CoachLayout)
+	if err != nil {
+		return fmt.Errorf("reading coach_layout: %w", err)
+	}
+
+	// The coach's ledger is local state, always on and holding no keystrokes: which tips were shown
+	// and when each action last ran. A ledger that cannot be read starts fresh in memory.
+	ledger, err := coach.OpenLedger(model.UsageApp)
+	if err != nil {
+		ledger, _ = coach.LedgerAt("") //nolint:errcheck // an in-memory ledger reads no file and cannot fail
+	}
+
 	app := model.New(ctx, client, skin, root, *revset,
 		model.Options{
 			Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
+			Ledger: ledger, CoachLayout: layout,
 		})
 	if _, err := tea.NewProgram(app, tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("jojo exited: %w", err)
+	}
+
+	if err := ledger.Save(); err != nil {
+		return fmt.Errorf("saving the coach's notes: %w", err)
 	}
 
 	return nil

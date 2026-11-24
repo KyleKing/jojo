@@ -1,0 +1,30 @@
+  wkwyyxvq          (no description set)     ╭─ keys · 58 of 58 ───────────────────────────────────╮
+  rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
+  koopqtrk          refactor: split the reade│ ── General ──────────────────────────────────────── │
+  twnsvwmr  parse*  test: cover the fallbacks│ ▌ ?       help                                      │
+  nptwozlo          release 0.13.0           │   :       command palette                           │
+                                             │   q       close, or quit at the root                │
+                                             │   esc     back out one level                        │
+                                             │   ctrl+c  cancel the running command, else quit     │
+                                             │   u       undo                                      │
+                                             │   ctrl+r  redo                                      │
+                                             │   ctrl+l  reload from the source                    │
+                                             │   tab     next pane                                 │
+                                             │   !       shell in the repository root              │
+                                             │   K       what is this                              │
+                                             │   Y       yank a reference                          │
+                                             │   gm      messages and the last failure             │
+                                             │ ── Move ─────────────────────────────────────────── │
+                                             │   gg      top                                       │
+                                             │   G       bottom                                    │
+                                             │   j/down  down a line                               │
+                                             │   k/up    up a line                                 │
+                                             │   ctrl+d  half a page down                          │
+                                             │   ctrl+u  half a page up                            │
+                                             │   @       jump to the working copy                  │
+                                             │                                                     │
+                                             │ ── General · ?  help ────────────────────────────── │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+ ▸ next  @ has changes but no description · d╰─────────────────────────────────────────────────────╯
+parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  a abandon  …  ? help  

@@ -257,32 +257,6 @@ func sharedContexts(b keys.Binding) keys.Context {
 	return ctx
 }
 
-// Cmds are the jj shapes the palette shows beside each action, which is how someone learns the CLI
-// from the TUI. They are written as shapes, not command lines.
-//
-//nolint:gochecknoglobals // a fixed table, read only.
-var Cmds = map[string]string{
-	ActionDiff: "jj diff -r <rev>", ActionPreview: "jj diff -r <rev> --git", ActionFiles: "jj diff -r <rev> --summary",
-	ActionCompare: "jj diff --from <a> --to <b>", ActionNew: "jj new <revs>",
-	ActionNewPlaced: "jj new -o/-A/-B <dest>", ActionEdit: "jj edit <rev>",
-	ActionDiffedit: "jj diffedit -r <rev>", ActionCommit: "jj commit -m <message>",
-	keys.ActionDescribe: "jj describe -r <rev> -m <message>", keys.ActionDescribeEditor: "jj describe -r <rev>",
-	ActionSquash: "jj squash --from <rev> --into <dest>", ActionSplit: "jj-diff --split -r <rev>",
-	ActionDuplicate: "jj duplicate <rev> [-o/-A/-B <dest>]", ActionRebase: "jj rebase -r <rev> -o <dest>",
-	ActionRebaseSubtree: "jj rebase -s <rev> -o <dest>", ActionRestore: "jj restore --from <src> --into <rev>",
-	ActionAbandon: "jj abandon <revs>", ActionAbsorb: "jj absorb -r <rev>", ActionResolve: "jj-diff --resolve -r <rev>",
-	ActionConverge: "jj converge [-r change_id(<rev>)]", ActionArrange: "jj arrange",
-	ActionOpLog: "jj op log", ActionOpOlder: "jj log --at-op <op> --ignore-working-copy",
-	ActionOpNewer: "jj log --at-op <op> --ignore-working-copy", ActionFetch: "jj git fetch --all-remotes",
-	ActionPush: "jj git push -r <revs>", ActionBookmarks: "jj bookmark list",
-	ActionBookmarkCreate: "jj bookmark create <name> -r <rev>", ActionParallelize: "jj parallelize <revs>",
-	ActionBisect: "jj bisect run --range <a>::<b>", ActionWorkspaces: "jj workspace list",
-	keys.ActionUndo: "jj undo", keys.ActionRedo: "jj redo", keys.ActionReload: "jj log",
-	keys.ActionRounds: "jj evolog -r <rev>", keys.ActionOutline: "jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'",
-	keys.ActionInspect: "jj log -r <rev> -T ...", keys.NextAction(keys.ObjRound): "jj interdiff --from <a> --to <b>",
-	keys.PrevAction(keys.ObjRound): "jj interdiff --from <a> --to <b>", ActionTravelRestore: "jj op restore <op>",
-}
-
 // toolBindings is what jojo adds: the jj verbs on the log, the picker's own keys, time travel, the
 // outline, and the file list.
 func toolBindings() []keys.Binding {

@@ -34,6 +34,7 @@ const (
 	ctxPick        = "pick"
 	ctxTravel      = "travel"
 	ctxOutput      = "output"
+	ctxTrail       = "trail"
 	ctxPrompt      = "prompt"
 	ctxSpaces      = "spaces"
 	ctxOutline     = "outline"
@@ -111,9 +112,16 @@ func UsageKeymap(km help.Keymap) keyusage.Keymap {
 			bind("switch pane", "tab"),
 		},
 		ctxHelp: {
-			bind("close", "esc", "q", "?"),
-			bind("first", "g", "home"),
-			bind("last", "G", "end"),
+			bind("run", "enter"),
+			bind("filter", "/"),
+			bind("close", "esc"),
+			bind("next", "down", "ctrl+n"),
+			bind("previous", "up", "ctrl+p"),
+		},
+		ctxTrail: {
+			bind("full stderr", "enter"), bind("copy as shell", "Y"), bind("undo", "u"),
+			bind("show reads", "r"), bind("next", "j", "down"), bind("previous", "k", "up"),
+			bind("first", "g", "home"), bind("last", "G", "end"), bind("close", "esc", "q"),
 		},
 		ctxConfirm: {bind("yes", "y"), bind("no", "n", "esc", "q")},
 		ctxBookmarks: listModal(
@@ -128,12 +136,9 @@ func UsageKeymap(km help.Keymap) keyusage.Keymap {
 		ctxPalette: {
 			bind("run", "enter"),
 			bind("close", "esc"),
-			bind("page up", "pgup"),
-			bind("page down", "pgdown"),
-			bind("first", "home"),
-			bind("last", "end"),
-			bind("next", "ctrl+n"),
-			bind("previous", "ctrl+p"),
+			bind("next", "down", "ctrl+n"),
+			bind("previous", "up", "ctrl+p"),
+			bind("explain", "?"),
 		},
 		ctxDestination: {
 			bind("pick", "enter"),

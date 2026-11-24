@@ -33,6 +33,9 @@ type Context struct {
 	// Undo names the operation u would reverse, kept visible rather than shown
 	// only in the moments after an edit, so the way back is never a guess.
 	Undo string
+	// Tip is a tip already drawn to fit (coach.TipLine), shown in place of the bookmarks and the
+	// revset while no message is up. It stays until the next key.
+	Tip string
 	// Hints are shown most important first; the last one is never dropped, so
 	// callers put the route to the full legend (typically "?" help) there.
 	Hints []keyhint.Hint
@@ -152,6 +155,10 @@ func (m Model) state(ctx Context) string {
 
 	if ctx.Message != "" {
 		return joinParts(checked, m.skin.Subtitle.Render(oneLine(ctx.Message)))
+	}
+
+	if ctx.Tip != "" {
+		return joinParts(checked, ctx.Tip)
 	}
 
 	var parts []string
