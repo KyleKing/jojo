@@ -11,7 +11,7 @@ require (
 	github.com/charmbracelet/x/exp/golden v0.1.0
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v1.31.0
+	github.com/kyleking/aragonite v1.31.1
 	github.com/kyleking/jj-diff v0.12.1
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
