@@ -1,3 +1,20 @@
+## v0.14.0 (2026-11-24)
+
+### Feat
+
+- **outline**: give the outline its own width beside the dock, and the dock the rest
+- **outline**: name the stack by its branch and size, and put its revset in the inspector
+- **log**: give the opening revset's row back to the log
+
+### Fix
+
+- **picker**: check that previews never wrote through a hard link into the repository
+- **tui**: reset the scroll margins on a resize so a grown screen repaints in place
+
+### Perf
+
+- **dock**: draw the docked diff off the update loop and color it when the lexer lands
+
 ## v0.13.0 (2026-11-24)
 
 ### Feat
