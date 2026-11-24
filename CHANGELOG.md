@@ -1,3 +1,40 @@
+## v0.15.0 (2026-11-24)
+
+### BREAKING CHANGE
+
+- keys follow the shared keymap. In the log: g -> gg;
+alt+p (dock) -> p; p (forge pane) -> gh; w (workspaces) -> gw; ! (last
+failure) -> gm, and ! opens a shell; alt+d (diff two revisions) -> =
+(diff the cursor against a picked revision); alt+e (describe in $EDITOR)
+-> D; D (duplicate) -> y; c (resolve) -> x; x (converge) -> X; X
+(arrange) -> the palette only; E (evolog panel) -> H rounds, where R
+restores a version; v (details) -> K; n (new, in the picker) -> n is an
+immediate jj new and N opens the picker; R (rebase with descendants) ->
+r then -s, and R is restore; i (squash -i into the parent) and alt+i
+(move hunks into any revision) -> s then -i; b (bookmarks panel) -> bb;
+Tab no longer stops in the revset box (L focuses it). In the picker: o a
+b (onto, after, before) -> -o -A -B; r s B (revs, source, branch) -> -r
+-s -b; e (skip or keep emptied) -> -e (rebase) or -k (squash); m
+(combine messages) -> -u off; w (no-edit) -> -n; h (duplicate in place)
+-> backspace; Tab (before/after) -> p. In time travel: r (restore) ->
+enter. In the op log: r -> enter only; d (show diff) -> p; v (revert) ->
+u. In the file list: r (restore) -> R; m (move) -> s; c (resolve) -> x;
+C (commit staged) -> c; l (close) -> h or esc. In the forge pane: r
+(refresh) -> ctrl+l. In the full diff: s (side by side) -> \s.
+
+### Feat
+
+- **log**: open jj-diff's split columns and conflict viewer from the log
+- **keys**: adopt aragonite's shared keymap for dispatch, help, footers, and prefixes
+
+### Fix
+
+- **test**: wait on every command in the live picker tests instead of a one-second budget
+
+### Perf
+
+- **dock**: color diffs through jj-diff's render seam instead of a second render off the loop
+
 ## v0.14.0 (2026-11-24)
 
 ### Feat
