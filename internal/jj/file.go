@@ -105,7 +105,8 @@ func indexOfPath(files []FileChange, path string) int {
 }
 
 // RestoreFile puts one path back to its state in the revision's parents, which undoes that file's
-// change without touching anything else the revision does.
+// change without touching anything else the revision does. The path names one file exactly, so a
+// space or a parenthesis in it is not read as fileset syntax.
 func (c *Client) RestoreFile(ctx context.Context, revision, path string) (string, error) {
-	return c.mutate(ctx, "restore", "-c", revision, path)
+	return c.mutate(ctx, append([]string{"restore", "-c", revision}, filePatterns([]string{path})...)...)
 }

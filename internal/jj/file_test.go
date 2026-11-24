@@ -91,6 +91,62 @@ func TestRestoreFile(t *testing.T) {
 	}
 }
 
+// A path jj would read as fileset syntax has to reach it as the file it names, or restoring and
+// moving it fail with a parse error about a file the list showed.
+func TestRestoreAndSquash_TakeAPathWithFilesetSyntaxInIt(t *testing.T) {
+	t.Parallel()
+
+	const odd = "sp ace(1).txt"
+
+	t.Run("restore", func(t *testing.T) {
+		t.Parallel()
+
+		client, dir := testRepo(t)
+		ctx := context.Background()
+
+		writeFile(t, dir, "keep.txt", "keep\n")
+		writeFile(t, dir, odd, "odd\n")
+
+		if _, err := client.RestoreFile(ctx, "@", odd); err != nil {
+			t.Fatalf("RestoreFile: %v", err)
+		}
+
+		files, err := client.Files(ctx, "@")
+		if err != nil {
+			t.Fatalf("Files: %v", err)
+		}
+
+		if paths := pathsOf(files); len(paths) != 1 || paths[0] != "keep.txt" {
+			t.Errorf("Files() = %v, want only keep.txt still changed", paths)
+		}
+	})
+
+	t.Run("squash", func(t *testing.T) {
+		t.Parallel()
+
+		client, dir := testRepo(t)
+		ctx := context.Background()
+
+		writeFile(t, dir, "base.txt", "base\n")
+		runJJ(t, dir, "commit", "-m", "base")
+		writeFile(t, dir, "stays.txt", "stays\n")
+		writeFile(t, dir, odd, "odd\n")
+
+		if _, err := client.Squash(ctx, "@", "@-", odd); err != nil {
+			t.Fatalf("Squash: %v", err)
+		}
+
+		files, err := client.Files(ctx, "@")
+		if err != nil {
+			t.Fatalf("Files: %v", err)
+		}
+
+		if paths := pathsOf(files); len(paths) != 1 || paths[0] != "stays.txt" {
+			t.Errorf("the source still holds %v, want only stays.txt", paths)
+		}
+	})
+}
+
 func TestFetchWithoutARemoteFails(t *testing.T) {
 	t.Parallel()
 

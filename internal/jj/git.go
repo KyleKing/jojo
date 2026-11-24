@@ -14,7 +14,7 @@ func (c *Client) Fetch(ctx context.Context) (string, error) {
 // ResolveCommand returns `jj resolve` ready for tea.ExecProcess. Resolving runs the user's merge
 // tool, which needs the real terminal, so this hands it over rather than capturing output.
 func (c *Client) ResolveCommand(ctx context.Context, revision string, paths ...string) *exec.Cmd {
-	args := append([]string{"resolve", "-r", revision}, paths...)
+	args := append([]string{"resolve", "-r", revision}, filePatterns(paths)...)
 
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.CommandContext(ctx, "jj", args...)

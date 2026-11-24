@@ -87,9 +87,10 @@ func (c *Client) Describe(ctx context.Context, rev, message string) (string, err
 	return c.mutate(ctx, "describe", "-r", rev, "-m", message)
 }
 
-// Squash moves from's changes into into.
+// Squash moves from's changes into into. Each path names one file exactly, so a space or a
+// parenthesis in it reaches jj as part of the name rather than as fileset syntax.
 func (c *Client) Squash(ctx context.Context, from, into string, paths ...string) (string, error) {
-	return c.mutate(ctx, SquashArgs(from, into, paths)...)
+	return c.mutate(ctx, SquashArgs(from, into, filePatterns(paths))...)
 }
 
 // SquashArgs is the invocation Squash runs, exported because moving part of a revision needs the
