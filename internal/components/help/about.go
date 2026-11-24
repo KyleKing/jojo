@@ -75,7 +75,8 @@ var abouts = map[string]about{
 	},
 	ActionNewPlaced: {
 		cmd: "jj new -o/-A/-B <dest>", also: []string{"insert", "checkout -b"},
-		prose: "Starts a new change where you choose: onto a revision, or inserted after or before it.",
+		prose: "Starts a new change where you choose: onto a revision, or inserted after or before it. -m " +
+			"describes it as it starts.",
 	},
 	ActionEdit: {
 		cmd: "jj edit <rev>", also: []string{"checkout", "switch"},
@@ -105,7 +106,7 @@ var abouts = map[string]about{
 	ActionSquash: {
 		cmd: "jj squash --from <rev> --into <dest>", also: []string{"amend", "fixup", gitStage, "move"},
 		prose: "Moves the revision's changes into another one you pick, its parent by default, and " +
-			"drops the revision once it is empty. -i chooses the hunks.",
+			"drops the revision once it is empty. -i chooses the hunks; -o/-A/-B make a new commit.",
 		related: []string{ActionAbsorb, ActionSplit},
 	},
 	ActionSplit: {

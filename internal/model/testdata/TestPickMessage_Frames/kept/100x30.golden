@@ -1,0 +1,30 @@
+  wkwyyxvq          squashing (no description set)                         2f +14 -3                
+  rnzxmskv          ◂ new after parse: read the new header format           6f +0 -0                
+  koopqtrk          refactor: split the reader                                                      
+  twnsvwmr  parse*  test: cover the fallbacks                                                       
+  nptwozlo          release 0.13.0                                                                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    
+jj squash --from wkwyyxvq --insert-after rnzxmskv -m 'parse: the header' · previewing…              
+-t into  -o new onto  -A new after  -m message  p show before  enter squash  esc cancel             

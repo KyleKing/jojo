@@ -207,15 +207,15 @@ var submitOnly = append(slices.Clone(pickerOnly), keys.ActionMessages)
 var viewOnly = append(slices.Clone(pickerOnly), keys.ActionSwitchPane, keys.ActionAgain, keys.ActionReverse,
 	keys.ActionMessages)
 
-// pickerFlags are the flags jojo's picker builds a command from, per verb. -m (a message prompt) is
-// left out until there is one, as are squash's -o, -A, and -B (into a new commit placed there).
+// pickerFlags are the flags jojo's picker builds a command from, per verb. -m opens a one-line prompt
+// in the footer, and squash's -o, -A, and -B squash into a new commit placed there.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var pickerFlags = map[string][]string{
 	keys.VerbRebase:    {"r", "s", "b", "o", "A", "B", "e", "d", "p"},
-	keys.VerbSquash:    {"t", "u", "k", "i"},
+	keys.VerbSquash:    {"t", "o", "A", "B", "u", "m", "k", "i"},
 	keys.VerbDuplicate: {"o", "A", "B"},
-	keys.VerbNew:       {"o", "A", "B", "n"},
+	keys.VerbNew:       {"o", "A", "B", "n", "m"},
 	keys.VerbRestore:   {"i", "d"},
 }
 

@@ -74,6 +74,10 @@ func (m Model) routeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.paletteKey(msg)
 	}
 
+	if m.typingMessage() {
+		return m.messageKey(msg)
+	}
+
 	if ctx := m.openModal(); ctx != "" && ctx != ctxDiff && ctx != ctxFiles {
 		cmd := m.routeToModal(ctx, msg)
 

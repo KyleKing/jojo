@@ -106,6 +106,10 @@ func (m Model) pickExtra(action string) (Model, tea.Cmd, bool) {
 		return m, cmd, true
 	case help.ActionTrunk:
 		return m, m.gotoTrunk(), true
+	case keys.FlagAction(keys.VerbSquash, "m"), keys.FlagAction(keys.VerbNew, "m"):
+		next, cmd := m.toggleMessage()
+
+		return next, cmd, true
 	}
 
 	return m.motionAction(action)
@@ -163,6 +167,10 @@ func (m Model) pickFooter() string {
 }
 
 func (m Model) pickStatus() string {
+	if m.typingMessage() {
+		return m.messagePrompt()
+	}
+
 	command := m.pick.command()
 	state, face := m.previewState()
 	room := max(0, m.width-len(state)-1)
@@ -216,10 +224,28 @@ var flagWords = map[string]map[string]string{
 		"r": "revs", "s": "source", "b": "branch", "o": wordOnto, "A": wordAfter, "B": wordBefore,
 		"e": "skip emptied", "d": "keep divergent", "p": "simplify parents",
 	},
-	keys.VerbSquash:    {"t": "into", "u": "dest message", "k": "keep emptied", "i": "choose hunks"},
+	keys.VerbSquash: {
+		"t": "into", "o": "new onto", "A": "new after", "B": "new before", "u": "dest message", "m": "message",
+		"k": "keep emptied", "i": "choose hunks",
+	},
 	keys.VerbDuplicate: {"o": wordOnto, "A": wordAfter, "B": wordBefore},
-	keys.VerbNew:       {"o": wordOnto, "A": wordAfter, "B": wordBefore, "n": "no-edit"},
+	keys.VerbNew:       {"o": wordOnto, "A": wordAfter, "B": wordBefore, "n": "no-edit", "m": "message"},
 	keys.VerbRestore:   {"i": "choose hunks", "d": "keep descendants"},
+}
+
+// chipOn reports whether a flag's chip draws lit: whether it shapes the command as it stands.
+func chipOn(p *pickState, f keys.Flag) bool {
+	switch {
+	case f.Radio == keys.RadioPlacement && p.verb == pickDuplicate && p.inPlace:
+		return false
+	case f.Letter == "m":
+		return p.message != ""
+	case f.Letter == "u" && p.verb == pickSquash && (p.squashPlaced() || p.message != ""):
+		// A new commit has no destination message to keep, and -m writes its own.
+		return false
+	}
+
+	return p.flags.On(f.Letter)
 }
 
 // pickChips are the picker's flags as key hints, keyed as jj spells them: a radio group draws its
@@ -236,10 +262,7 @@ func (m Model) pickChips() string {
 			continue
 		}
 
-		on := p.flags.On(f.Letter)
-		if f.Radio == keys.RadioPlacement && p.verb == pickDuplicate && p.inPlace {
-			on = false
-		}
+		on := chipOn(p, f)
 
 		h.What, h.Off, h.Priority = flagWords[verb][f.Letter], !on, prioToggle
 		if f.Radio != "" {

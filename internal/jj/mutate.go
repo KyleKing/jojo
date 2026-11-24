@@ -242,7 +242,8 @@ type PlaceOptions struct {
 	Mode        RebaseDestinationMode
 }
 
-func (p PlaceOptions) args() []string {
+// Args is the placement as jj's flags: -o, -A, or -B before each destination.
+func (p PlaceOptions) Args() []string {
 	flag := p.Mode.flag()
 	args := make([]string, 0, 2*len(p.Destination))
 
@@ -261,7 +262,7 @@ func NewArgs(where PlaceOptions, noEdit bool) []string {
 	if where.Mode == RebaseDestOnto {
 		args = append(args, where.Destination...)
 	} else {
-		args = append(args, where.args()...)
+		args = append(args, where.Args()...)
 	}
 
 	if noEdit {
@@ -275,7 +276,7 @@ func NewArgs(where PlaceOptions, noEdit bool) []string {
 func DuplicateArgs(revs []string, where PlaceOptions) []string {
 	args := append([]string{"duplicate"}, revs...)
 
-	return append(args, where.args()...)
+	return append(args, where.Args()...)
 }
 
 // Apply runs a write built by one of the *Args functions, so the command a preview drew and the

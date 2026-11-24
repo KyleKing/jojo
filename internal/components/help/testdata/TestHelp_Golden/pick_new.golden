@@ -22,6 +22,7 @@ gt       jump to trunk()                                            jj log -r 't
 -A       insert after (-A)                                          
 -B       insert before (-B)                                         
 -n       stay where you are (--no-edit)                             
+-m       write the message (-m)                                     
 ── Picking
 enter    run it                                                     
 p        show the graph before / after the command                  

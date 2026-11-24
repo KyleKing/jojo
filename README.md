@@ -138,12 +138,14 @@ graph redraws as it will be after the command, and the footer shows the live `jj
 | Verb | Flags |
 | --- | --- |
 | rebase `r` | `-r` • / `-s` / `-b` what moves; `-o` • / `-A` / `-B` where; `-e` skip emptied, `-d` keep divergent, `-p` simplify parents |
-| squash `s` | `-t` into •; `-u` keep the destination's message (on), `-k` keep emptied, `-i` choose hunks in the diff editor |
+| squash `s` | `-t` into • / `-o` / `-A` / `-B` (into a new commit placed there); `-u` keep the destination's message (on), `-m` write the message, `-k` keep emptied, `-i` choose hunks in the diff editor |
 | duplicate `y` | `-o` / `-A` / `-B` once you move; `Enter` straight away duplicates in place, `Backspace` returns to it |
-| new `N` | `-o` • / `-A` / `-B`, `-n` no-edit |
+| new `N` | `-o` • / `-A` / `-B`, `-n` no-edit, `-m` write the message |
+| bookmark `bs` / `bx` | `-B` allow backwards or sideways (`--allow-backwards`) |
 | restore `R` | from the parent by default (which discards the revision's changes); `-i` choose hunks, `-d` keep descendants' content |
 
-`p` shows the graph before or after the command, `Enter` runs it as one operation, and `Esc` leaves
+`-m` opens a one-line prompt where the command line stands: `Enter` keeps the message, `Esc` leaves
+it as it was, and `-m` again drops it. `p` shows the graph before or after the command, `Enter` runs it as one operation, and `Esc` leaves
 nothing behind.
 
 The line over the footer is the inspector: whatever the row under the cursor had no room for at

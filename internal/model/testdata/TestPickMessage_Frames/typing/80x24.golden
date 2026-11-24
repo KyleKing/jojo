@@ -1,0 +1,24 @@
+  wkwyyxvq          squashing (no description set)     2f +14 -3                
+  rnzxmskv          ◂ new after parse: read the n…      6f +0 -0                
+  koopqtrk          refactor: split the reader                                  
+  twnsvwmr  parse*  test: cover the fallbacks                                   
+  nptwozlo          release 0.13.0                                              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ parse: read the new header format                                              
+-m parse: the header                                                            
+-t into  -o new onto  -A new after  p show before  enter squash  esc cancel     

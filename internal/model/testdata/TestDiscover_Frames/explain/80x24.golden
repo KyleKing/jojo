@@ -1,8 +1,6 @@
   wkwyyxvq          (no description set)               2f +14 -3                
   rnzxmskv          parse: read the new header fo…      6f +0 -0                
   koopqtrk          refactor: split the reader                                  
-  twnsvwmr  parse*  test: cover the fallbacks                                   
-  nptwozlo          release 0.13.0                                              
 ── keys 77 of 77 ───────────────────────────────────────────────────────────────
   A       absorb into the revisions t…  jj absorb -r <rev>                      
   x       resolve the conflict, side …  jj-diff --resolve -r <rev>              
@@ -15,10 +13,12 @@
 ▌ s       squash, choosing where into   jj squash --from <rev> --into <dest>    
  ── Pick where it goes · s  squash, choosing where into ─────────────────────── 
  Moves the revision's changes into another one you pick, its parent by default, 
- and drops the revision once it is empty. -i chooses the hunks.                 
+ and drops the revision once it is empty. -i chooses the hunks; -o/-A/-B make a 
+ new commit.                                                                    
  runs   jj squash --from <rev> --into <dest>                                    
- flags  -t into · -u keep the destination's message · -k keep the source if it  
-        empties · -i choose hunks                                               
+ flags  -t into · -o into a new commit onto · -A into a new commit after · -B   
+        into a new commit before · -u keep the destination's message · -m write 
+        the message · -k keep the source if it empties · -i choose hunks        
  also   A absorb S split                                                        
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
 parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  …  ? help 

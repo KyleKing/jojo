@@ -1,10 +1,8 @@
   wkwyyxvq          (no description set)     ╭─ keys · 77 of 77 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
-  koopqtrk          refactor: split the reade│   E       edit the revision's content in the diff … │
-  twnsvwmr  parse*  test: cover the fallbacks│   d       describe                                  │
-  nptwozlo          release 0.13.0           │   D       describe in $EDITOR                       │
-                                             │   c       commit @: describe it and start a new one │
-                                             │   S       split into commits, one column each, in … │
+  koopqtrk          refactor: split the reade│   D       describe in $EDITOR                       │
+  twnsvwmr  parse*  test: cover the fallbacks│   c       commit @: describe it and start a new one │
+  nptwozlo          release 0.13.0           │   S       split into commits, one column each, in … │
                                              │   a       abandon                                   │
                                              │   A       absorb into the revisions that last touc… │
                                              │   x       resolve the conflict, side by side in jj… │
@@ -18,12 +16,14 @@
                                              │ ── Pick where it goes · s  squash, choosing where i │
                                              │ Moves the revision's changes into another one you   │
                                              │ pick, its parent by default, and drops the revision │
-                                             │ once it is empty. -i chooses the hunks.             │
+                                             │ once it is empty. -i chooses the hunks; -o/-A/-B    │
+                                             │ make a new commit.                                  │
                                              │ runs   jj squash --from <rev> --into <dest>         │
-                                             │ flags  -t into · -u keep the destination's message  │
-                                             │        · -k keep the source if it empties · -i      │
-                                             │        choose hunks                                 │
-                                             │ also   A absorb S split                             │
+                                             │ flags  -t into · -o into a new commit onto · -A     │
+                                             │        into a new commit after · -B into a new      │
+                                             │        commit before · -u keep the destination's    │
+                                             │        message · -m write the message · -k keep the │
+                                             │        source if it empties · -i choose hunks       │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
  ▸ next  @ has changes but no description · d╰─────────────────────────────────────────────────────╯

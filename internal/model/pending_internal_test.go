@@ -107,7 +107,11 @@ func TestPicker_BuildsTheCommandTheFlagsName(t *testing.T) {
 			want: "jj squash --from aaaa --into bbbb --use-destination-message --interactive",
 		},
 		{
-			name: "squash has no placement flags", keys: []string{"s", "-", "A"},
+			name: "squash -A squashes into a new commit after", keys: []string{"s", "-", "A"},
+			want: "jj squash --from aaaa --insert-after bbbb",
+		},
+		{
+			name: "squash back to -t goes into it again", keys: []string{"s", "-", "o", "-", "t"},
 			want: "jj squash --from aaaa --into bbbb --use-destination-message",
 		},
 		{name: "duplicate starts in place", keys: []string{"y"}, want: "jj duplicate aaaa"},

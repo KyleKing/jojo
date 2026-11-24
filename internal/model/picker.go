@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
 
@@ -64,8 +66,9 @@ type pickState struct {
 	flags keys.FlagSet
 	// bookmark is the name a bookmark picker moves, and backwards its -B (--allow-backwards).
 	bookmark string
-	// message is -m's text, typed in the footer's prompt.
+	// message is -m's text, typed in the footer's prompt, and input that prompt while it is open.
 	message string
+	input   *textinput.Model
 	dest    string
 	// initial is where the destination started, jj's default; a repeat of a command left there
 	// recomputes it for the revision it repeats on.
@@ -137,10 +140,7 @@ func (p *pickState) args(forPreview bool) []string {
 
 	switch p.verb {
 	case pickSquash:
-		args := jj.SquashIntoArgs(jj.SquashOptions{
-			Sources: p.sources, Into: p.dest, KeepEmptied: p.flags.On("k"),
-			Combine: !p.flags.On("u") && !forPreview,
-		})
+		args := p.squashArgs(forPreview)
 		if p.flags.On("i") && !forPreview {
 			args = append(args, "--interactive")
 		}
@@ -165,7 +165,8 @@ func (p *pickState) args(forPreview bool) []string {
 			parents = append(parents, p.dest)
 		}
 
-		return jj.NewArgs(jj.PlaceOptions{Destination: parents, Mode: p.placement()}, p.flags.On("n"))
+		return withMessage(jj.NewArgs(jj.PlaceOptions{Destination: parents, Mode: p.placement()}, p.flags.On("n")),
+			p.message)
 	case pickBookmark:
 		return jj.BookmarkSetArgs(p.bookmark, p.dest, p.backwards)
 	case pickRebase:
@@ -465,6 +466,8 @@ func pickMarks(p *pickState, after bool) map[string]logview.Mark {
 	}
 
 	switch {
+	case p.verb == pickSquash && p.squashPlaced():
+		marks[p.dest] = logview.Mark{Text: "◂ new " + strings.TrimPrefix(destWords[p.placement()], "◂ ")}
 	case p.verb == pickSquash:
 		marks[p.dest] = logview.Mark{Text: "◂ into"}
 	case p.verb == pickRestore:
@@ -519,7 +522,7 @@ func (m Model) applyPick() (Model, tea.Cmd) {
 		return m, tea.Batch(closing, m.exec(pickVerbNames[pick.verb]+" "+what+undoHint, m.hunkArgs(args...)...))
 	}
 
-	if pick.verb == pickSquash && !pick.flags.On("u") {
+	if pick.needsTerminal() {
 		return m, tea.Batch(closing, m.exec("squashed "+what+undoHint, args...))
 	}
 

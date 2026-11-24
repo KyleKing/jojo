@@ -19,7 +19,11 @@ gt       jump to trunk()                                            jj log -r 't
 [b       previous bookmarked revision                               jj log -r 'bookmarks() | remote_bookmarks()'
 ── Flags
 -t       into (--into)                                              
+-o       into a new commit onto (-o)                                
+-A       into a new commit after (-A)                               
+-B       into a new commit before (-B)                              
 -u       keep the destination's message (--use-destination-message) 
+-m       write the message (-m)                                     
 -k       keep the source if it empties (--keep-emptied)             
 -i       choose hunks (-i)                                          
 ── Picking
