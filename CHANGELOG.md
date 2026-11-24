@@ -1,3 +1,10 @@
+## v0.16.2 (2026-11-24)
+
+### Fix
+
+- **deps**: take jj-diff v0.12.1, which lexes a repeated path per file section
+- **exec**: repaint after a handed-off program on bubbletea v2.1.2
+
 ## v0.16.1 (2026-11-24)
 
 ### Fix
