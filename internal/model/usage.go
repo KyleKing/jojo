@@ -132,6 +132,7 @@ func UsageKeymap(km help.Keymap) keyusage.Keymap {
 		),
 		ctxOpLog: listModal(
 			bind("restore", "enter"), bind("show", "p"), bind("revert", "u"), bind("close", "esc", "q", "o"),
+			bind("label jump", "'"), bind("jump back", "ctrl+o"), bind("jump forward", "ctrl+i", "tab"),
 		),
 		ctxSpaces: listModal(bind("add", "a"), bind("forget", "f"), bind("close", "esc", "q", "w")),
 		ctxPalette: {

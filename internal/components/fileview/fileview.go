@@ -232,6 +232,21 @@ func (m *Model) send(build func(revision, path string) tea.Msg) tea.Cmd {
 	return func() tea.Msg { return build(revision, path) }
 }
 
+// StartLabels labels the files on screen for a label jump, false when none is drawn.
+func (m *Model) StartLabels() bool { return m.list.StartLabels() }
+
+// Labeling reports whether a label jump is waiting for its label.
+func (m Model) Labeling() bool { return m.list.Labeling() }
+
+// LabelKey takes a key while the labels are up (see listview.Model.LabelKey).
+func (m *Model) LabelKey(key string) (bool, string) { return m.list.LabelKey(key) }
+
+// JumpBack and JumpForward walk the list's jump list (ctrl+o and ctrl+i).
+func (m *Model) JumpBack() bool { return m.list.JumpBack() }
+
+// JumpForward walks the jump list forward again.
+func (m *Model) JumpForward() bool { return m.list.JumpForward() }
+
 // Selected is the revision and path of the file under the cursor, as jj's summary prints the path.
 func (m Model) Selected() (string, string, bool) {
 	file, ok := m.list.Selected()

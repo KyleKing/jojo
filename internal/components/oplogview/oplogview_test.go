@@ -217,3 +217,43 @@ func TestViewGolden(t *testing.T) {
 
 	tuitest.AssertGolden(t, m.View(testWidth, testHeight))
 }
+
+// ' labels the operations on screen and a label lands there, telling the log to redraw at it; G
+// leaves a jump that ctrl+o walks back and ctrl+i forward again.
+func TestLabelJumpAndJumpList(t *testing.T) {
+	t.Parallel()
+
+	m := oplogview.New(testSkin())
+	m.Open([]jj.Operation{op("aaa", "one", true), op("bbb", "two", false), op("ccc", "three", false)})
+
+	if frame := tuitest.StripANSI(m.View(testWidth, testHeight)); !strings.Contains(frame, "aaa") {
+		t.Fatalf("no operations drawn:\n%s", frame)
+	}
+
+	m.Update(tuitest.Key("'"))
+
+	if frame := tuitest.StripANSI(m.View(testWidth, testHeight)); !strings.Contains(frame, "d  ") {
+		t.Errorf("' drew no label d:\n%s", frame)
+	}
+
+	moved, ok := drainMsg[oplogview.MovedMsg](m.Update(tuitest.Key("d")))
+	if !ok || moved.Operation.ID != "ccc" {
+		t.Fatalf("the label d moved to %+v (%v), want ccc", moved.Operation, ok)
+	}
+
+	steps := []struct{ key, want string }{{"ctrl+o", "aaa"}, {"ctrl+i", "ccc"}, {"g", "aaa"}, {"ctrl+o", "ccc"}}
+	for _, tc := range steps {
+		m.Update(tuitest.Key(tc.key))
+
+		if got := m.Ago(); []string{"aaa", "bbb", "ccc"}[got] != tc.want {
+			t.Errorf("%s left the cursor on %d, want %s", tc.key, got, tc.want)
+		}
+	}
+
+	m.Update(tuitest.Key("'"))
+	m.Update(tuitest.Key("z"))
+
+	if frame := tuitest.StripANSI(m.View(testWidth, testHeight)); !strings.Contains(frame, "no label z") {
+		t.Errorf("z said nothing:\n%s", frame)
+	}
+}

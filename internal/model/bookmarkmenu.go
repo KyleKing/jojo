@@ -152,6 +152,7 @@ func (m Model) chooseBookmark(action string, rev jj.Revision, marks []jj.Bookmar
 // bookmarkChosen runs action on mark, for the revision the menu was opened on.
 func (m Model) bookmarkChosen(action string, mark jj.Bookmark) (Model, tea.Cmd) {
 	name := mark.Name
+	m.noteWrite(action)
 
 	switch action {
 	case help.ActionBookmarkSet, help.ActionBookmarkResolve:

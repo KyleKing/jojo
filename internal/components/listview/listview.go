@@ -29,23 +29,41 @@ type Row struct {
 
 // Model is a list of T. The zero cursor is the first item.
 type Model[T any] struct {
-	skin    ui.Skin
+	skin ui.Skin
+	// drawn is the half-open range of items the last frame showed, which a label jump labels. A
+	// pointer, since View draws on a copy.
+	drawn   *[2]int
+	labels  map[string]int
 	title   string
 	warning string
+	typed   string
 	items   []T
+	jumps   jumpList
 	cursor  int
 	open    bool
 }
 
-// New returns a closed list drawn in skin.
-func New[T any](skin ui.Skin) Model[T] {
-	return Model[T]{skin: skin}
+// jumpList is the rows the list's jumps left from (back) and the ones a walk back left (forward), as
+// vim's ctrl+o and ctrl+i walk them.
+type jumpList struct {
+	back, forward []int
 }
 
-// Open shows items under title with the cursor at index, clamped into range.
+// New returns a closed list drawn in skin.
+func New[T any](skin ui.Skin) Model[T] {
+	return Model[T]{skin: skin, drawn: &[2]int{}}
+}
+
+// Open shows items under title with the cursor at index, clamped into range. A new list starts with
+// no jumps behind it.
 func (m *Model[T]) Open(title string, items []T, cursor int) {
+	if m.title != title {
+		m.jumps = jumpList{}
+	}
+
 	m.title, m.items, m.warning, m.open = title, items, "", true
 	m.cursor = clamp(cursor, len(items)-1)
+	m.labels, m.typed = nil, ""
 }
 
 // InnerWidth is how many cells a row has at this frame width, which a caller preparing its own rows
@@ -102,8 +120,10 @@ func (m *Model[T]) MoveKey(key string) bool {
 	case "pgdown", "ctrl+d":
 		m.move(pageSize)
 	case "g", "home":
+		m.noteJump()
 		m.move(-len(m.items))
 	case "G", "end":
+		m.noteJump()
 		m.move(len(m.items))
 	default:
 		return false
@@ -179,6 +199,10 @@ func (m Model[T]) View(width, height int, row func(item T, selected bool) Row, h
 	lines := head
 	start, end := window(m.cursor, len(m.items), body)
 
+	if m.drawn != nil {
+		*m.drawn = [2]int{start, end}
+	}
+
 	for i := start; i < end; i++ {
 		drawn := row(m.items[i], i == m.cursor)
 		if drawn.Drawn != "" {
@@ -189,6 +213,8 @@ func (m Model[T]) View(width, height int, row func(item T, selected bool) Row, h
 
 		lines = append(lines, drawn.Style.Render(table.Truncate(drawn.Text, inner)))
 	}
+
+	m.labelRows(lines[len(head):], start, end)
 
 	if clipped {
 		lines = append(lines, m.position(start, end, inner))

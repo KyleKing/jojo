@@ -93,6 +93,19 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	name := key.String()
 	before := m.list.Cursor()
 
+	if m.list.Labeling() {
+		moved, missed := m.list.LabelKey(name)
+		if missed != "" {
+			m.list.Warn("no label " + missed)
+		}
+
+		return m.moved(moved && m.list.Cursor() != before)
+	}
+
+	if cmd, ok := m.jumpKey(name, before); ok {
+		return cmd
+	}
+
 	if m.list.MoveKey(name) {
 		if m.list.Cursor() == before {
 			return nil
@@ -115,6 +128,40 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	return nil
+}
+
+// jumpKey answers the jump keys: ' labels the rows on screen, ctrl+o and ctrl+i (or tab, which
+// most terminals send for it) walk the jump list that g, G, and a label fill.
+func (m *Model) jumpKey(name string, before int) (tea.Cmd, bool) {
+	switch name {
+	case "'":
+		if !m.list.StartLabels() {
+			m.list.Warn("nothing on screen to jump to")
+		}
+
+		return nil, true
+	case "ctrl+o":
+		if !m.list.JumpBack() {
+			m.list.Warn("no jump to go back to yet: g, G, and ' each leave one")
+		}
+	case "ctrl+i", "tab":
+		if !m.list.JumpForward() {
+			m.list.Warn("nothing to go forward to: ctrl+o goes back first")
+		}
+	default:
+		return nil, false
+	}
+
+	return m.moved(m.list.Cursor() != before), true
+}
+
+// moved says the cursor moved, so the log behind redraws at the operation now under it.
+func (m *Model) moved(did bool) tea.Cmd {
+	if !did {
+		return nil
+	}
+
+	return m.emit(func(op jj.Operation) tea.Msg { return MovedMsg{Operation: op, Ago: m.list.Cursor()} })
 }
 
 func (m *Model) emit(build func(jj.Operation) tea.Msg) tea.Cmd {

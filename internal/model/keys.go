@@ -82,8 +82,8 @@ func (m Model) routeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.messageKey(msg)
 	}
 
-	if m.labelsShown() {
-		return m.labelKey(msg)
+	if next, cmd, labeling := m.routeLabel(msg); labeling {
+		return next, cmd
 	}
 
 	if ctx := m.openModal(); ctx != "" && ctx != ctxDiff && ctx != ctxFiles {

@@ -1,12 +1,15 @@
 package model
 
 import (
+	"context"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/help"
+	"github.com/kyleking/jojo/internal/jj"
 )
 
 // repeatable is the last write the repeat key runs again on the revision under the cursor (or the
@@ -59,6 +62,10 @@ func (m Model) repeatGate() keys.Availability {
 // repeat runs the last write again on the cursor.
 func (m Model) repeat() (tea.Model, tea.Cmd) {
 	r := m.last
+	if r.action == keys.ActionDescribe {
+		return m.repeatDescribe(r.message)
+	}
+
 	if !r.picker {
 		return m.revisionAction(r.action)
 	}
@@ -123,11 +130,36 @@ func copyFlags(old keys.FlagSet, verb string) keys.FlagSet {
 	return out
 }
 
-// repeatableWrites are the log's verbs a repeat runs as they are: they take no destination.
+// repeatableWrites are the log's verbs a repeat runs as they are: they take no destination. Of the b
+// menu, the verbs that act on the bookmark already on the revision repeat (asking which when it
+// carries several); create and rename write a name the reader typed for one place, so they do not.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var repeatableWrites = map[string]bool{
 	help.ActionNew: true, help.ActionAbandon: true, help.ActionAbsorb: true, help.ActionBookmarkAdvance: true,
+	help.ActionBookmarkDelete: true, help.ActionBookmarkForget: true, help.ActionBookmarkTrack: true,
+}
+
+// rememberDescribe records a description written in the prompt, which a repeat writes on the cursor
+// (or the checked revisions) as it stands, the prompt skipped.
+func (m *Model) rememberDescribe(message string) {
+	m.remember(repeatable{action: keys.ActionDescribe, message: message})
+}
+
+// repeatDescribe writes message as the description of the cursor or the checked revisions.
+func (m Model) repeatDescribe(message string) (tea.Model, tea.Cmd) {
+	targets := m.targets()
+	if len(targets) == 0 {
+		return m, nil
+	}
+
+	revset := strings.Join(targets, " | ")
+
+	cmd := m.act(joinIDs(targets), func(ctx context.Context, c *jj.Client) (string, error) {
+		return c.Describe(ctx, revset, message)
+	})
+
+	return m, cmd
 }
 
 // noteWrite remembers a verb that takes no destination as the one to repeat.

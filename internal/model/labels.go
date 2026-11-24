@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/jojo/internal/components/listview"
 	"github.com/kyleking/jojo/internal/components/logview"
 )
 
@@ -13,37 +14,14 @@ import (
 // in view, however far down. In a picker it moves the destination. Esc, or a key no label starts
 // with, puts the labels away.
 
-// labelKeys are the letters labels are made of, home row first.
-const labelKeys = "asdfghjklqwertyuiopzxcvbnm"
-
 // labeling is a label jump waiting for its label: each label's change id, and what has been typed.
 type labeling struct {
 	targets map[string]string
 	typed   string
 }
 
-// labelsFor names n rows: single letters while they last, then pairs, so every label in one jump is
-// the same length and no label is the start of another.
-func labelsFor(n int) []string {
-	keys := strings.Split(labelKeys, "")
-	if n <= len(keys) {
-		return keys[:n]
-	}
-
-	out := make([]string, 0, n)
-
-	for _, a := range keys {
-		for _, b := range keys {
-			if len(out) == n {
-				return out
-			}
-
-			out = append(out, a+b)
-		}
-	}
-
-	return out
-}
+// labelsFor names n rows the way every list in jojo labels them.
+func labelsFor(n int) []string { return listview.Labels(n) }
 
 // labelView is the log the jump labels: the picker's while one is open.
 func (m *Model) labelView() *logview.Model {

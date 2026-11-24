@@ -44,6 +44,7 @@ func openDescribe(m *Model, detail jj.Detail) tea.Cmd {
 		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
 			return c.Describe(ctx, id, text)
 		})
+		m.rememberDescribe(text)
 
 		return m, cmd
 	}

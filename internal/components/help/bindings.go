@@ -265,12 +265,27 @@ func sharedBindings() []keys.Binding {
 	return shared
 }
 
+// jumpContexts are where the jumps answer. Labels go on the log's rows, which a picker walks too, and
+// on the file list's; the log and the file list keep a jump list each, and the op log answers the
+// same keys itself.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var jumpContexts = map[string]keys.Context{
+	keys.ActionLabelJump:   keys.Log | keys.Picker | pickScreens | keys.List,
+	keys.ActionJumpBack:    keys.Log | keys.List,
+	keys.ActionJumpForward: keys.Log | keys.List,
+}
+
 // everywhere is a zero context spelled out, so a screen can be taken off it.
 const everywhere = ^keys.Context(0)
 
 // sharedContexts is where jojo answers a shared binding: the log and the diff for most, with the
 // modes of the log taking only what they handle.
 func sharedContexts(b keys.Binding) keys.Context {
+	if ctx, ok := jumpContexts[b.Action]; ok {
+		return ctx
+	}
+
 	ctx := b.Contexts
 	if ctx == 0 {
 		ctx = everywhere
@@ -295,9 +310,6 @@ func sharedContexts(b keys.Binding) keys.Context {
 	case keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter):
 		// In the log and its pickers a chapter is the graph's edge: ]] a child, [[ the first parent.
 		return keys.Diff&^PickBookmark | Outline | keys.Log | keys.Picker | pickScreens
-	case keys.ActionLabelJump:
-		// Labels go on the log's rows, which a picker walks too.
-		return keys.Log | keys.Picker | pickScreens
 	case keys.NextAction(keys.ObjConflict), keys.PrevAction(keys.ObjConflict):
 		// jojo's diffs draw no conflict regions of their own (x hands them to jj-diff), so ]x steps the
 		// log's conflicted revisions.

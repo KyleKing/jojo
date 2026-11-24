@@ -216,6 +216,10 @@ var fileKeys = map[string]tea.KeyPressMsg{
 
 // dispatchList runs an action in the file list.
 func (m Model) dispatchList(action string) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.listJump(action); handled {
+		return next, cmd
+	}
+
 	if action == help.ActionHistory {
 		return m.startHistory()
 	}
@@ -230,6 +234,59 @@ func (m Model) dispatchList(action string) (tea.Model, tea.Cmd) {
 
 	if next, cmd, handled := m.globalAction(action); handled {
 		return next, cmd
+	}
+
+	return m, nil
+}
+
+// listJump is ' and the jump list in the file list, which jump through its rows as the log's do
+// through revisions.
+func (m Model) listJump(action string) (tea.Model, tea.Cmd, bool) {
+	switch action {
+	case keys.ActionLabelJump:
+		if !m.files.StartLabels() {
+			return m, m.say("nothing on screen to jump to"), true
+		}
+
+		return m, nil, true
+	case keys.ActionJumpBack:
+		if !m.files.JumpBack() {
+			return m, m.say("no jump to go back to yet: gg, G, and ' each leave one"), true
+		}
+
+		return m, nil, true
+	case keys.ActionJumpForward:
+		if !m.files.JumpForward() {
+			return m, m.say("nothing to go forward to: ctrl+o goes back first"), true
+		}
+
+		return m, nil, true
+	}
+
+	return m, nil, false
+}
+
+// routeLabel hands a key to whichever label jump is waiting for its label, the log's or the file
+// list's, and reports whether one was.
+func (m Model) routeLabel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case m.labelsShown():
+		next, cmd := m.labelKey(msg)
+
+		return next, cmd, true
+	case m.files.IsOpen() && m.openModal() == ctxFiles && m.files.Labeling():
+		next, cmd := m.fileLabelKey(msg)
+
+		return next, cmd, true
+	}
+
+	return m, nil, false
+}
+
+// fileLabelKey takes a key while the file list's labels are up.
+func (m Model) fileLabelKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if _, missed := m.files.LabelKey(msg.String()); missed != "" {
+		return m, m.say("no label " + missed)
 	}
 
 	return m, nil

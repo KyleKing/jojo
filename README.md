@@ -122,8 +122,8 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `]x` / `[x`, `]b` / `[b`, `]]` / `[[` | step to the next or previous conflicted revision, bookmarked revision, or along the graph's edge (`]]` a child, up the screen; `[[` the first parent). `]b`, `]]`, `[[`, and `gt` also move a picker's destination |
-| `.` | repeat the last write on the cursor with the same flags: a picker destination left on jj's default (the parent) follows the new revision, one you chose stays put |
-| `'` / `Ctrl+o` / `Ctrl+i` | label jump: every revision on screen gets a letter (or two) in its gutter, and typing one lands the cursor there (in a picker, the destination); the jump list walks back and forward through where `gg`, `G`, `@`, `gt`, the `]`/`[` motions, and labels jumped from (`Tab` right after `Ctrl+o` walks forward too) |
+| `.` | repeat the last write on the cursor with the same flags: a picker destination left on jj's default (the parent) follows the new revision, one you chose stays put. A description written with `d` repeats as the same message on the cursor (or the checked revisions), and `bd`, `bf`, and `bt` repeat on the bookmark the next revision carries; `bc` and `br` write a name typed for one place, so they do not |
+| `'` / `Ctrl+o` / `Ctrl+i` | label jump: every revision on screen gets a letter (or two) in its gutter, and typing one lands the cursor there (in a picker, the destination); the jump list walks back and forward through where `gg`, `G`, `@`, `gt`, the `]`/`[` motions, and labels jumped from (`Tab` right after `Ctrl+o` walks forward too). The file list and the op log (`o`) answer the same three keys over their own rows, with `gg` and `G` as their jumps |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
 
 `S` and `x` hand the terminal to jj-diff v0.10.0 or newer, then read the log again and say in the
