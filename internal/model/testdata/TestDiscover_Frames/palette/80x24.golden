@@ -12,13 +12,13 @@
 
 
 
-
-── commands 5 of 63 ────────────────────────────────────────────────────────────
+── commands 6 of 64 ────────────────────────────────────────────────────────────
 ── matches ─────────────────────────────────────────────────────────────────────
 ▌ n      new on the revision (two or…  jj new <revs>                            
   :next  show the next steps as a ba…                                           
   R      restore content from anothe…  jj restore --from <src> --into <rev>     
   A      absorb into the revisions t…  jj absorb -r <rev>                       
+         submit the stack at the cur…  jj git push --bookmark <each>; gh pr cre…
          rebase with descendants, ch…  jj rebase -s <rev> -o <dest>             
 : stash▏                                     enter run  ctrl+n/p move  esc close
 parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  …  ? help 

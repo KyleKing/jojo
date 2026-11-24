@@ -1,0 +1,30 @@
+Submit · 3 pull requests onto main · draft                                                          
+  change    action      pr         bookmark            base                subject                  
+  kxqpmnzo  merged      #41        parse-header        → main              feat(parse): read the ne…
+  vwtrlsqy  retarget    #42        split-reader        → main (was parse…  refactor: split the read…
+  nnzolpqr  update      #43 draft  push-nnzolpqrcccc   → split-reader      fix: keep the fallback o…
+  yqosmzxt  new         —          +push-yqosmzxtdddd  → push-nnzolpqrcc…  test: cover the fallbacks
+  wkwyyxvq left out: the empty working copy on top                                                  
+                                                                                                    
+── Before you submit ───────────────────────────────────────────────────────────────────────────────
+• #41 (kxqpmnzo) merged: rebase what is above it onto trunk (r -s onto trunk()) before the next     
+  submit, or its diff repeats the merged change                                                     
+                                                                                                    
+── Runs · 7 ────────────────────────────────────────────────────────────────────────────────────────
+  jj bookmark create push-yqosmzxtdddd -r yqosmzxtdddd                                              
+  jj git push --bookmark push-nnzolpqrcccc --bookmark push-yqosmzxtdddd                             
+  gh pr create --head push-yqosmzxtdddd --base push-nnzolpqrcccc --title 'test: cover the fallbacks'
+      --body-file - --draft <<< body                                                                
+  gh pr edit split-reader --base main                                                               
+  gh pr edit split-reader --body-file - <<< body                                                    
+  gh pr edit push-nnzolpqrcccc --body-file - <<< body                                               
+  gh pr edit push-yqosmzxtdddd --body-file - <<< body                                               
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+2 jj + 5 gh calls · 1 new · 1 update · 1 retarget · 1 merged · plan                                 
+-d draft  enter submit  esc cancel                                                                  

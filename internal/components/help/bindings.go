@@ -25,6 +25,9 @@ const (
 	PickDuplicate
 	PickNew
 	PickRestore
+	// Submit is a stack submit's plan, which takes the outline's place until Enter runs it or Esc
+	// backs out.
+	Submit
 )
 
 // PickVerbs maps each picker screen to the aragonite verb whose flags it offers.
@@ -89,6 +92,15 @@ const (
 	ActionTravelRestore = "travel-restore"
 	ActionChapterRead   = "chapter-read"
 
+	// ActionSubmit submits the outline's stack as stacked pull requests, through a plan screen.
+	ActionSubmit = "submit"
+	// ActionSubmitStack is ActionSubmit from the log, opening the outline at the cursor first.
+	ActionSubmitStack = "submit-stack"
+	// ActionSubmitRun runs the plan on screen.
+	ActionSubmitRun = "submit-run"
+	// ActionSubmitDraft toggles whether new pull requests open as drafts, spelled as a flag.
+	ActionSubmitDraft = "submit-flag-d"
+
 	ActionFileOpen    = "file-open"
 	ActionFileRestore = "file-restore"
 	ActionFileSquash  = "file-squash"
@@ -106,6 +118,7 @@ const (
 	GroupPicker = "Picking"
 	GroupTravel = "Time travel"
 	GroupStack  = "Outline"
+	GroupSubmit = "Submit"
 	GroupFiles  = "Files"
 )
 
@@ -152,6 +165,12 @@ var travelOnly = pickerOnly
 //nolint:gochecknoglobals // a fixed table, read only.
 var outlineOnly = append(slices.Clone(pickerOnly), keys.ActionPalette, keys.ActionSearch,
 	keys.ActionSwitchPane, keys.ActionMessages)
+
+// submitOnly is what the plan screen answers besides its own keys: the picker's, and the trail, where
+// what a submit ran is listed.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var submitOnly = append(slices.Clone(pickerOnly), keys.ActionMessages)
 
 // viewOnly is the shared General keys the docked diff answers.
 //
@@ -246,6 +265,7 @@ func sharedContexts(b keys.Binding) keys.Context {
 		{pickerOnly, keys.Picker | pickScreens},
 		{travelOnly, Travel},
 		{outlineOnly, Outline},
+		{submitOnly, Submit},
 		{viewOnly, keys.View},
 		{pickerOnly, keys.List},
 	} {
@@ -309,6 +329,7 @@ func logBindings() []keys.Binding {
 			keys.Log|keys.Picker|pickScreens),
 		b(ActionForge, GroupRepo, "forge pane: pull requests and CI", "forge", "g h"),
 		b(ActionWorkspaces, GroupRepo, "workspaces", "", "g w"),
+		b(ActionSubmitStack, GroupRepo, "submit the stack at the cursor as stacked pull requests", "", []string{}...),
 	}
 }
 
@@ -339,6 +360,19 @@ func modeBindings() []keys.Binding {
 		{
 			Action: ActionChapterRead, Keys: []string{keyEnter}, What: "read the chapter in the dock",
 			Short: "read", Group: GroupStack, Contexts: Outline,
+		},
+		{
+			Action: ActionSubmit, Keys: []string{"P"}, What: "submit the stack as stacked pull requests (a plan first)",
+			Short: "submit", Group: GroupStack, Contexts: Outline,
+		},
+		{
+			Action: ActionSubmitRun, Keys: []string{keyEnter},
+			What: "run the plan: push, then open and edit the pull requests", Short: "run", Group: GroupSubmit,
+			Contexts: Submit,
+		},
+		{
+			Action: ActionSubmitDraft, Keys: []string{"- d"}, What: "new pull requests open as drafts (--draft)",
+			Short: "--draft", Group: "Flags", Contexts: Submit,
 		},
 	}
 }

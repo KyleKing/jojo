@@ -29,3 +29,4 @@ I        outline                                                    jj log -r 't
 p        dock the diff beside the log, following the cursor         jj diff -r <rev> --git
 ── Outline
 enter    read the chapter in the dock                               
+P        submit the stack as stacked pull requests (a plan first)   jj git push --bookmark <each>; gh pr create/edit --base <the one below>

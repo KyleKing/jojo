@@ -47,6 +47,7 @@ var screens = []struct {
 	{"pick_duplicate", keys.Picker | help.PickDuplicate},
 	{"pick_new", keys.Picker | help.PickNew},
 	{"pick_restore", keys.Picker | help.PickRestore},
+	{"submit", help.Submit},
 }
 
 func defaultKeymap(t *testing.T) help.Keymap {

@@ -23,6 +23,8 @@ func (m Model) screen() keys.Context {
 		return keys.Picker | pickScreens[m.pick.verb]
 	case m.travel.active:
 		return help.Travel
+	case m.submit.active:
+		return help.Submit
 	case m.focus == focusDock:
 		return keys.View
 	case m.outline.active && m.focus == focusLog:
@@ -41,6 +43,8 @@ func usageContext(screen keys.Context) string {
 		return ctxTravel
 	case screen == help.Outline:
 		return ctxOutline
+	case screen == help.Submit:
+		return ctxSubmit
 	case screen == keys.List:
 		return ctxFiles
 	case screen == keys.View:
@@ -137,6 +141,8 @@ func (m Model) dispatch(screen keys.Context, action string) (tea.Model, tea.Cmd)
 		return m.dispatchTravel(action)
 	case screen == help.Outline:
 		return m.dispatchOutline(action)
+	case screen == help.Submit:
+		return m.dispatchSubmit(action)
 	case screen == keys.View:
 		return m.dispatchView(action)
 	case screen == keys.List:
@@ -286,6 +292,11 @@ func (m Model) repoAction(action string) (tea.Model, tea.Cmd, bool) {
 
 		return m, cmd, true
 	case keys.ActionOutline:
+		cmd := m.openOutline()
+
+		return m, cmd, true
+	case help.ActionSubmitStack:
+		m.submit.afterOutline = true
 		cmd := m.openOutline()
 
 		return m, cmd, true

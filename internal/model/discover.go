@@ -14,6 +14,7 @@ import (
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/trailview"
+	"github.com/kyleking/jojo/internal/gh"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -54,6 +55,8 @@ type logState struct {
 	// both ways on a fetch.
 	ahead bool
 	split bool
+	// merged is the pull request a submit found merged for the cursor's change, 0 for none.
+	merged int
 }
 
 // state is the log as the coach's rules read it.
@@ -67,6 +70,10 @@ func (m Model) state() logState {
 	}
 
 	if s.cursor != nil {
+		if pr := m.submit.prs[s.cursor.ChangeID]; pr != nil && pr.State == gh.StateMerged {
+			s.merged = pr.Number
+		}
+
 		for _, b := range s.cursor.Bookmarks {
 			s.ahead = s.ahead || (strings.HasSuffix(b, "*") && !strings.Contains(b, "@"))
 			s.split = s.split || strings.HasSuffix(b, "??")
@@ -133,6 +140,15 @@ func logRules() []coach.Rule[logState] {
 			Say:  func(s logState) string { return shortID(s.cursor) + " is immutable, so jj refuses to rewrite it" },
 			Why:  says("start a change on top of it instead"),
 			Cmd:  "jj new <rev>",
+		},
+		{
+			ID: "jojo.restack-merged", Action: help.ActionRebase, Tone: coach.Do, Priority: rankFirst,
+			When: func(s logState) bool { return s.merged > 0 },
+			Say: func(s logState) string {
+				return "#" + strconv.Itoa(s.merged) + " for " + shortID(s.cursor) + " merged"
+			},
+			Why: says("rebase what is stacked on it onto trunk (-s, then gt), then submit again"),
+			Cmd: "jj rebase -s <child> -o trunk()",
 		},
 		{
 			ID: "jojo.bookmark-split", Action: help.ActionBookmarks, Tone: coach.Do,
@@ -202,7 +218,7 @@ func logTips() []coach.Suggestion {
 		tip("palette", keys.ActionPalette, "finds any command by name, git words too, and runs it"),
 		tip("undo", keys.ActionUndo, "undoes the last jj operation, whatever it was"),
 		tip("dock", help.ActionPreview, "docks the diff beside the log, following the cursor"),
-		tip("trail", keys.ActionMessages, "lists every jj command this session ran"),
+		tip("trail", keys.ActionMessages, "lists every jj and gh command this session ran"),
 		tip("outline", keys.ActionOutline, "opens the stack under the cursor as chapters"),
 		tip("oplog", help.ActionOpLog, "shows the operation log, and the log as it stood at each"),
 		tip("absorb", help.ActionAbsorb, "moves each changed line into the revision that last touched it"),
@@ -253,6 +269,10 @@ func newCoach(km help.Keymap, ledger *coach.Ledger) *coach.Coach[logState] {
 // line rather than doing nothing. Only the log's verbs are gated; every other screen's keys act on
 // what that screen shows.
 func (m Model) gate(action string) keys.Availability {
+	if m.screen() == help.Outline && action == help.ActionSubmit {
+		return m.submitGate()
+	}
+
 	if m.screen() != keys.Log {
 		return keys.Allow()
 	}

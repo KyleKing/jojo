@@ -139,6 +139,7 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 	}
 
 	if msg.err != nil {
+		m.submit.afterOutline = false
 		m.fail(msg.err)
 
 		return m, nil
@@ -173,8 +174,18 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 		m.focus = focusLog
 	}
 
+	m.showPRs()
 	m.resize()
 	cmd := m.loadDock(m.dockTarget())
+
+	if m.submit.afterOutline {
+		m.submit.afterOutline = false
+		if a := m.submitGate(); !a.OK {
+			return m, tea.Batch(cmd, m.say(m.keys.Label(help.ActionSubmit)+"  "+a.Why))
+		}
+
+		return m, tea.Batch(cmd, m.startSubmit())
+	}
 
 	return m, cmd
 }
@@ -247,6 +258,10 @@ func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
 		m.focus = focusDock
 
 		return m, nil
+	case help.ActionSubmit:
+		cmd := m.startSubmit()
+
+		return m, cmd
 	case keys.ActionBack, keys.ActionOutline:
 		cmd := m.closeOutline()
 

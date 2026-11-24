@@ -230,6 +230,7 @@ func oneLineText(text string) string { return strings.Join(strings.Fields(text),
 
 // outlineHints are the footer's while the outline is open: its own keys, most used first.
 func (m Model) outlineHints() []keyhint.Hint {
-	return m.keys.Hints(keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter), help.ActionChapterRead,
-		keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionBack)
+	return m.keys.HintsAt(m.gate, keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter),
+		help.ActionChapterRead, help.ActionSubmit, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound),
+		keys.ActionRounds, keys.ActionBack)
 }

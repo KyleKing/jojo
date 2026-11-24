@@ -170,7 +170,8 @@ func run() error {
 	app := model.New(ctx, client, skin, root, *revset,
 		model.Options{
 			Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
-			Ledger: ledger, CoachLayout: layout,
+			StackBookmark: settings.StackBookmark,
+			Ledger:        ledger, CoachLayout: layout,
 		})
 	// The renderer downsamples to the profile the skin was fitted to, detected the one way, so the two
 	// never disagree under tmux with COLORTERM set.

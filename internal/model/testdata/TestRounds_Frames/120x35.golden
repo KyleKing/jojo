@@ -32,4 +32,4 @@ Stack · 4 · parse-header                              │ version 2 of 3 · sn
                                                       │ 
                                                       │ 
  test: cover the fallbacks · stack (trunk()..@) | (@:: ~ ::trunk())                                            commit d4
-@  ]] chapter  [[ previous chapter  enter read  ]h hunk  ]r round  H rounds  esc back  ? help                           
+@  ]] chapter  [[ previous chapter  enter read  P submit  ]h hunk  ]r round  H rounds  esc back  ? help                 

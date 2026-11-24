@@ -22,6 +22,12 @@ models the common case as one aggregate CI state with an optional per-check list
 GitHub's check runs, GitLab's pipelines, and Forgejo's commit statuses do not line up one
 to one.
 
+`internal/stack` turns a stack into stacked pull requests, and `internal/gh` is the one package
+that runs `gh` for a write. `stack.Read` gathers what a plan needs (whole descriptions, trunk's
+branch, and `gh pr view` per bookmark), `stack.Build` works out the plan as exact commands without
+writing, and `stack.Run` carries it out through `jj.Client.Apply` and `gh.CLI`. Both runners file
+into the one `trail`, so `gm` lists a submit's gh calls beside its jj ones.
+
 `internal/tuitest` and `scripts/pty.sh` drive the app: golden frames in process, tmux for
 a real terminal. [docs/dogfooding.md](docs/dogfooding.md) has the commands.
 
@@ -188,6 +194,18 @@ already hold for each bookmark (`forge.Poller.Known`, which never reaches the ne
 `[[` step chapters from the outline or the dock, and `]h` steps hunks in the dock without taking
 the focus. The outline reads and never writes, so a verb pressed there says where the verbs are.
 
+**A stack is submitted from a plan.** `P` in the outline replaces it with the plan, which is read
+in the background and drawn like the picker: the rows, then a footer of what Enter runs and its
+flags (`-d`, drafts). The plan is a list of commands in a fixed order: bookmarks, one push, creates
+bottom up, retargets bottom up, then bodies, which wait for every number so each section can link
+the others. A body edit is planned only when a pull request was opened (every number changed) or
+when the section would read differently, compared with CRLF and trailing space ignored, so
+re-submitting after an amend writes nothing to GitHub. Retargets edit by branch name, so a plan is
+exact before a single number is known. Nothing deletes a remote branch: a base deleted under an
+open pull request closes it. The gate refuses before a read, from the outline's own flags, and
+the read refuses again on the whole descriptions. The empty, undescribed `@` jj leaves on top is
+dropped rather than refused, since it is where the next change starts rather than a change.
+
 **A change's versions are rounds.** `[r` and `]r` step the docked diff through `jj evolog`, each
 version shown as `jj interdiff --from <its own previous version> --to <it>`, so what a rebase
 changed in the parents drops out. The evolution is read once per commit id with one template that
@@ -208,8 +226,8 @@ what the cursor row cut or collapsed at this width (description, bookmarks, auth
 commit id at its right edge, so a narrow terminal loses nothing one cursor move cannot get back.
 It costs one row, and none below 12 rows of terminal.
 
-**Configuration is a handful of settings.** A theme, key rebinds, the diff tool, and the outline's
-stack revset, and nothing that jj already
+**Configuration is a handful of settings.** A theme, key rebinds, the diff tool, the outline's
+stack revset, and the bookmark name a submit generates, and nothing that jj already
 carries: named revsets are jj's `revset-aliases`, which the revset box completes, so jojo
 does not keep a second list of them. A setting jojo cannot honor stops startup, since a TUI
 has nowhere to report it once it is drawing.
@@ -231,7 +249,9 @@ not own goes to every pane instead.
 ## Testing
 
 Integration tests build real jj repositories in `t.TempDir()` and run the real binary,
-skipping when `jj` is absent. Forge tests replay recorded `gh` calls through aragonite's
+skipping when `jj` is absent. Stack submit tests pair such a repository and a bare git remote with
+a fake `gh` (`internal/gh/ghtest`, built from its `testdata`) that keeps a forge as JSON, answers
+`pr view`, `create`, and `edit`, records every call, and fails loudly on anything else. Forge tests replay recorded `gh` calls through aragonite's
 `ghcassette` and never reach GitHub.
 
 Rendered output is asserted against golden files with ANSI stripped, regenerated only with

@@ -28,6 +28,13 @@ const (
 	gitReflog  = "reflog"
 )
 
+// submitWords find a stack submit: git's words for it, and the tools that made it a habit.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var submitWords = []string{
+	"submit", "stack", "pr", "pull request", "stacked pull requests", "spr", "ghstack", "graphite", "publish",
+}
+
 // abouts is jojo's teaching table, keyed by action.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
@@ -177,6 +184,30 @@ var abouts = map[string]about{
 		prose:   "Pushes the revision's bookmarks, or offers a new one when it has none.",
 		related: []string{ActionBookmarkCreate, ActionFetch},
 	},
+	ActionSubmit: {
+		cmd: "jj git push --bookmark <each>; gh pr create/edit --base <the one below>", also: submitWords,
+		prose: "Opens or updates one pull request per change, each based on the bookmark below it and " +
+			"the bottom one on trunk. A plan lists every jj and gh command before Enter runs them; -d " +
+			"toggles drafts. Running it again pushes amends, retargets a reordered stack, and rewrites " +
+			"only the stack section of each body.",
+		related: []string{ActionPush, keys.ActionOutline, ActionForge},
+	},
+	ActionSubmitStack: {
+		cmd: "jj git push --bookmark <each>; gh pr create/edit --base <the one below>", also: submitWords,
+		prose: "Opens the stack outline at the cursor and its submit plan: one pull request per change, " +
+			"each based on the one below.",
+		related: []string{keys.ActionOutline},
+	},
+	ActionSubmitRun: {
+		cmd:   "jj git push …; gh pr create …; gh pr edit …",
+		also:  []string{"pr", "push", "run"},
+		prose: "Runs the plan on screen, top to bottom; gm lists every call it made.",
+	},
+	ActionSubmitDraft: {
+		cmd:   "gh pr create --draft",
+		also:  []string{"draft", "ready for review"},
+		prose: "New pull requests open as drafts until this is toggled off. An open one keeps its state.",
+	},
 	ActionBookmarks: {
 		cmd: "jj bookmark list", also: []string{"branch", "branches", "tags"},
 		prose: "Bookmarks are jj's branches, except that they do not move as you commit.",
@@ -222,7 +253,7 @@ var abouts = map[string]about{
 	},
 	keys.ActionMessages: {
 		also:  []string{"log", gitHistory, "trail", "errors"},
-		prose: "Every jj command this session ran, newest first, with its exit and stderr.",
+		prose: "Every jj and gh command this session ran, newest first, with its exit and stderr.",
 	},
 }
 

@@ -1,4 +1,4 @@
-// Package trailview is `gm`: every jj command this session ran, newest first, as aragonite's trail
+// Package trailview is `gm`: every jj and gh command this session ran, newest first, as aragonite's trail
 // draws it. It is how the TUI teaches the command line behind a key, and what a bug report quotes:
 // the exact command, how it ended, all of its stderr, a line to paste into a shell, and the way back
 // from a write.
@@ -181,7 +181,7 @@ func (m Model) View(width, height int) string {
 		return ui.TooSmall(width, height)
 	}
 
-	lines := []string{m.skin.Rule("jj commands · "+m.countText(), "", inner)}
+	lines := []string{m.skin.Rule("commands · "+m.countText(), "", inner)}
 	body := rows - 2 //nolint:mnd // the rule and the hints
 
 	if len(m.calls) == 0 {

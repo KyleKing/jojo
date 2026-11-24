@@ -38,6 +38,7 @@ const (
 	ctxPrompt      = "prompt"
 	ctxSpaces      = "spaces"
 	ctxOutline     = "outline"
+	ctxSubmit      = "submit"
 	ctxRounds      = "rounds"
 )
 

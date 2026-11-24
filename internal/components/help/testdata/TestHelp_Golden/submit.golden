@@ -1,0 +1,17 @@
+── General
+?        help                                                       
+q        close, or quit at the root                                 
+esc      back out one level                                         
+ctrl+c   cancel the running command, else quit                      
+gm       messages and the last failure                              
+── Move
+gg       top                                                        
+G        bottom                                                     
+j/down   down a line                                                
+k/up     up a line                                                  
+ctrl+d   half a page down                                           
+ctrl+u   half a page up                                             
+── Submit
+enter    run the plan: push, then open and edit the pull requests   jj git push …; gh pr create …; gh pr edit …
+── Flags
+-d       new pull requests open as drafts (--draft)                 gh pr create --draft

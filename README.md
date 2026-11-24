@@ -107,13 +107,13 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit |
 | `a` / `A` | abandon, absorb |
 | `x` / `X` | resolve the conflict in jj-diff's conflict viewer (`jj-diff --resolve -r`), or converge divergent changes (`jj converge`) |
-| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip; the diff docks beside it, `]]` / `[[` step chapters, `]h` the dock's hunks, `Enter` reads in the dock, `Esc` returns to the log |
+| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip; the diff docks beside it, `]]` / `[[` step chapters, `]h` the dock's hunks, `Enter` reads in the dock, `P` submits the stack as stacked pull requests (below), `Esc` returns to the log |
 | `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |
 | `bb` / `bc` | the bookmark list (set, advance, create, rename, delete, forget, track, push), or create one on the revision |
 | `o` | the operation log, drawing the log as it stood at the operation under the cursor: `Enter` restores (after a confirmation), `u` reverts that operation, `p` shows its diff |
 | `[o` / `]o` | step the log back or forward one operation, read-only: `Enter` restores to it, `o` opens the op log there, `Esc` comes back to now |
-| `gh` / `gw` / `gm` | the forge pane, the workspaces, or every jj command this session ran: the exact line, how it ended, `Enter` for all of its stderr, `Y` to copy it as a shell line, `u` to undo a write, `r` for the reads too |
+| `gh` / `gw` / `gm` | the forge pane, the workspaces, or every jj and gh command this session ran: the exact line, how it ended, `Enter` for all of its stderr, `Y` to copy it as a shell line, `u` to undo a write, `r` for the reads too |
 | <code>&#124;</code> `B` | parallelize the checked revisions, bisect between two checked revisions; `jj arrange` is in the palette |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
@@ -163,6 +163,35 @@ Two things ask first, because `jj undo` cannot take them back: a push, which has
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj
 refuses, jojo says why, and `y` runs the same edit again with `--ignore-immutable`.
 
+### Stacked pull requests
+
+`P` in the outline (or `submit-stack` from the palette) submits the stack as one pull request
+per change, the jj way: each change gets a bookmark (its own, or `push-<change id>`, or
+`stack_bookmark` from the config), each pull request is based on the bookmark below it, and the
+bottom one on trunk. Nothing is written until you have read the plan: a row per change saying
+whether its pull request is new, updated, retargeted, or already merged, the base it targets,
+and then the exact jj and gh commands `Enter` runs. `-d` toggles drafts (on by default) and
+`Esc` backs out. For a three-change stack with no pull requests yet, `Enter` runs:
+
+```
+jj bookmark create push-<a> -r <a>        # and for b, c
+jj git push --bookmark push-<a> --bookmark push-<b> --bookmark push-<c>
+gh pr create --head push-<a> --base main     --title '…' --body-file - --draft
+gh pr create --head push-<b> --base push-<a> --title '…' --body-file - --draft
+gh pr create --head push-<c> --base push-<b> --title '…' --body-file - --draft
+gh pr edit push-<a> --body-file -           # and b, c: the stack section
+```
+
+Running it again is how a stack is kept current. An amend pushes and touches nothing on GitHub;
+a reorder or a squash retargets each base, bottom up; an abandoned change's pull request is left
+open and named in the plan, since deleting its branch would close everything based on it. Each
+body carries a section between `<!-- jojo:stack -->` markers listing the stack top first, and only
+that section is ever rewritten. A merged pull request at the bottom is left alone and the next one
+is based on trunk; rebasing the rest onto trunk is your call, and the coach suggests it. A stack
+with an empty, undescribed, immutable, conflicted, or divergent change is refused with the change
+named. Every gh call lands in `gm` beside the jj ones, and the outline shows each chapter's pull
+request, review, and CI once a plan has read them.
+
 ## What next
 
 The line over the footer says the one next step the log suggests, and brightens its key in the
@@ -204,6 +233,10 @@ diff_tool = "auto"
 # The stack the outline (I) reads, {rev} standing for the revision under the cursor. Omitted, it
 # is what that revision sits on above trunk() and what is stacked on it.
 outline_revset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
+
+# The bookmark a stack submit (P in the outline) gives a change that has none: {change} is its
+# change id, {subject} its subject as a slug. Omitted, it is jj's own push-{change}.
+stack_bookmark = "push-{change}"
 
 # Where the next step and tips are drawn: "inline" (the line over the footer) or "band".
 coach_layout = "inline"

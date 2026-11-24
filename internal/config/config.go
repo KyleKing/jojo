@@ -28,6 +28,9 @@ type Config struct {
 	// OutlineRevset is the stack the outline (I) reads, with {rev} standing for the revision under the
 	// cursor. Empty reads what that revision sits on above trunk() and what is stacked on it.
 	OutlineRevset string `toml:"outline_revset"`
+	// StackBookmark names the bookmark a stack submit (P in the outline) gives a change that has none:
+	// {change} is its change id and {subject} its subject as a slug. Empty is jj's own push-{change}.
+	StackBookmark string `toml:"stack_bookmark"`
 	// CoachLayout is where the next step and tips are drawn: "inline" (the default) in the line over
 	// the footer, or "band" for a labeled band of every next step, why, and the jj command it runs.
 	// The palette's :next switches it for the session.

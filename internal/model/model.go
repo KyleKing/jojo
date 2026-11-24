@@ -30,6 +30,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/outlineview"
+	"github.com/kyleking/jojo/internal/components/planview"
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/roundsview"
@@ -39,6 +40,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/trailview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
+	"github.com/kyleking/jojo/internal/gh"
 	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/jjdiff"
 	"github.com/kyleking/jojo/internal/readmark"
@@ -163,7 +165,9 @@ type Model struct {
 	// docked diff stepping through one change's versions.
 	outline outlineState
 	rounds  roundsState
-	log     logview.Model
+	// submit is a stack submit's plan, which takes the outline's place while it is active.
+	submit submitState
+	log    logview.Model
 	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
 	// Each takes the keys while it is active.
 	travel travelState
@@ -231,7 +235,12 @@ type Options struct {
 	Ledger *coach.Ledger
 	// Trail is where every jj call is recorded, nil for a new one.
 	Trail *trail.Trail
-	Keys  help.Keymap
+	// StackBookmark is config.toml's stack_bookmark: the name a submit gives a change with no
+	// bookmark, {change} and {subject} filled in; "" for stack.DefaultTemplate.
+	StackBookmark string
+	// GH configures the gh a submit runs, which a test points at a fake forge.
+	GH   []gh.Option
+	Keys help.Keymap
 	// CoachLayout is config.toml's coach_layout: inline (the default) or a band over the footer.
 	CoachLayout coach.Layout
 }
@@ -282,11 +291,15 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		spaces:      workspaceview.New(skin),
 		roundsBox:   roundsview.New(skin),
 		outline:     outlineState{view: outlineview.New(skin)},
-		rounds:      roundsState{at: -1},
-		versions:    map[string][]jj.Version{},
-		interdiffs:  map[string]string{},
-		strips:      map[string]readmark.Strip{},
-		reads:       reads,
+		submit: submitState{
+			view: planview.New(skin), gh: gh.New(repoPath, log, opts.GH...), prs: map[string]*gh.PR{},
+			template: opts.StackBookmark, draft: true,
+		},
+		rounds:     roundsState{at: -1},
+		versions:   map[string][]jj.Version{},
+		interdiffs: map[string]string{},
+		strips:     map[string]readmark.Strip{},
+		reads:      reads,
 
 		outlineTemplate: opts.OutlineRevset,
 		find:            search.New(skin),
@@ -317,6 +330,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	}
 
 	m.coach = newCoach(km, opts.Ledger)
+	m.submit.ghMissing = m.submit.gh.Installed()
 	m.outline.view.SetEmptyHints(km.Hints(keys.ActionBack, help.ActionRevset))
 
 	return m
@@ -398,8 +412,8 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
-		m.handleModeMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg, m.handleBookmarkMsg,
-		m.handleExternalMsg,
+		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
+		m.handleBookmarkMsg, m.handleExternalMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd
@@ -565,6 +579,7 @@ func (m *Model) resize() {
 	m.log.SetSize(width, height)
 	m.logBox = [2]int{width, height}
 	m.outline.view.SetSize(width, height)
+	m.submit.view.SetSize(m.width, max(0, m.height-pickRows))
 	m.pick.view.SetSize(m.width, m.pickHeight())
 	m.travel.view.SetSize(m.width, m.logHeight())
 }
@@ -665,6 +680,10 @@ func (m Model) render() string {
 		return m.discovered(view(m.width, m.height-footerRows)+"\n"+m.overlayFooter(), footerRows)
 	}
 
+	if m.submit.active {
+		return m.discovered(m.whichKey(m.submitFrame()), pickRows)
+	}
+
 	if m.pick.active || m.travel.active {
 		keep := footerRows
 		if m.pick.active {
@@ -720,7 +739,7 @@ func (m Model) whichKey(frame string) string {
 
 	// The picker's footer is two rows, the live command line over its flags, and both stay in view.
 	keep := footerRows
-	if m.pick.active {
+	if m.pick.active || m.submit.active {
 		keep = pickRows
 	}
 
