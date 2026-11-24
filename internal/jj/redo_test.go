@@ -2,13 +2,16 @@ package jj_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/kyleking/jojo/internal/jj"
 )
 
-// TestOpRestoreToTheOperationBeforeAnUndoRedoesIt pins the mechanism the redo key is built on,
-// because jj has no redo command: the way forward is restoring to the operation the undo left.
-func TestOpRestoreToTheOperationBeforeAnUndoRedoesIt(t *testing.T) {
+// TestRedo_ReappliesWhatUndoReverted pins the redo key on jj's own redo (0.33+), which replaced an
+// emulation that restored the operation recorded before the undo.
+func TestRedo_ReappliesWhatUndoReverted(t *testing.T) {
 	t.Parallel()
 
 	client, dir := testRepo(t)
@@ -18,13 +21,6 @@ func TestOpRestoreToTheOperationBeforeAnUndoRedoesIt(t *testing.T) {
 	runJJ(t, dir, "describe", "-m", "first")
 	runJJ(t, dir, "new", "-m", "second")
 
-	ops, err := client.OpLog(ctx, 1)
-	if err != nil {
-		t.Fatalf("OpLog: %v", err)
-	}
-
-	before := ops[0].ID
-
 	if _, err := client.Undo(ctx); err != nil {
 		t.Fatalf("Undo: %v", err)
 	}
@@ -33,11 +29,27 @@ func TestOpRestoreToTheOperationBeforeAnUndoRedoesIt(t *testing.T) {
 		t.Fatal("undo left the working copy where it was")
 	}
 
-	if _, err := client.OpRestore(ctx, before); err != nil {
-		t.Fatalf("OpRestore: %v", err)
+	ran, err := client.Redo(ctx)
+	if err != nil {
+		t.Fatalf("Redo: %v", err)
+	}
+
+	if ran != "jj redo" {
+		t.Errorf("ran %q, want jj redo", ran)
 	}
 
 	if got := strings.TrimSpace(descriptionOf(t, dir)); got != "second" {
 		t.Errorf("working copy is %q after the redo, want %q", got, "second")
+	}
+}
+
+func TestRedo_WithNothingUndoneSaysSo(t *testing.T) {
+	t.Parallel()
+
+	client, _ := testRepo(t)
+
+	_, err := client.Redo(context.Background())
+	if !errors.Is(err, jj.ErrCommandFailed) || !strings.Contains(err.Error(), "Nothing to redo") {
+		t.Errorf("Redo with nothing undone = %v, want jj's own refusal", err)
 	}
 }

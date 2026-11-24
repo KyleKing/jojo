@@ -58,8 +58,8 @@ command they ran. Two things ask instead, because `jj undo` cannot reach them: a
 which has left the machine, and a write jj refused as immutable, where the escape rewrites
 history other people may already have. The push dialog shows a real `--dry-run`, so what is
 being agreed to is jj's own answer, and the immutable dialog says what the rule is rather
-than only that it was broken. jj has no redo, so `u` records the operation the repository
-was at and `Ctrl+r` restores it.
+than only that it was broken. `u` and `Ctrl+r` are `jj undo` and `jj redo`, which jj has
+had since 0.33.
 
 **The status line reports the command, not a description of it.** Every jj write returns
 the invocation it ran, quoted so it can be pasted into a shell. A description would be a

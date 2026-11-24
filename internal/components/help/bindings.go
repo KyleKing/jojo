@@ -145,7 +145,7 @@ var defaultBindings = []Binding{
 	},
 	{Layer: L2, Run: "u", Action: "undo", Cmd: "jj undo", Hint: keyhint.Hint{Key: "u", What: "undo"}},
 	{
-		Layer: L2, Run: "ctrl+r", Action: "redo", Cmd: "jj op restore <op>",
+		Layer: L2, Run: "ctrl+r", Action: "redo", Cmd: "jj redo",
 		Hint: keyhint.Hint{Key: "Ctrl+r", What: "redo"},
 	},
 	{

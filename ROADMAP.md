@@ -40,11 +40,11 @@ readable.
 
 ## Decisions worth keeping
 
-**Redo is `jj op restore`, not a jj command.** jj has no redo, so `u` records the
-operation the repository was at before undoing and `Ctrl+r` restores it. That makes redo
-exact rather than a guess at which operation to go back to, and it is why the redo key
-reports having nothing to go back to until an undo has run. `Ctrl+l` reloads the log,
-which is what `Ctrl+r` used to do.
+**Undo and redo are `jj undo` and `jj redo`.** jj has had a native redo since 0.33, and
+sequential undo with it, so `u` and `Ctrl+r` step the operation log like an editor's undo
+stack. jojo used to emulate redo with `jj op restore`, which skipped jj's guard against
+redoing an operation another workspace performed (0.46+). `Ctrl+l` reloads the log, which
+is what `Ctrl+r` used to do.
 
 **The timeline lists newest first and numbers from the oldest.** `jj evolog` prints
 newest first and the numbering counts up from the oldest version, so `[1]` stays `[1]`

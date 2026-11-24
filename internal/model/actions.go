@@ -215,32 +215,12 @@ func (m Model) run(hint string, mutate func(context.Context) (string, error)) te
 	)
 }
 
-// undo records where the repository was first, because jj has no redo: going forward again means
-// restoring the operation the undo left.
+// undo and redo are jj's own, which step through the operation log the way an editor's undo stack
+// does and, unlike restoring an operation by id, refuse an operation another workspace performed.
 func (m Model) undo() tea.Cmd {
-	client, ctx := m.client, m.ctx
-
-	return tea.Sequence(
-		func() tea.Msg {
-			ops, err := client.OpLog(ctx, 1)
-			if err != nil || len(ops) == 0 {
-				return nil
-			}
-
-			return redoPointMsg{id: ops[0].ID}
-		},
-		m.run(", press ctrl+r to redo", client.Undo),
-	)
+	return m.run(", press ctrl+r to redo", m.client.Undo)
 }
 
 func (m Model) redo() tea.Cmd {
-	if m.redoOp == "" {
-		return m.say("nothing to redo")
-	}
-
-	op := m.redoOp
-
-	return m.run("redone"+undoHint, func(ctx context.Context) (string, error) {
-		return m.client.OpRestore(ctx, op)
-	})
+	return m.run(undoHint, m.client.Redo)
 }

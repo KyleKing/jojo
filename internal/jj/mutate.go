@@ -185,6 +185,12 @@ func (c *Client) Undo(ctx context.Context) (string, error) {
 	return c.mutate(ctx, "undo")
 }
 
+// Redo reapplies the operation the last undo reverted, and fails with jj's "Nothing to redo" when
+// no undo precedes it.
+func (c *Client) Redo(ctx context.Context) (string, error) {
+	return c.mutate(ctx, "redo")
+}
+
 // OpRestore restores the repository to the state at opID.
 func (c *Client) OpRestore(ctx context.Context, opID string) (string, error) {
 	return c.mutate(ctx, "op", "restore", opID)

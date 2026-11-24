@@ -68,11 +68,6 @@ type messageMsg struct {
 
 type clearMessageMsg struct{}
 
-// redoPointMsg carries the operation the repository sat at before an undo.
-type redoPointMsg struct {
-	id string
-}
-
 // Model is the application.
 type Model struct {
 	// ctx is the program lifetime, so quitting cancels a jj call already running.
@@ -105,7 +100,6 @@ type Model struct {
 	onPick     picked
 	keys       help.Keymap
 	usage      *keyusage.Recorder
-	redoOp     string
 	revset     string
 	message    string
 	// lastOutput is the full text of the last failure, which "!" shows.
@@ -229,10 +223,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.offerDivergent(msg)
 	case messageMsg, clearMessageMsg:
 		return m.showMessage(msg)
-	case redoPointMsg:
-		m.redoOp = msg.id
-
-		return m, nil
 	case headOpMsg:
 		m.lastOp = msg.description
 

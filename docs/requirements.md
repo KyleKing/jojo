@@ -121,7 +121,7 @@ selected commit, matching the lingua franca jjui and lazyjj both already use:
 | Duplicate | `jj duplicate --onto/-A/-B` | |
 | Parallelize | `jj parallelize` | Turns a chain into siblings |
 | Abandon | `jj abandon` | Descendants auto-rebase; reversible via undo, so no confirm prompt needed |
-| Undo / redo | `jj undo` / `jj op restore` | Always-visible footer hint, not buried in a menu |
+| Undo / redo | `jj undo` / `jj redo` | Always-visible footer hint, not buried in a menu |
 
 ### Interactive stack editing: wrap `jj arrange`, don't reinvent it
 

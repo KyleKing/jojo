@@ -100,7 +100,7 @@ the handlers read. The ones worth knowing before you start:
 | `i` / `I` | squash hunks into the parent, or into any revision you pick |
 | `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
-| `o` | the operation log, with restore, revert, and per-operation diff |
+| `o` | the operation log, with restore, revert, and per-operation diff drawn in the diff pane |
 | `E` | the evolution of the revision, with interdiff and restore |
 | `w` | the workspace panel, with add and forget |
 | `p` | the forge pane |
@@ -110,8 +110,8 @@ the handlers read. The ones worth knowing before you start:
 
 Every action runs immediately and tells you to press `u`, because jj's operation log
 makes all of them reversible. The footer keeps naming the operation `u` would reverse, so
-the way back is never a guess. jj has no redo, so `Ctrl+r` restores the operation the undo
-moved away from.
+the way back is never a guess. `u` and `Ctrl+r` are jj's own `jj undo` and `jj redo`, so
+they step through the operation log the way an editor's undo stack does.
 
 ### Staging, for people coming from git
 
