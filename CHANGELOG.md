@@ -1,3 +1,9 @@
+## v0.18.0 (2026-11-24)
+
+### Feat
+
+- **reads**: keep read marks per change with aragonite/seen
+
 ## v0.17.1 (2026-11-24)
 
 ### Fix
