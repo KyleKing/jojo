@@ -37,6 +37,8 @@ type Styles struct {
 	// (the destination, what moves), MarkMuted for what it touches on the way (a rewritten descendant).
 	Mark      lipgloss.Style
 	MarkMuted lipgloss.Style
+	// Unread draws a row's count of hunks not yet read, at the end of its description.
+	Unread lipgloss.Style
 }
 
 // Mark is a chip drawn ahead of a row's description, such as "◂ onto" on the destination a picker
@@ -58,6 +60,7 @@ type Model struct {
 	styles        Styles
 	checked       map[string]bool
 	marks         map[string]Mark
+	unread        map[string]string
 	searchPattern string
 	rows          []jj.LogRow
 	matchRows     []int
@@ -69,7 +72,19 @@ type Model struct {
 
 // New returns an empty log. Call SetRows once jj has answered.
 func New(styles Styles) Model {
-	return Model{styles: styles, checked: map[string]bool{}}
+	return Model{styles: styles, checked: map[string]bool{}, unread: map[string]string{}}
+}
+
+// SetUnread is the unread count a revision's row ends its description with ("◌3"), "" for none:
+// its diff has not been read yet, or everything in it has.
+func (m *Model) SetUnread(changeID, label string) {
+	if label == "" {
+		delete(m.unread, changeID)
+
+		return
+	}
+
+	m.unread[changeID] = label
 }
 
 // SetRows replaces the log, holding the cursor on the same change id when that
@@ -488,6 +503,12 @@ func (m Model) cells(rev jj.Revision, layout table.Layout) string {
 			continue
 		}
 
+		if label := m.unread[rev.ChangeID]; label != "" && col.Key == ColDesc {
+			rendered = append(rendered, m.unreadCell(label, text[col.Key], width, m.style(rev, col.Key)))
+
+			continue
+		}
+
 		cell := table.PadTrim(text[col.Key], width, col.Align, col.Trim)
 		rendered = append(rendered, m.style(rev, col.Key).Render(cell))
 	}
@@ -511,6 +532,19 @@ func (m Model) markedCell(mark Mark, desc string, width int, face lipgloss.Style
 	}
 
 	return chipFace.Render(chip) + " " + face.Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight))
+}
+
+// unreadCell ends the description with the row's unread count, which a narrow row keeps over the
+// description's tail: it is what ]u steps to.
+func (m Model) unreadCell(label, desc string, width int, face lipgloss.Style) string {
+	chip := table.Truncate(label, width)
+	room := width - lipgloss.Width(chip) - 1
+
+	if room <= 0 {
+		return m.styles.Unread.Render(table.Pad(chip, width, table.AlignRight))
+	}
+
+	return face.Render(table.PadTrim(desc, room, table.AlignLeft, table.TrimRight)) + " " + m.styles.Unread.Render(chip)
 }
 
 // sizeCell colors the added and removed counts apart from the file count,

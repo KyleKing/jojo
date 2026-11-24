@@ -130,7 +130,7 @@ var unsupported = []string{
 	keys.ActionRepeat, keys.ActionLabelJump, keys.ActionJumpBack, keys.ActionJumpForward,
 	keys.ActionOpenFile, keys.ActionDefinition, keys.ActionReferences, keys.ActionCalls,
 	keys.ActionPageDown, keys.ActionPageUp, keys.ActionScrollDown, keys.ActionScrollUp,
-	keys.ActionSideOld, keys.ActionSideNew, keys.ActionFilter, keys.ActionRead, keys.ActionOnlyUnread,
+	keys.ActionSideOld, keys.ActionSideNew, keys.ActionFilter,
 	keys.ActionVisual, keys.ActionWhitespace, keys.ActionCosmetic, keys.ActionMoreContext,
 	keys.ActionLessContext,
 	keys.ActionFoldToggle, keys.ActionFoldInvert, keys.ActionFoldOpenAll, keys.ActionFoldAll,
@@ -139,11 +139,12 @@ var unsupported = []string{
 	keys.ActionViewImages, keys.ActionViewCycle,
 }
 
-// objects are the ] and [ objects jojo steps: hunks and files in a diff, chapters of the outline, and
-// rounds (versions of the change), which the log steps too.
+// objects are the ] and [ objects jojo steps: hunks and files in a diff, chapters of the outline,
+// rounds (versions of the change), which the log steps too, and unread hunks, which the log and the
+// outline step as revisions with something left to read.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
-var objects = []string{keys.ObjHunk, keys.ObjFile, keys.ObjChapter, keys.ObjRound}
+var objects = []string{keys.ObjHunk, keys.ObjFile, keys.ObjChapter, keys.ObjUnread, keys.ObjRound}
 
 // pickerOnly are the shared bindings the picker answers: moving the destination, help, quitting,
 // and backing out. The rest would act on the log under it, so they are taken off its screens.
@@ -250,6 +251,12 @@ func sharedContexts(b keys.Binding) keys.Context {
 		ctx |= keys.Log | Outline
 	case keys.ActionOutline:
 		ctx = keys.Log | Outline
+	case keys.NextAction(keys.ObjUnread), keys.PrevAction(keys.ObjUnread), keys.ActionOnlyUnread:
+		// The log and the outline step revisions with unread hunks, and U filters the dock beside them.
+		ctx |= keys.Log | Outline
+	case keys.ActionRead:
+		// Space in the outline marks the whole chapter; in the log it checks the revision.
+		ctx |= Outline
 	case keys.ActionAgain, keys.ActionReverse:
 		// The repeats step a diff's motions; nowhere else in jojo has one to repeat.
 		return keys.Diff
@@ -359,7 +366,7 @@ func modeBindings() []keys.Binding {
 		},
 		{
 			Action: ActionChapterRead, Keys: []string{keyEnter}, What: "read the chapter in the dock",
-			Short: "read", Group: GroupStack, Contexts: Outline,
+			Short: "dock", Group: GroupStack, Contexts: Outline,
 		},
 		{
 			Action: ActionSubmit, Keys: []string{"P"}, What: "submit the stack as stacked pull requests (a plan first)",

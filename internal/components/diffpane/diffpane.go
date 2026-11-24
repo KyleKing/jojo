@@ -35,6 +35,9 @@ const (
 	ObjectFile    = "f"
 	ObjectRound   = "r"
 	ObjectChapter = "]"
+	// ObjectUnread is the next or previous unread hunk, which the parent steps, since it holds the
+	// marks.
+	ObjectUnread = "u"
 )
 
 // Model is the pane's state: the diff text it was opened with, kept so a resize re-renders rather
@@ -50,6 +53,8 @@ type Model struct {
 	// last is the motion n repeats, and hints the keys the framed pane's footer offers.
 	last  motion
 	hints []keyhint.Hint
+	// read says which hunks draw as read, nil for none.
+	read ReadFunc
 	// key is what the rows on show are drawn from, and plain that they draw without syntax colors,
 	// which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
 	colors *colorCache
@@ -461,7 +466,7 @@ func (m Model) DockView(width, height int, focused bool) string {
 	start := min(max(0, m.list.Cursor()-body/2), max(0, total-body))
 
 	for i := start; i < total && len(lines) < height; i++ {
-		line := table.Truncate(m.sheet.row(i), inner)
+		line := m.marked(i, inner)
 		if focused && i == m.list.Cursor() {
 			line = m.skin.Selected.Render(ansi.Strip(line))
 		}

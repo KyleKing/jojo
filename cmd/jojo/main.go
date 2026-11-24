@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/theme"
@@ -101,6 +102,23 @@ func main() {
 	}
 }
 
+// openReads is the read-mark store for the repository at root, shared by every workspace of it and
+// with jj-diff, which opens the same directory. A repository whose store or state directory cannot be
+// found runs without marks (nil): the screen says so where a mark is asked for.
+func openReads(root string) *seen.Store {
+	store, err := jj.RepoStore(root)
+	if err != nil {
+		return nil
+	}
+
+	dir, err := seen.StateDir("jojo", "seen", seen.RepoKey(store))
+	if err != nil {
+		return nil
+	}
+
+	return seen.Open(dir)
+}
+
 func run() error {
 	repo := flag.String("repo", ".", "repository to browse")
 	revset := flag.String("r", "", "revset to log, defaulting to the repository's revsets.log")
@@ -153,7 +171,7 @@ func run() error {
 		*revset = configured
 	}
 
-	seen := loadSeen(rec, keys)
+	pressed := loadSeen(rec, keys)
 
 	layout, err := coach.ParseLayout(settings.CoachLayout)
 	if err != nil {
@@ -167,12 +185,16 @@ func run() error {
 		ledger, _ = coach.LedgerAt("") //nolint:errcheck // an in-memory ledger reads no file and cannot fail
 	}
 
-	app := model.New(ctx, client, skin, root, *revset,
-		model.Options{
-			Keys: keys, Seen: seen, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
-			StackBookmark: settings.StackBookmark,
-			Ledger:        ledger, CoachLayout: layout,
-		})
+	opts := model.Options{
+		Keys: keys, Seen: pressed, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
+		StackBookmark: settings.StackBookmark,
+		Ledger:        ledger, CoachLayout: layout,
+	}
+	if reads := openReads(root); reads != nil {
+		opts.Reads = reads
+	}
+
+	app := model.New(ctx, client, skin, root, *revset, opts)
 	// The renderer downsamples to the profile the skin was fitted to, detected the one way, so the two
 	// never disagree under tmux with COLORTERM set.
 	profile := tea.WithColorProfile(theme.Profile(os.Stdout, os.Environ()))

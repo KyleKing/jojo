@@ -1,0 +1,30 @@
+Stack · 4 · parse-header                     │ diff yqosmzxt
+  1  kxqpmnzo    feat(parse): read…  ····    │ ✓ M first.txt
+  2  vwtrlsqy ×  refactor: split t…  ····    │ ✓ L1
+  3  nnzolpqr ∅  (no description s…  ····    │ ▎old first                                           
+  4  yqosmzxt @  test: cover the f…  ▰▰▱▱ ◌1 │ ▎new first                                           
+                                             │ M second.txt
+                                             │ L1
+                                             │ ▎old second                                          
+                                             │ ▎new second                                          
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+                                             │ 
+ test: cover the fallbacks · stack (trunk()..@) | (@:: ~ ::trunk())                        commit d4
+@  ]] chapter  [[ previous chapter  enter dock  space read  ]u unread  P submit  ]h hunk  …  ? help 

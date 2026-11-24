@@ -1,8 +1,8 @@
 Stack · 4 · parse-header
-  1  kxqpmnzo    feat(parse): read the new header format          parse-header  3f +120 -14  #41 open · CI passing  ▰▰▰▰
-  2  vwtrlsqy ×  refactor: split the reader from the writer                      2f +40 -38                         ▰▱▱▱
-  3  nnzolpqr ∅  (no description set)                                                                               ····
-  4  yqosmzxt @  test: cover the header fallbacks                                  1f +9 -0                         ▱▱▱▱
+  1  kxqpmnzo    feat(parse): read the new header format       parse-header  3f +120 -14  #41 open · CI passing  ▰▰▰▰   
+  2  vwtrlsqy ×  refactor: split the reader from the writer                   2f +40 -38                         ▰▱▱▱ ◌3
+  3  nnzolpqr ∅  (no description set)                                                                            ····   
+  4  yqosmzxt @  test: cover the header fallbacks                               1f +9 -0                         ▱▱▱▱ ◌2
 
 
 

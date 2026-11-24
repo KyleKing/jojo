@@ -87,6 +87,9 @@ func (m Model) handleExternalMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return next, cmd, true
 	case execDoneMsg:
+		// jj-diff, or any program handed the terminal, may have saved marks of its own.
+		m.reloadMarks()
+
 		return m, m.finishExec(msg), true
 	}
 

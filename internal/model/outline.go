@@ -10,7 +10,6 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/outlineview"
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/readmark"
 )
 
 // DefaultOutlineRevset is the stack the outline reads when config.toml names none: what the revision
@@ -20,18 +19,6 @@ const DefaultOutlineRevset = "(trunk()..{rev}) | ({rev}:: ~ ::trunk())"
 
 // outlineLimit caps a stack, which is a review's worth of revisions rather than a history.
 const outlineLimit = 200
-
-// ReadState is the seam read marks plug into: whether a reader has read one hunk of one change,
-// the hunk named by its content (readmark.Hunks) so a mark survives a rebase and drops once the
-// hunk's text changes. The shared aragonite/seen store will answer it; until then noReads does.
-type ReadState interface {
-	Unread(changeID, hunkHash string) bool
-}
-
-// noReads remembers nothing, so every hunk reads as unread.
-type noReads struct{}
-
-func (noReads) Unread(string, string) bool { return true }
 
 // outlineState is the stack outline while it takes the log's place.
 type outlineState struct {
@@ -178,6 +165,12 @@ func (m Model) landOutline(msg outlineLoadedMsg) (Model, tea.Cmd) {
 	m.resize()
 	cmd := m.loadDock(m.dockTarget())
 
+	// The stack's strips are counted behind the first frame, so ]u knows where to go before the dock
+	// has read each chapter.
+	if opening {
+		cmd = tea.Batch(cmd, m.countStack())
+	}
+
 	if m.submit.afterOutline {
 		m.submit.afterOutline = false
 		if a := m.submitGate(); !a.OK {
@@ -258,6 +251,16 @@ func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
 		m.focus = focusDock
 
 		return m, nil
+	case keys.ActionRead:
+		cmd := m.markChapter()
+
+		return m, cmd
+	case keys.NextAction(keys.ObjUnread), keys.PrevAction(keys.ObjUnread):
+		return m.stepUnreadRev(help.Outline, actionDir(action))
+	case keys.ActionOnlyUnread:
+		cmd := m.toggleOnlyUnread()
+
+		return m, cmd
 	case help.ActionSubmit:
 		cmd := m.startSubmit()
 
@@ -290,19 +293,4 @@ func (m *Model) stepChapter(dir int) tea.Cmd {
 	}
 
 	return m.followDock(m.dockTarget())
-}
-
-// noteRead files the read strip of a change whose whole diff the dock just read, for the chapter
-// that shows it.
-func (m *Model) noteRead(changeID string, hunks []readmark.Hunk) {
-	strip := readmark.Strip{Total: len(hunks)}
-
-	for _, h := range hunks {
-		if !m.reads.Unread(changeID, h.ID) {
-			strip.Read++
-		}
-	}
-
-	m.strips[changeID] = strip
-	m.outline.view.SetRead(changeID, strip)
 }

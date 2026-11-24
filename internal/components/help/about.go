@@ -35,6 +35,11 @@ var submitWords = []string{
 	"submit", "stack", "pr", "pull request", "stacked pull requests", "spr", "ghstack", "graphite", "publish",
 }
 
+// readWords find the read marks: a forge's words for a file looked at, and a reader's.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var readWords = []string{"mark read", "reviewed", "viewed", "seen", "unread"}
+
 // abouts is jojo's teaching table, keyed by action.
 //
 //nolint:gochecknoglobals // a fixed table, read only.
@@ -244,9 +249,29 @@ var abouts = map[string]about{
 		cmd: "jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'", also: []string{"stack", "series"},
 		prose: "The stack the revision sits in, parent first, as chapters to read.",
 	},
-	keys.ActionInspect:             {cmd: "jj log -r <rev> -T ...", also: []string{gitShow, "details"}},
-	keys.NextAction(keys.ObjRound): {cmd: "jj interdiff --from <a> --to <b>"},
-	keys.PrevAction(keys.ObjRound): {cmd: "jj interdiff --from <a> --to <b>"},
+	keys.ActionRead: {
+		also: readWords,
+		prose: "Marks the hunk under the cursor read, or unread again; on a file's heading the whole " +
+			"file, and in the outline the whole chapter. A mark follows the hunk's text, so it survives " +
+			"a rebase and drops once the hunk changes. Every workspace of the repository, and jj-diff, " +
+			"sees the same marks.",
+		related: []string{keys.NextAction(keys.ObjUnread), keys.ActionOnlyUnread},
+	},
+	keys.ActionOnlyUnread: {
+		also:    append([]string{"hide read", "hide viewed", "only new"}, readWords...),
+		prose:   "The docked diff draws only the hunks not yet read. U again draws every hunk.",
+		related: []string{keys.ActionRead, keys.NextAction(keys.ObjUnread)},
+	},
+	keys.NextAction(keys.ObjUnread): {
+		also: append([]string{"next unread", "next unviewed"}, readWords...),
+		prose: "Steps to the next hunk not yet read in the dock, or in the log and the outline to the " +
+			"next revision with one; n repeats it.",
+		related: []string{keys.ActionRead, keys.ActionOnlyUnread},
+	},
+	keys.PrevAction(keys.ObjUnread): {also: append([]string{"previous unread"}, readWords...)},
+	keys.ActionInspect:              {cmd: "jj log -r <rev> -T ...", also: []string{gitShow, "details"}},
+	keys.NextAction(keys.ObjRound):  {cmd: "jj interdiff --from <a> --to <b>"},
+	keys.PrevAction(keys.ObjRound):  {cmd: "jj interdiff --from <a> --to <b>"},
 	ActionTravelRestore: {
 		cmd: "jj op restore <op>", also: []string{"reset --hard", gitReflog},
 		prose: "Restores the whole repository to the operation on screen. u undoes that too.",

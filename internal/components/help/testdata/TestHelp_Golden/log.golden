@@ -23,9 +23,12 @@ ctrl+u   half a page up
 ── Find
 /        search                                                     
 ── Read
+U        only what is unread                                        
 H        choose the round to compare against                        jj evolog -r <rev>
 I        outline                                                    jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'
 ── Jump
+]u       next unread                                                
+[u       previous unread                                            
 ]r       next round                                                 jj interdiff --from <a> --to <b>
 [r       previous round                                             jj interdiff --from <a> --to <b>
 ── Look

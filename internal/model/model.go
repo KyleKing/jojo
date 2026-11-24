@@ -55,6 +55,9 @@ const logLimit = 500
 // messageLife is how long a "done, press u to undo" line stays up.
 const messageLife = 6 * time.Second
 
+// besideMargin is the blank column between the log and a diff docked beside it.
+const besideMargin = 1
+
 // footerRows is the height the footer takes out of the log.
 const footerRows = 1
 
@@ -159,6 +162,7 @@ type Model struct {
 	// that says which hunks were read.
 	strips map[string]readmark.Strip
 	reads  ReadState
+	marks  readsState
 	// outlineTemplate is config.toml's outline_revset, with {rev} for the revision under the cursor.
 	outlineTemplate string
 	// outline is the stack outline, which takes the log's place while it is active, and rounds the
@@ -300,6 +304,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		interdiffs: map[string]string{},
 		strips:     map[string]readmark.Strip{},
 		reads:      reads,
+		marks:      readsState{live: map[string]liveHunks{}},
 
 		outlineTemplate: opts.OutlineRevset,
 		find:            search.New(skin),
@@ -413,7 +418,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
 		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
-		m.handleBookmarkMsg, m.handleExternalMsg,
+		m.handleBookmarkMsg, m.handleExternalMsg, m.handleReadMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd
@@ -570,7 +575,8 @@ func (m *Model) resize() {
 		m.dock.SetWidth(diffpane.DockWidth(dockWidth))
 
 		if m.dockSideBySide() {
-			width -= dockWidth
+			// A cell of margin keeps a row's last column (a count, a strip) off the dock's rule.
+			width -= dockWidth + besideMargin
 		} else {
 			height -= dockHeight
 		}
@@ -773,6 +779,15 @@ func (m Model) modeFrame() string {
 	return strings.Join(append(panes, m.travelFooter()), "\n")
 }
 
+// dockView is the docked diff, or the card saying its change is read once U has nothing left to draw.
+func (m Model) dockView(width, height int) string {
+	if card := m.readCard(width, height); card != nil {
+		return strings.Join(card, "\n")
+	}
+
+	return m.dock.DockView(width, height, m.focus == focusDock)
+}
+
 // logPane is the log, with the docked diff beside it on a wide terminal or under it on a narrow one.
 func (m Model) logPane() string {
 	left := m.log.View()
@@ -787,15 +802,15 @@ func (m Model) logPane() string {
 	}
 
 	dockWidth, dockHeight := m.dockSize()
-	focused := m.focus == focusDock
+	dock := m.dockView(dockWidth, dockHeight)
 
 	if !m.dockSideBySide() {
-		return left + "\n" + m.dock.DockView(dockWidth, dockHeight, focused)
+		return left + "\n" + dock
 	}
 
 	logWidth := m.width - dockWidth
 	logLines := strings.Split(left, "\n")
-	dockLines := strings.Split(m.dock.DockView(dockWidth, dockHeight, focused), "\n")
+	dockLines := strings.Split(dock, "\n")
 
 	for i := range logLines {
 		pad := max(0, logWidth-ansi.StringWidth(logLines[i]))

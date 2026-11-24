@@ -79,8 +79,9 @@ var logFooter = []string{
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var viewFooter = []string{
-	keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile), keys.ActionAgain,
-	keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionViewSideBySide, keys.ActionBack,
+	keys.NextAction(keys.ObjHunk), keys.ActionRead, keys.NextAction(keys.ObjUnread), keys.NextAction(keys.ObjFile),
+	keys.ActionOnlyUnread, keys.ActionAgain, keys.NextAction(keys.ObjRound), keys.ActionRounds,
+	keys.ActionViewSideBySide, keys.ActionBack,
 }
 
 // footerHints ends on help, because the footer drops hints from the right and keeps the last. A key
@@ -93,7 +94,14 @@ func (m Model) footerHints() []keyhint.Hint {
 	case help.Outline:
 		hints = m.outlineHints()
 	case keys.View:
-		hints = m.keys.Hints(viewFooter...)
+		hints = m.keys.HintsAt(m.gate, viewFooter...)
+		// ]u and U share a word in the shared table; the footer tells them apart.
+		only := m.keys.Label(keys.ActionOnlyUnread)
+		for i := range hints {
+			if hints[i].Key == only {
+				hints[i].What = "only unread"
+			}
+		}
 	default:
 		hints = m.keys.HintsAt(m.gate, logFooter...)
 		if next, ok := m.nextStep(); ok {
@@ -231,6 +239,6 @@ func oneLineText(text string) string { return strings.Join(strings.Fields(text),
 // outlineHints are the footer's while the outline is open: its own keys, most used first.
 func (m Model) outlineHints() []keyhint.Hint {
 	return m.keys.HintsAt(m.gate, keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter),
-		help.ActionChapterRead, help.ActionSubmit, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound),
-		keys.ActionRounds, keys.ActionBack)
+		help.ActionChapterRead, keys.ActionRead, keys.NextAction(keys.ObjUnread), help.ActionSubmit,
+		keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionBack)
 }

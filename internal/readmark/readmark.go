@@ -1,83 +1,12 @@
-// Package readmark names the hunks of a change by what they say, so read marks can follow a hunk
-// through a rebase and drop it once its text changes, and sums them into the strip an outline
-// chapter carries.
-//
-// The ids are second-look's (internal/seen): sha256 over the file path, a NUL, and every line of the
-// hunk as its kind byte and text, line numbers left out. Marks stored by the shared aragonite/seen
-// package, once jojo reads it, will then name the same hunks this package does.
+// Package readmark draws how much of a change has been read: the strip an outline chapter carries
+// and the unread count a log row and a chapter show. The marks themselves are aragonite/seen's, which
+// names a hunk by what it says so a mark follows it through a rebase and drops once its text changes.
 package readmark
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"hash"
+	"strconv"
 	"strings"
-
-	"github.com/kyleking/aragonite/diff"
 )
-
-// Hunk is one hunk of a diff: the file it belongs to, its 1-based position in that file, and its id.
-type Hunk struct {
-	Path string
-	ID   string
-	Hunk int
-}
-
-// Hunks is every hunk of a git-format diff in patch order. A file that carries no hunk, such as a
-// rename or a binary payload, has nothing to read and is absent.
-func Hunks(gitDiff string) []Hunk {
-	if gitDiff == "" {
-		return nil
-	}
-
-	d := diff.Parse([]byte(gitDiff))
-
-	var out []Hunk
-
-	h := sha256.New()
-
-	for i := range d.Files {
-		path := filePath(&d.Files[i])
-		last := 0
-
-		begin(h, path)
-
-		for _, l := range d.Files[i].Lines {
-			if l.Hunk != last {
-				if last != 0 {
-					out = append(out, Hunk{Path: path, Hunk: last, ID: hex.EncodeToString(h.Sum(nil))})
-					begin(h, path)
-				}
-
-				last = l.Hunk
-			}
-
-			h.Write([]byte{l.Kind})
-			h.Write([]byte(l.Text))
-			h.Write([]byte{'\n'})
-		}
-
-		if last != 0 {
-			out = append(out, Hunk{Path: path, Hunk: last, ID: hex.EncodeToString(h.Sum(nil))})
-		}
-	}
-
-	return out
-}
-
-func begin(h hash.Hash, path string) {
-	h.Reset()
-	h.Write([]byte(path))
-	h.Write([]byte{0})
-}
-
-func filePath(f *diff.File) string {
-	if f.NewPath != "" {
-		return f.NewPath
-	}
-
-	return f.OldPath
-}
 
 // Strip is how much of a chapter has been read. Total is zero until the chapter's diff has been read
 // once, which draws as a strip that says nothing rather than one that says "all unread".
@@ -112,4 +41,19 @@ func (s Strip) String() string {
 	}
 
 	return strings.Repeat("▰", filled) + strings.Repeat("▱", stripCells-filled)
+}
+
+// Unread is how many hunks are left to read, 0 while the strip is unknown.
+func (s Strip) Unread() int { return max(0, s.Total-s.Read) }
+
+// UnreadGlyph leads an unread count, a hollow circle for what is still open.
+const UnreadGlyph = "◌"
+
+// Label is the unread count as a row draws it, "◌3", or "" when nothing is left or nothing is known.
+func (s Strip) Label() string {
+	if s.Unread() == 0 {
+		return ""
+	}
+
+	return UnreadGlyph + strconv.Itoa(s.Unread())
 }

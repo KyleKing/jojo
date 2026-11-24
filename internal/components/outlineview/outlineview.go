@@ -114,7 +114,18 @@ func (m Model) columns() []table.Column {
 		cols = append(cols, table.Column{Key: colForge, Min: lo, Max: hi, Weight: 1, Priority: prioForge})
 	}
 
-	return append(cols, table.Column{Key: colRead, Min: readmark.Width, Max: readmark.Width, Priority: prioRead})
+	read := max(readmark.Width, m.widest(readText))
+
+	return append(cols, table.Column{Key: colRead, Min: read, Max: read, Priority: prioRead})
+}
+
+// readText is a chapter's read column: the strip, then the unread count when anything is left.
+func readText(c Chapter) string {
+	if label := c.Read.Label(); label != "" {
+		return c.Read.String() + " " + label
+	}
+
+	return c.Read.String()
 }
 
 // layout fits the columns to the outline's width, the description first: it takes the spare cells
@@ -212,6 +223,7 @@ func (m Model) ContentWidth() int {
 		colBookmarks: m.widest(bookmarkText),
 		colSize:      m.widest(func(c Chapter) string { return sizeText(c.Rev) }),
 		colForge:     m.widest(func(c Chapter) string { return c.Forge }),
+		colRead:      m.widest(readText),
 	}
 
 	total := table.Gutter
@@ -487,7 +499,7 @@ func (m Model) cell(i int, c Chapter, col table.Column, width int) string {
 	case colForge:
 		text, face = c.Forge, m.skin.Muted
 	case colRead:
-		text, face = c.Read.String(), m.readFace(c.Read)
+		text, face = readText(c), m.readFace(c.Read)
 	}
 
 	if rev.Conflict && col.Key == colDesc {

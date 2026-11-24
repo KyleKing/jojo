@@ -419,3 +419,26 @@ func TestView_SelectedRowIsOneEvenBarIn16Colors(t *testing.T) {
 		})
 	}
 }
+
+// A row whose diff has unread hunks ends its description with the count, flush with the column's
+// right edge at every width, and drops it once the count is cleared.
+func TestUnreadCountEndsTheDescription(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{60, 100, 160} {
+		m := newModel(fixture(), width, 4)
+		id := m.Selected().ChangeID
+		m.SetUnread(id, "◌3")
+
+		first := strings.SplitN(tuitest.StripANSI(m.View()), "\n", 2)[0]
+		if !strings.Contains(first, "◌3") {
+			t.Errorf("at %d the row does not carry its count: %q", width, first)
+		}
+
+		m.SetUnread(id, "")
+
+		if first := strings.SplitN(tuitest.StripANSI(m.View()), "\n", 2)[0]; strings.Contains(first, "◌") {
+			t.Errorf("at %d a cleared count still draws: %q", width, first)
+		}
+	}
+}

@@ -215,11 +215,19 @@ content change" round. Both the evolution and each round's diff are cached for t
 commit ids, which name their content, and every read rides the dock's sequence number, so a read
 the cursor has left is dropped. `H` lists the rounds to jump to one.
 
-**Read marks have a seam, not a store.** `model.ReadState` answers `Unread(changeID, hunkHash)`,
-with hunks named by `internal/readmark` exactly as second-look's `internal/seen` names them (path
-and every line's kind and text, line numbers left out), so the shared `aragonite/seen` store can
-plug in without changing an id. Until it does, nothing is marked and each chapter's strip only
-counts the hunks of a diff the dock has read.
+**Read marks are the repository's, scoped by change.** `cmd/jojo` opens one `aragonite/seen` store
+at `seen.StateDir("jojo", "seen", seen.RepoKey(repoStore))`, where `repoStore` is `.jj/repo`
+resolved through a secondary workspace's pointer file (`jj.RepoStore`), so every workspace of one
+repository, and jj-diff, share the marks. The scope is the change id and a hunk is named by its
+text (`seen.Parse`), so a mark survives every rebase that leaves the hunk alone and drops once it
+changes. `model.ReadState`, `ReadMarker`, and `ReadReloader` are the seams a `*seen.Store` fills;
+without one, `noReads` answers and every read key says marks are off. A mark is saved from a
+`tea.Cmd`, always with the change's whole hunk list as `live`, since a save drops marks for hunks
+`live` does not carry; `U`'s filtered view is drawn from a copy (`filterDiff`) and never saved
+from. The outline counts every chapter's hunks behind the first frame, one diff at a time, so `]u`
+knows where to go, and a revision not counted yet is stepped over and named. A hunk marked read
+under `U` stays drawn until the cursor leaves it. Coming back from jj-diff reloads every scope, since
+it may have saved marks of its own.
 
 **What a row had no room for goes on one line.** The inspector over the footer says the whole of
 what the cursor row cut or collapsed at this width (description, bookmarks, author, age), with the

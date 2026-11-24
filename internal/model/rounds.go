@@ -191,6 +191,7 @@ func (m *Model) showRound(i int) tea.Cmd {
 	key := interdiffKey(r)
 
 	if text, ok := m.interdiffs[key]; ok {
+		m.leaveChange()
 		m.showDockText(title, r.Prose()+text, "")
 
 		return nil
@@ -273,6 +274,10 @@ func (m Model) handleRoundsMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 // dockMotion is a motion the docked diff passed up, over the versions or the chapters it shows.
 func (m *Model) dockMotion(msg diffpane.MotionMsg) tea.Cmd {
+	if msg.Object == diffpane.ObjectUnread && !m.diff.IsOpen() {
+		return m.stepUnreadDock(msg.Dir)
+	}
+
 	if m.diff.IsOpen() {
 		// The diff drawn over the log has no versions or chapters of its own.
 		return nil

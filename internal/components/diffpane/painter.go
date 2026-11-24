@@ -1,6 +1,7 @@
 package diffpane
 
 import (
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -65,8 +66,10 @@ type part struct {
 	doc   *render.Document
 	text  string
 	prose string
-	at    int
-	n     int
+	// path is the file the document draws, "" for prose or a file whose header names none.
+	path string
+	at   int
+	n    int
 }
 
 // parse splits key's diff into a document per file and its prose lines, drawing nothing yet. The
@@ -114,14 +117,17 @@ func (sh *sheet) addFile(text string) {
 		return
 	}
 
-	sh.parts = append(sh.parts, part{doc: doc, text: text, at: sh.rows, n: n})
+	p := part{doc: doc, text: text, at: sh.rows, n: n}
 
 	// jj-diff heads every file it draws with one `<M|A|D|R> path` row, so the file's first row is its
 	// header and needs no drawing to find.
 	if match := gitFileRE.FindStringSubmatch(text); match != nil {
 		sh.files = append(sh.files, sh.rows)
 		sh.paths = append(sh.paths, match[1])
+		p.path = match[1]
 	}
+
+	sh.parts = append(sh.parts, p)
 
 	sh.rows += n
 }
@@ -269,6 +275,27 @@ func (sh *sheet) furthestHunk(dir, fallback int) int {
 	}
 
 	return fallback
+}
+
+// partAt is the index of the part drawing row, -1 past the last.
+func (sh *sheet) partAt(row int) int {
+	i := sort.Search(len(sh.parts), func(i int) bool { return sh.parts[i].at+sh.parts[i].n > row })
+	if i == len(sh.parts) || sh.parts[i].at > row {
+		return -1
+	}
+
+	return i
+}
+
+// pathPart is the index of the part drawing path's file, -1 when the sheet has none.
+func (sh *sheet) pathPart(path string) int {
+	for i := range sh.parts {
+		if sh.parts[i].doc != nil && sh.parts[i].path == path {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // hunkRows is every hunk label row, file by file.

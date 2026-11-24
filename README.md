@@ -98,6 +98,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `Tab` | cycle the log, the forge pane, and the docked diff |
 | `Enter` / `=` | diff the revision, or diff it against another revision you pick |
 | `p` | dock the diff beside the log, where it follows the cursor and keeps the file you were reading; `Tab` reaches it, and there `]h` / `[h` step hunks, `]f` / `[f` files, `n` / `N` repeat the last motion, `\s` switches to side by side |
+| `Space` / `]u` / `[u` / `U` | read marks, in the dock: `Space` marks the hunk read (again: unread; on a file's heading, the file), `]u` / `[u` step to the next or previous unread hunk, `U` draws only what is unread. In the log and the outline `]u` / `[u` step revisions with unread hunks, whose rows end with the count (`◌3`), and `Space` in the outline marks the whole chapter. A mark follows the hunk's text, so it survives a rebase, and every workspace and jj-diff share it |
 | `l` / `K` | the files the revision touches, or its details |
 | `n` / `N` | new on the revision (two or more checked: a merge), or new placed with the picker below |
 | `e` / `E` | edit the revision, or edit its content in the diff editor (`jj diffedit`) |
@@ -107,7 +108,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit |
 | `a` / `A` | abandon, absorb |
 | `x` / `X` | resolve the conflict in jj-diff's conflict viewer (`jj-diff --resolve -r`), or converge divergent changes (`jj converge`) |
-| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip; the diff docks beside it, `]]` / `[[` step chapters, `]h` the dock's hunks, `Enter` reads in the dock, `P` submits the stack as stacked pull requests (below), `Esc` returns to the log |
+| `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state, and a read strip with its unread count; the diff docks beside it, `]]` / `[[` step chapters, `]u` / `[u` chapters with unread hunks, `]h` the dock's hunks, `Enter` reads in the dock, `Space` marks the chapter read, `P` submits the stack as stacked pull requests (below), `Esc` returns to the log |
 | `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |
 | `bb` / `bc` | the bookmark list (set, advance, create, rename, delete, forget, track, push), or create one on the revision |

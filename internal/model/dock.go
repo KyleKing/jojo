@@ -6,11 +6,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/readmark"
 )
 
 // dockDebounce is how long the cursor has to rest on a revision before the docked diff reads it. A
@@ -49,8 +49,10 @@ type dockLoadedMsg struct {
 	title    string
 	prose    string
 	cacheKey string
-	hunks    []readmark.Hunk
-	seq      int
+	// commit is the commit a whole diff was read at, "" when the cursor's revision did not say.
+	commit string
+	hunks  []seen.Ref
+	seq    int
 }
 
 // toggleDock opens the diff beside the log, reading the revision under the cursor at once, or closes
@@ -84,7 +86,7 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 
 	m.dockSeq++
 	m.rounds.at = -1
-	client, ctx, seq, id := m.client, m.ctx, m.dockSeq, rev.ChangeID
+	client, ctx, seq, id, commit := m.client, m.ctx, m.dockSeq, rev.ChangeID, rev.CommitID
 
 	return func() tea.Msg {
 		text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: id})
@@ -92,7 +94,7 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 			return dockLoadedMsg{revision: id, err: err, seq: seq}
 		}
 
-		return dockLoadedMsg{revision: id, text: text, seq: seq, hunks: readmark.Hunks(text)}
+		return dockLoadedMsg{revision: id, commit: commit, text: text, seq: seq, hunks: seen.Parse([]byte(text))}
 	}
 }
 
@@ -143,13 +145,14 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 
 	if msg.cacheKey != "" {
 		m.interdiffs[msg.cacheKey] = msg.text
+		m.leaveChange()
 		m.showDockText(msg.title, msg.prose+msg.text, "")
 
 		return m
 	}
 
-	m.noteRead(msg.revision, msg.hunks)
-	m.showDockText("diff "+msg.revision, msg.text, m.dock.CurrentPath())
+	m.noteRead(msg.revision, msg.commit, msg.hunks)
+	m.showChange(msg.revision, "diff "+msg.revision, msg.text, m.dock.CurrentPath())
 
 	return m
 }
@@ -197,18 +200,33 @@ func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := navKey(action); ok {
-		return m, pane.Update(key)
+		cmd := pane.Update(key)
+		m.settleHeld()
+
+		return m, cmd
 	}
 
 	if object, dir, ok := paneMotion(action); ok {
-		return m, pane.Motion(object, dir)
+		cmd := pane.Motion(object, dir)
+		m.settleHeld()
+
+		return m, cmd
 	}
 
 	switch action {
-	case keys.ActionAgain:
-		return m, pane.Repeat(1)
-	case keys.ActionReverse:
-		return m, pane.Repeat(-1)
+	case keys.ActionAgain, keys.ActionReverse:
+		cmd := pane.Repeat(map[bool]int{true: 1, false: -1}[action == keys.ActionAgain])
+		m.settleHeld()
+
+		return m, cmd
+	case keys.ActionRead:
+		cmd := m.markDock()
+
+		return m, cmd
+	case keys.ActionOnlyUnread:
+		cmd := m.toggleOnlyUnread()
+
+		return m, cmd
 	case keys.ActionViewSideBySide:
 		pane.ToggleSideBySide()
 
@@ -238,6 +256,7 @@ func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
 var paneObjects = map[string]string{
 	keys.ObjHunk: diffpane.ObjectHunk, keys.ObjFile: diffpane.ObjectFile,
 	keys.ObjRound: diffpane.ObjectRound, keys.ObjChapter: diffpane.ObjectChapter,
+	keys.ObjUnread: diffpane.ObjectUnread,
 }
 
 // paneMotion is the diff pane's object and direction for a shared motion action.

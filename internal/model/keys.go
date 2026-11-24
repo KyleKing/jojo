@@ -295,6 +295,14 @@ func (m Model) repoAction(action string) (tea.Model, tea.Cmd, bool) {
 		cmd := m.openOutline()
 
 		return m, cmd, true
+	case keys.NextAction(keys.ObjUnread), keys.PrevAction(keys.ObjUnread):
+		next, cmd := m.stepUnreadRev(keys.Log, actionDir(action))
+
+		return next, cmd, true
+	case keys.ActionOnlyUnread:
+		cmd := m.toggleOnlyUnread()
+
+		return m, cmd, true
 	case help.ActionSubmitStack:
 		m.submit.afterOutline = true
 		cmd := m.openOutline()

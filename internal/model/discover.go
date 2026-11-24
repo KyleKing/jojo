@@ -57,6 +57,8 @@ type logState struct {
 	split bool
 	// merged is the pull request a submit found merged for the cursor's change, 0 for none.
 	merged int
+	// unread counts the log's revisions with hunks not yet read, of those whose diffs were counted.
+	unread int
 }
 
 // state is the log as the coach's rules read it.
@@ -66,6 +68,10 @@ func (m Model) state() logState {
 	for _, row := range m.rows {
 		if row.Revision != nil && row.Revision.WorkingCopy {
 			s.wc = row.Revision
+		}
+
+		if row.Revision != nil && m.strips[row.Revision.ChangeID].Unread() > 0 {
+			s.unread++
 		}
 	}
 
@@ -119,7 +125,7 @@ func logRules() []coach.Rule[logState] {
 	}
 	says := func(text string) func(logState) string { return func(logState) string { return text } }
 
-	return []coach.Rule[logState]{
+	return append(readRules(), []coach.Rule[logState]{
 		{
 			ID: "jojo.resolve", Action: help.ActionResolve, Tone: coach.Do, Priority: rankFirst,
 			When: cursorIs(func(r *jj.Revision) bool { return r.Conflict }),
@@ -208,7 +214,7 @@ func logRules() []coach.Rule[logState] {
 			Why: says("abandon it, or describe it and fill it later"),
 			Cmd: "jj abandon <rev>",
 		},
-	}
+	}...)
 }
 
 // logTips are keys worth knowing that a reader may not reach for, in the order to teach them: the
@@ -269,6 +275,10 @@ func newCoach(km help.Keymap, ledger *coach.Ledger) *coach.Coach[logState] {
 // line rather than doing nothing. Only the log's verbs are gated; every other screen's keys act on
 // what that screen shows.
 func (m Model) gate(action string) keys.Availability {
+	if a, ok := m.readGate(m.screen(), action); ok {
+		return a
+	}
+
 	if m.screen() == help.Outline && action == help.ActionSubmit {
 		return m.submitGate()
 	}

@@ -195,5 +195,6 @@ func StylesFrom(s ui.Skin) Styles {
 		Match:     s.Band,
 		Mark:      s.Accent.Bold(true),
 		MarkMuted: s.Muted.Italic(true),
+		Unread:    s.Accent,
 	}
 }

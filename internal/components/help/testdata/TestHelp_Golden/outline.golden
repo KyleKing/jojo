@@ -16,6 +16,8 @@ ctrl+u   half a page up
 ── Find
 /        search                                                     
 ── Read
+space    mark the hunk read                                         
+U        only what is unread                                        
 H        choose the round to compare against                        jj evolog -r <rev>
 I        outline                                                    jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'
 ── Jump
@@ -23,6 +25,8 @@ I        outline                                                    jj log -r 't
 [h       previous hunk                                              
 ]]       next chapter                                               
 [[       previous chapter                                           
+]u       next unread                                                
+[u       previous unread                                            
 ]r       next round                                                 jj interdiff --from <a> --to <b>
 [r       previous round                                             jj interdiff --from <a> --to <b>
 ── Look
