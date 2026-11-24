@@ -1,3 +1,9 @@
+## v0.21.0 (2026-11-24)
+
+### Feat
+
+- **bookmarks**: b menu on the cursor: set, advance, rename, delete, forget, track, resolve
+
 ## v0.20.1 (2026-11-24)
 
 ### Refactor
