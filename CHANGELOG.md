@@ -1,3 +1,9 @@
+## v0.16.1 (2026-11-24)
+
+### Fix
+
+- **color**: keep a color's hue in 256 colors through theme.Hue (aragonite v1.25.2)
+
 ## v0.16.0 (2026-11-24)
 
 ### Feat
