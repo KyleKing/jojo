@@ -48,6 +48,13 @@ func AllowImmutable() OpenOption {
 	return func(m *Model) { m.allowImmutable = true }
 }
 
+// AllowImmutableDestination lets the picker return a revision jj protects as long as the write only
+// builds on it: a rebase onto trunk() or insert-after leaves the destination untouched. Inserting
+// before a revision rewrites it, so an immutable one is still refused there.
+func AllowImmutableDestination() OpenOption {
+	return func(m *Model) { m.immutableDest = true }
+}
+
 // WithPlacement offers the two keys that land beside the picked revision instead of on it, which
 // only a rebase can act on.
 func WithPlacement() OpenOption {
@@ -63,6 +70,7 @@ type Model struct {
 	revisions      []jj.Revision
 	list           listview.Model[jj.Revision]
 	allowImmutable bool
+	immutableDest  bool
 	placing        bool
 }
 
@@ -83,7 +91,7 @@ func New(skin ui.Skin, opts ...Option) Model {
 func (m *Model) Open(title string, rows []jj.LogRow, exclude string, opts ...OpenOption) tea.Cmd {
 	m.title = title
 	m.filter = ""
-	m.allowImmutable, m.placing = false, false
+	m.allowImmutable, m.immutableDest, m.placing = false, false, false
 
 	for _, opt := range opts {
 		opt(m)
@@ -169,9 +177,17 @@ func (m *Model) pick(where Placement) tea.Cmd {
 	}
 
 	if rev.Immutable && !m.allowImmutable {
-		m.list.Warn("cannot pick an immutable revision")
+		if !m.immutableDest {
+			m.list.Warn("cannot pick an immutable revision")
 
-		return nil
+			return nil
+		}
+
+		if where == PlaceBefore {
+			m.list.Warn("inserting before an immutable revision would rewrite it")
+
+			return nil
+		}
 	}
 
 	title := m.title

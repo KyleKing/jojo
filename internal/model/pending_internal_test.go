@@ -121,3 +121,43 @@ func TestPickerSurvivesAFilteredPick(t *testing.T) {
 		t.Fatal("the pick produced no message")
 	}
 }
+
+// Rebasing a stack onto trunk() is the core fetch-rebase-push loop, and trunk() is immutable once it
+// tracks a remote. Squash rewrites its destination, so it keeps refusing.
+func TestRebaseOntoTrunkPicksAnImmutableDestination(t *testing.T) {
+	t.Parallel()
+
+	rows := []jj.LogRow{
+		{Revision: &jj.Revision{ChangeID: "aaaa", Description: "mine"}},
+		{Revision: &jj.Revision{ChangeID: "zzzz", Description: "trunk", Immutable: true}},
+	}
+
+	cases := []struct {
+		key  string
+		want bool
+	}{
+		{key: "r", want: true},
+		{key: "R", want: true},
+		{key: "s", want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			t.Parallel()
+
+			next, _, _ := testModel(t, rows).handleActionKey(tc.key)
+			opened := asModel(t, next)
+
+			cmd := opened.destPicker.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+			picked := false
+			if cmd != nil {
+				_, picked = cmd().(destpicker.PickedMsg)
+			}
+
+			if picked != tc.want {
+				t.Errorf("%s onto an immutable revision picked = %v, want %v", tc.key, picked, tc.want)
+			}
+		})
+	}
+}

@@ -101,7 +101,9 @@ func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {
 		what += " and its descendants"
 	}
 
-	return m.destPicker.Open(what+" onto", m.rows, id, destpicker.WithPlacement())
+	// Only what moves has to be mutable: landing on trunk() or the root rewrites nothing there.
+	return m.destPicker.Open(what+" onto", m.rows, id, destpicker.WithPlacement(),
+		destpicker.AllowImmutableDestination())
 }
 
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {

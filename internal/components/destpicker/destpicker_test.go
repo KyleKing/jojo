@@ -88,6 +88,41 @@ func TestEnterOnImmutableRevisionRefusesAndWarns(t *testing.T) {
 	}
 }
 
+// A rebase builds on its destination without rewriting it, so trunk() and the root have to be
+// pickable there; only inserting before one would rewrite it.
+func TestRebaseOntoImmutableDestinationIsAllowed(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		key  string
+		want bool
+	}{
+		{name: "onto", key: "enter", want: true},
+		{name: "insert after", key: "alt+a", want: true},
+		{name: "insert before", key: "alt+b", want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := destpicker.New(testSkin())
+			m.Open("rebase onto", []jj.LogRow{rev("zzzz", "trunk", immutable)}, "",
+				destpicker.WithPlacement(), destpicker.AllowImmutableDestination())
+
+			_, picked := drainMsg[destpicker.PickedMsg](m.Update(tuitest.Key(tc.key)))
+			if picked != tc.want {
+				t.Fatalf("%s on an immutable destination picked = %v, want %v", tc.key, picked, tc.want)
+			}
+
+			if !tc.want && !strings.Contains(m.View(testWidth, testHeight), "rewrite") {
+				t.Error("the refusal does not say why")
+			}
+		})
+	}
+}
+
 func TestEscCancelsWithoutPicking(t *testing.T) {
 	t.Parallel()
 
