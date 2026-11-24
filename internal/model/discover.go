@@ -345,6 +345,10 @@ func (m Model) gate(action string) keys.Availability {
 		return a
 	}
 
+	if action == help.ActionHistory {
+		return m.historyGate()
+	}
+
 	if m.screen() == help.Outline && action == help.ActionSubmit {
 		return m.submitGate()
 	}

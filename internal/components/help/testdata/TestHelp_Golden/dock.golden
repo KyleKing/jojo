@@ -33,3 +33,5 @@ H        choose the round to compare against                        jj evolog -r
 \s       side by side                                               
 ── Look
 p        dock the diff beside the log, following the cursor         jj diff -r <rev> --git
+── Files
+*        history: the changes that touched the file                 jj log -r 'files(<file>) & (::(@ | <rev>) | <revset>)'

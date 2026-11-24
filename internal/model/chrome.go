@@ -133,7 +133,7 @@ func (m *Model) showOutput() { m.trailView.Open(m.trail, m.failing) }
 func (m Model) footer() string {
 	return m.status.View(m.width, statusbar.Context{
 		Bookmarks: m.nearbyBookmarks(),
-		Revset:    m.revset,
+		Revset:    m.footerRevset(),
 		Message:   m.message,
 		Checked:   len(m.log.Checked()),
 		Undo:      m.lastOp,

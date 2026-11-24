@@ -17,3 +17,4 @@ s        squash the file into…
 x        resolve the file's conflict                                
 space    stage or unstage the file (in @)                           
 c        commit what is staged (in @)                               
+*        history: the changes that touched the file                 jj log -r 'files(<file>) & (::(@ | <rev>) | <revset>)'

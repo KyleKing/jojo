@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
+	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
 )
 
@@ -51,8 +52,10 @@ type dockLoadedMsg struct {
 	cacheKey string
 	// commit is the commit a whole diff was read at, "" when the cursor's revision did not say.
 	commit string
-	hunks  []seen.Ref
-	seq    int
+	// path names the file a history narrowed the diff to, "" for the revision's whole diff.
+	path  string
+	hunks []seen.Ref
+	seq   int
 }
 
 // toggleDock opens the diff beside the log, reading the revision under the cursor at once, or closes
@@ -87,11 +90,21 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 	m.dockSeq++
 	m.rounds.at = -1
 	client, ctx, seq, id, commit := m.client, m.ctx, m.dockSeq, rev.ChangeID, rev.CommitID
+	paths := m.historyPaths()
+
+	path := ""
+	if len(paths) > 0 {
+		path = m.history.file.Names[0]
+	}
 
 	return func() tea.Msg {
-		text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: id})
+		text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: id, Paths: paths})
 		if err != nil {
 			return dockLoadedMsg{revision: id, err: err, seq: seq}
+		}
+
+		if path != "" {
+			return dockLoadedMsg{revision: id, text: text, seq: seq, path: path}
 		}
 
 		return dockLoadedMsg{revision: id, commit: commit, text: text, seq: seq, hunks: seen.Parse([]byte(text))}
@@ -139,6 +152,16 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 		if !errors.Is(msg.err, jj.ErrStaleWorkingCopy) {
 			m.fail(msg.err)
 		}
+
+		return m
+	}
+
+	m.dockShown = msg.revision
+
+	// One file's diff is not the change's whole diff, so it files no read marks.
+	if msg.path != "" {
+		leaveChange(m.dockReads())
+		m.showDockText("diff "+msg.revision+" · "+msg.path, msg.text, msg.path)
 
 		return m
 	}
@@ -221,6 +244,8 @@ func (m Model) dispatchView(action string) (tea.Model, tea.Cmd) {
 	}
 
 	switch action {
+	case help.ActionHistory:
+		return m.startHistory()
 	case keys.ActionAgain, keys.ActionReverse:
 		cmd := pane.Repeat(map[bool]int{true: 1, false: -1}[action == keys.ActionAgain])
 		m.settleHeld()

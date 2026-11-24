@@ -232,6 +232,13 @@ func (m *Model) send(build func(revision, path string) tea.Msg) tea.Cmd {
 	return func() tea.Msg { return build(revision, path) }
 }
 
+// Selected is the revision and path of the file under the cursor, as jj's summary prints the path.
+func (m Model) Selected() (string, string, bool) {
+	file, ok := m.list.Selected()
+
+	return file.revision, file.Path, ok
+}
+
 // stagingRefusal is why a staging key does nothing here, "" when it can act.
 func (m *Model) stagingRefusal() string {
 	switch {

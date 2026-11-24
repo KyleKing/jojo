@@ -181,7 +181,15 @@ type Model struct {
 	// jumps is the jump list ctrl+o and ctrl+i walk, and labels a label jump waiting for its label.
 	jumps  jumpList
 	labels labeling
-	log    logview.Model
+	// history is the log narrowed to one file's history (*), and landOn the change the cursor goes to
+	// once the next log read lands, which entering and leaving a history set.
+	history historyState
+	landOn  string
+	// diffRevision is the revision the full-screen diff shows, "" for a comparison or an operation,
+	// and dockShown the one the dock last drew: * reads a file in either.
+	diffRevision string
+	dockShown    string
+	log          logview.Model
 	// pick is the in-log destination picker, and travel the log as it stood at an earlier operation.
 	// Each takes the keys while it is active.
 	travel travelState
@@ -434,6 +442,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
 		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
 		m.handleBookmarkMsg, m.bookmarkMenuMsg, m.syncMsg, m.edgeMsgs, m.handleExternalMsg, m.handleReadMsg,
+		m.handleHistoryMsg,
 	} {
 		if next, cmd, handled := handle(msg); handled {
 			return next, cmd
@@ -448,6 +457,9 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Batch(m.loadStats(), fullMargins())
 	case revsetbox.ChangedMsg:
+		// A revset typed in a file's history replaces it, so Esc has nothing left to return to.
+		m.history = historyState{}
+
 		return m, m.loadLog(msg.Revset)
 	case logview.SelectedMsg:
 		cmd := tea.Batch(m.followBookmark(msg.Revision), m.followDock(m.dockTarget()), m.loadStats())
@@ -546,6 +558,12 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	m.learnScopes(revisionsOf(msg.rows))
 	m.logFull = len(msg.rows) >= m.logWindow
 	m.log.SetRows(msg.rows)
+
+	if m.landOn != "" {
+		m.log.Focus(m.landOn)
+		m.landOn = ""
+	}
+
 	m.resize()
 
 	// A write changes what the docked diff shows without moving the cursor, so it reads again, and
@@ -638,7 +656,7 @@ func (m Model) logHeight() int {
 // shows anything but the revset it opened on. The opening revset is already in the footer, so a row
 // repeating it is a line taken from the log for nothing.
 func (m Model) revsetRow() bool {
-	return m.focus == focusRevset || m.revsetBox.Focused() ||
+	return m.history.active || m.focus == focusRevset || m.revsetBox.Focused() ||
 		m.revset != m.startRevset || m.revsetBox.Value() != m.startRevset
 }
 
@@ -656,6 +674,10 @@ func (m Model) revsetHeight() int {
 func (m Model) revsetPane() []string {
 	if !m.revsetRow() {
 		return nil
+	}
+
+	if m.history.active && !m.revsetBox.Focused() {
+		return []string{m.historyBanner()}
 	}
 
 	return []string{m.revsetBox.View(m.width)}

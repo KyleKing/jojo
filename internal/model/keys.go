@@ -165,6 +165,10 @@ func (m Model) dispatchLog(action string) (tea.Model, tea.Cmd) {
 	walking := m.jumps.walking
 	m.jumps.walking = false
 
+	if next, cmd, handled := m.historyAction(action); handled {
+		return next, cmd
+	}
+
 	if next, cmd, handled := m.jumpAction(action, walking); handled {
 		return next, cmd
 	}

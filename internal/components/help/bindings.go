@@ -133,6 +133,9 @@ const (
 	ActionFileResolve = "file-resolve"
 	ActionFileStage   = "file-stage"
 	ActionFileCommit  = "file-commit"
+
+	// ActionHistory narrows the log to the changes that touched the file under the cursor.
+	ActionHistory = "history"
 )
 
 // Legend groups jojo files its own verbs under, beside aragonite's.
@@ -461,6 +464,10 @@ func fileBindings() []keys.Binding {
 		f(ActionFileResolve, "resolve the file's conflict", "resolve", "x"),
 		f(ActionFileStage, "stage or unstage the file (in @)", "stage", "space"),
 		f(ActionFileCommit, "commit what is staged (in @)", "commit", "c"),
+		{
+			Action: ActionHistory, Keys: []string{"*"}, What: "history: the changes that touched the file",
+			Short: "history", Group: GroupFiles, Contexts: keys.List | keys.View | keys.Log,
+		},
 	}
 }
 

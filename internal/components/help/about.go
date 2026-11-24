@@ -377,6 +377,15 @@ var abouts = map[string]about{
 		related: []string{keys.ActionJumpForward, keys.ActionLabelJump},
 	},
 	keys.ActionJumpForward: {also: []string{"jump list", "go forward", "ctrl-i"}},
+	ActionHistory: {
+		cmd: "jj log -r 'files(<file>) & (::(@ | <rev>) | <revset>)'",
+		also: []string{
+			"blame", "file log", gitHistory, "git log -- path", "log --follow", "follow", "file history", "annotate",
+		},
+		prose: "Narrows the log to the changes that touched the file under the cursor, back through every " +
+			"rename jj detects, and docks that file's diff alone beside it. esc returns to the log as it was.",
+		related: []string{ActionFiles, ActionPreview},
+	},
 	ActionTravelRestore: {
 		cmd: "jj op restore <op>", also: []string{"reset --hard", gitReflog},
 		prose: "Restores the whole repository to the operation on screen. u undoes that too.",

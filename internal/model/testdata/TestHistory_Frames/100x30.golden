@@ -1,0 +1,30 @@
+★ history of main.go (was cmd.go) · 5 changes · esc back to the log                                 
+  wkwyyxvq          (no description set)          │ diff rnzxmskv · main.go
+  rnzxmskv          parse: read the new header f… │ M main.go
+  koopqtrk          refactor: split the reader    │ L1–2
+  twnsvwmr  parse*  test: cover the fallbacks     │  package main                                   
+  nptwozlo          release 0.13.0                │ ▎func main() { println("old") }                 
+                                                  │ ▎func main() { println("new") }                 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+                                                  │ 
+ parse: read the new header format                                                                  
+parse*  ★ main.go  enter diff  p dock  n new  d describe  s squash  r rebase  e edit  …  ? help     

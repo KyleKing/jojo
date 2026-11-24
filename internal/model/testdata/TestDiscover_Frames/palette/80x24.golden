@@ -11,8 +11,7 @@
 
 
 
-
-── commands 6 of 87 ────────────────────────────────────────────────────────────
+── commands 7 of 88 ────────────────────────────────────────────────────────────
 ── matches ─────────────────────────────────────────────────────────────────────
 ▌ n      new on the revision (two or…  jj new <revs>                            
   :next  show the next steps as a ba…                                           
@@ -20,5 +19,6 @@
   A      absorb into the revisions t…  jj absorb -r <rev>                       
          submit the stack at the cur…  jj git push --bookmark <each>; gh pr cre…
          rebase with descendants, ch…  jj rebase -s <rev> -o <dest>             
+  *      history: the changes that t…  jj log -r 'files(<file>) & (::(@ | <rev>…
 : stash▏                                     enter run  ctrl+n/p move  esc close
 parse*  @  enter diff  p dock  n new  d describe  s squash  r rebase  …  ? help 

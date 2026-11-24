@@ -31,7 +31,9 @@ type diffLoadedMsg struct {
 	text   string
 	change string
 	commit string
-	hunks  []seen.Ref
+	// revision is the one revision the diff is of, "" for a comparison or an operation.
+	revision string
+	hunks    []seen.Ref
 }
 
 // showDiff reads the diff and opens it in a pane. An operation's diff opens there too, its header and
@@ -55,7 +57,7 @@ func (m Model) loadDiff(target jj.DiffTarget, commit string) tea.Cmd {
 	return func() tea.Msg {
 		text, err := client.GitDiff(ctx, target)
 
-		msg := diffLoadedMsg{title: title, text: text, err: err}
+		msg := diffLoadedMsg{title: title, text: text, err: err, revision: target.Revision}
 		if whole && err == nil {
 			msg.change, msg.commit, msg.hunks = target.Revision, commit, seen.Parse([]byte(text))
 		}
@@ -92,10 +94,12 @@ func (m Model) openDiff(msg diffLoadedMsg) (tea.Model, tea.Cmd) {
 	case msg.text == "":
 		m.message = msg.title + ": nothing changed"
 	case msg.change != "":
+		m.diffRevision = msg.revision
 		m.diff.SetHints(diffHints(m.keys, !m.marksOff()))
 		m.noteRead(msg.change, msg.commit, msg.hunks)
 		m.showChange(m.fullReads(), msg.change, msg.title, msg.text, "")
 	default:
+		m.diffRevision = msg.revision
 		m.diff.SetHints(diffHints(m.keys, false))
 		leaveChange(m.fullReads())
 		m.marks.full.title = msg.title

@@ -87,3 +87,5 @@ bx       resolve a conflicted bookmark: pick where it goes          jj bookmark 
 L        edit the revset                                            jj log -r <revset>
 gh       forge pane: pull requests and CI                           
 gw       workspaces                                                 jj workspace list
+── Files
+*        history: the changes that touched the file                 jj log -r 'files(<file>) & (::(@ | <rev>) | <revset>)'

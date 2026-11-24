@@ -216,6 +216,10 @@ var fileKeys = map[string]tea.KeyPressMsg{
 
 // dispatchList runs an action in the file list.
 func (m Model) dispatchList(action string) (tea.Model, tea.Cmd) {
+	if action == help.ActionHistory {
+		return m.startHistory()
+	}
+
 	if key, ok := navKey(action); ok {
 		return m, m.files.Update(key)
 	}

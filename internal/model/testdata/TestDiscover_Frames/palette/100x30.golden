@@ -1,4 +1,4 @@
-  wkwyyxvq          (no description set)     ╭─ commands · 6 of 87 ────────────────────────────────╮
+  wkwyyxvq          (no description set)     ╭─ commands · 7 of 88 ────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ : stash▏                                            │
   koopqtrk          refactor: split the reade│ ── matches ──────────────────────────────────────── │
   twnsvwmr  parse*  test: cover the fallbacks│ ▌ n      new on the revision (two or more checked:… │
@@ -7,6 +7,7 @@
                                              │   A      absorb into the revisions that last touch… │
                                              │          submit the stack at the cursor as stacked… │
                                              │          rebase with descendants, choosing where    │
+                                             │   *      history: the changes that touched the fil… │
                                              │ ── Rewrite · n  new on the revision (two or more ch │
                                              │ Starts a new, empty change on top of the revision   │
                                              │ and makes it @, the working copy. With two or more  │
@@ -14,7 +15,6 @@
                                              │ was, which is jj's stash: nothing is ever lost.     │
                                              │ runs   jj new <revs>                                │
                                              │ also   N new… c commit e edit                       │
-                                             │                                                     │
                                              │                                                     │
                                              │                                                     │
                                              │                                                     │
