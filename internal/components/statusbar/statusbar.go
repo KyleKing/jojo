@@ -54,13 +54,51 @@ func (m Model) View(width int, ctx Context) string {
 	prefix := m.prefix(ctx, width)
 	hints := ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width-lipgloss.Width(prefix)-len(partGap))
 
-	// The prefix is dropped last: a footer that overflows wraps onto a second row and costs a line
-	// of the log, which is worse than losing the revset from view.
-	if hints == "" {
-		return padTo(ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width), width)
+	if hints != "" {
+		return padTo(prefix+partGap+hints, width)
 	}
 
-	return padTo(prefix+partGap+hints, width)
+	// A message is the one thing in the footer that cannot be read anywhere else, so it is cut to
+	// fit beside the route to help rather than dropped for the hints.
+	if ctx.Message != "" {
+		return padTo(m.message(ctx, width), width)
+	}
+
+	// The prefix is dropped last: a footer that overflows wraps onto a second row and costs a line
+	// of the log, which is worse than losing the revset from view.
+	return padTo(ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints, width), width)
+}
+
+// message is the message cut to whatever the last hint leaves, with that hint beside it.
+func (m Model) message(ctx Context, width int) string {
+	last := ""
+	if len(ctx.Hints) > 0 {
+		last = ui.FitHints(m.skin.KeyHintStyles(), ctx.Hints[len(ctx.Hints)-1:], width)
+	}
+
+	room := width
+	if last != "" {
+		room -= lipgloss.Width(last) + len(partGap)
+	}
+
+	if room < minMessageWidth {
+		return last
+	}
+
+	text := m.skin.Subtitle.Render(table.Truncate(oneLine(ctx.Message), room))
+	if last == "" {
+		return text
+	}
+
+	return text + partGap + last
+}
+
+// minMessageWidth is the least a cut message keeps: below it the cut says nothing.
+const minMessageWidth = 8
+
+// oneLine keeps a message on the footer's single row whatever jj wrote into it.
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(text), " ")
 }
 
 // prefixBudget is the fraction of the line the left side may take before the undo segment is
@@ -98,7 +136,7 @@ const (
 
 func (m Model) state(ctx Context) string {
 	if ctx.Message != "" {
-		return m.skin.Subtitle.Render(ctx.Message)
+		return m.skin.Subtitle.Render(oneLine(ctx.Message))
 	}
 
 	var parts []string

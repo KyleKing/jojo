@@ -192,7 +192,7 @@ func wrote(ran, hint string, err error) tea.Msg {
 	case errors.Is(err, jj.ErrStaleWorkingCopy):
 		return staleMsg{err: err}
 	case err != nil:
-		return messageMsg{text: err.Error()}
+		return messageMsg{text: err.Error(), output: jj.FullOutput(err)}
 	}
 
 	return messageMsg{text: ran + hint}

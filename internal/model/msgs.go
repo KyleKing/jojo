@@ -12,6 +12,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/fileview"
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/components/prompt"
+	"github.com/kyleking/jojo/internal/components/textview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	"github.com/kyleking/jojo/internal/jj"
 )
@@ -42,6 +43,11 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		evologview.CancelledMsg, bookmarkview.CancelledMsg, detailview.CancelledMsg,
 		fileview.CancelledMsg:
 		return m.cancelModals(), nil, true
+	case textview.CancelledMsg:
+		// Only the output closes, since it may be drawn over the panel the failure came from.
+		m.output.Close()
+
+		return m, nil, true
 	case diffpane.CancelledMsg:
 		// Only the diff closes, since it may be drawn over the file list that opened it.
 		m.diff.Close()

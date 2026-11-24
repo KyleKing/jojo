@@ -49,7 +49,7 @@ func (m *Model) act(what string, fn func(context.Context, *jj.Client) (string, e
 // a user meets jj's immutability rule and it is easier to obey a rule that says why.
 func (m Model) offerForce(msg refusedMsg) (tea.Model, tea.Cmd) {
 	if m.forcible.fn == nil {
-		m.message = msg.err.Error()
+		m.fail(msg.err)
 
 		return m, nil
 	}

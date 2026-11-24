@@ -145,6 +145,10 @@ var defaultBindings = []Binding{
 		Hint: keyhint.Hint{Key: "Ctrl+r", What: "redo"},
 	},
 	{
+		Layer: L2, Run: "!", Action: "last-failure",
+		Hint: keyhint.Hint{Key: "!", What: "full text of the last failure"},
+	},
+	{
 		Layer: L2, Run: "ctrl+l", Action: "reload", Cmd: "jj log",
 		Hint: keyhint.Hint{Key: "Ctrl+l", What: "reload the log"},
 	},

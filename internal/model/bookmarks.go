@@ -134,7 +134,7 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 
-		m.message = pushProblem(msg.err)
+		m.message, m.lastOutput, m.failing = pushProblem(msg.err), jj.FullOutput(msg.err), true
 
 		return m, nil, true
 	}
@@ -187,7 +187,7 @@ func (m Model) push(p pendingPush) tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			if _, err := client.Push(ctx, p.opts); err != nil {
-				return messageMsg{text: pushProblem(err)}
+				return messageMsg{text: pushProblem(err), output: jj.FullOutput(err)}
 			}
 
 			return messageMsg{text: "pushed " + p.what}

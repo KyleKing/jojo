@@ -62,7 +62,7 @@ func (m Model) offerDivergent(msg divergentPreviewMsg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case msg.err != nil:
-		m.message = msg.err.Error()
+		m.fail(msg.err)
 
 		return m, nil
 	case len(msg.sides) == 0:

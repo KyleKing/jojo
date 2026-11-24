@@ -27,7 +27,7 @@ func (l loaded[T]) open(m *Model) tea.Cmd {
 			return m.openStale(l.err)
 		}
 
-		m.message = l.err.Error()
+		m.fail(l.err)
 
 		return nil
 	}

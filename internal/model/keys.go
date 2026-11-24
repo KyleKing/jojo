@@ -11,6 +11,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	}
 
+	if msg.String() == "!" && m.lastOutput != "" && !m.typing() {
+		m.usage.Key(ctxLog, "!")
+		cmd := m.showOutput()
+
+		return m, cmd
+	}
+
 	if cmd, handled := m.routeToModal(msg); handled {
 		return m, cmd
 	}
@@ -66,6 +73,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	m.recordModalKey(ctx, msg)
 
 	switch ctx {
+	case ctxOutput:
+		return m.output.Update(msg), true
 	case ctxConfirm:
 		return m.confirm.Update(msg), true
 	case ctxBookmarks:
@@ -96,6 +105,8 @@ func (m *Model) routeToModal(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 // openModal names the overlay that takes the next key, "" when none is open.
 func (m *Model) openModal() string {
 	switch {
+	case m.output.IsOpen():
+		return ctxOutput
 	case m.confirm.IsOpen():
 		return ctxConfirm
 	case m.bookmarks.IsOpen():
@@ -123,6 +134,20 @@ func (m *Model) openModal() string {
 	}
 
 	return ""
+}
+
+// Typing reports whether the key goes into a text field, where "!" is a character rather than a verb.
+func (m *Model) typing() bool {
+	if m.focus == focusRevset {
+		return true
+	}
+
+	switch m.openModal() {
+	case ctxPrompt, ctxDestination, ctxPalette, ctxFind, ctxOutput:
+		return true
+	}
+
+	return false
 }
 
 // handleRootKey covers the keys that belong to the application rather than to
@@ -162,6 +187,10 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.redo(), true
 	case "ctrl+l":
 		return m, m.loadLog(m.revset), true
+	case "!":
+		cmd := m.showOutput()
+
+		return m, cmd, true
 	case "/":
 		cmd := m.find.Open()
 		m.resize()

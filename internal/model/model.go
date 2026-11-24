@@ -28,6 +28,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/revsetbox"
 	"github.com/kyleking/jojo/internal/components/search"
 	"github.com/kyleking/jojo/internal/components/statusbar"
+	"github.com/kyleking/jojo/internal/components/textview"
 	"github.com/kyleking/jojo/internal/components/workspaceview"
 	jforge "github.com/kyleking/jojo/internal/forge"
 	"github.com/kyleking/jojo/internal/jj"
@@ -59,6 +60,8 @@ type logLoadedMsg struct {
 
 type messageMsg struct {
 	text string
+	// output is everything a failed command wrote, kept for ! when the footer can show one line of it.
+	output string
 }
 
 type clearMessageMsg struct{}
@@ -92,6 +95,7 @@ type Model struct {
 	diff       diffpane.Model
 	dock       diffpane.Model
 	confirm    confirm.Model
+	output     textview.Model
 	forcible   forcible
 	pushing    pendingPush
 	onSubmit   submitted
@@ -101,6 +105,8 @@ type Model struct {
 	redoOp     string
 	revset     string
 	message    string
+	// lastOutput is the full text of the last failure, which "!" shows.
+	lastOutput string
 	lastOp     string
 	rows       []jj.LogRow
 	log        logview.Model
@@ -109,8 +115,10 @@ type Model struct {
 	height     int
 	logWindow  int
 	// dockSeq numbers the docked diff's reads, so only the newest one lands.
-	dockSeq   int
-	docked    bool
+	dockSeq int
+	docked  bool
+	// failing says the message on screen is the last failure, so the footer can offer its full text.
+	failing   bool
 	showForge bool
 	showHelp  bool
 	logFull   bool
@@ -155,6 +163,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		diff:       diffpane.New(skin),
 		dock:       diffpane.NewDocked(skin),
 		confirm:    confirm.New(skin),
+		output:     textview.New(skin),
 		palette:    palette.New(skin),
 		status:     statusbar.New(skin),
 		help:       help.New(skin, keys),
@@ -215,14 +224,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case divergentPreviewMsg:
 		return m.offerDivergent(msg)
-	case messageMsg:
-		m.message = msg.text
-
-		return m, tea.Tick(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
-	case clearMessageMsg:
-		m.message = ""
-
-		return m, nil
+	case messageMsg, clearMessageMsg:
+		return m.showMessage(msg)
 	case redoPointMsg:
 		m.redoOp = msg.id
 
@@ -236,6 +239,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.routeToPanes(msg)
+}
+
+// showMessage puts a status line up, or takes it down once it has had its time.
+func (m Model) showMessage(msg tea.Msg) (Model, tea.Cmd) {
+	shown, ok := msg.(messageMsg)
+	if !ok {
+		m.message, m.failing = "", false
+
+		return m, nil
+	}
+
+	m.message, m.failing = shown.text, shown.output != ""
+	if shown.output != "" {
+		m.lastOutput = shown.output
+	}
+
+	return m, tea.Tick(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} })
 }
 
 // routeToPanes fans out what the root does not own: a pane's debounce and poll ticks are its own
@@ -267,7 +287,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		m.message = msg.err.Error()
+		m.fail(msg.err)
 
 		return m, nil
 	}
@@ -355,6 +375,7 @@ func (m Model) overlay() func(width, height int) string {
 		open bool
 	}{
 		{m.help.View, m.showHelp},
+		{m.output.View, m.output.IsOpen()},
 		{m.confirm.View, m.confirm.IsOpen()},
 		{m.bookmarks.View, m.bookmarks.IsOpen()},
 		{m.detail.View, m.detail.IsOpen()},
@@ -383,7 +404,13 @@ func (m Model) render() string {
 	}
 
 	if view := m.overlay(); view != nil {
-		return view(m.width, m.height)
+		// An overlay takes the frame, footer included, so a failure raised while one is open keeps a
+		// row under it rather than happening out of sight.
+		if m.message == "" || m.height <= footerRows {
+			return view(m.width, m.height)
+		}
+
+		return view(m.width, m.height-footerRows) + "\n" + m.overlayFooter()
 	}
 
 	panes := []string{m.revsetBox.View(m.width), m.logPane()}

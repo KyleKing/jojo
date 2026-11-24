@@ -3,6 +3,7 @@ package jj
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -168,34 +169,108 @@ func shellQuote(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
+// CommandError is a failed jj invocation. Its Error is the one line worth putting in a footer, and
+// Output keeps everything jj wrote, since the line that explains a failure is not always the first.
+type CommandError struct {
+	// sentinel is what errors.Is matches: ErrCommandFailed, or the class wrapJJError found.
+	sentinel error
+	summary  string
+	Stderr   string
+	Args     []string
+}
+
+func (e *CommandError) Error() string { return e.summary }
+
+func (e *CommandError) Unwrap() error { return e.sentinel }
+
+// Output is the failed command line followed by everything jj wrote to stderr.
+func (e *CommandError) Output() string {
+	return CommandLine(e.Args) + "\n\n" + strings.TrimSpace(e.Stderr)
+}
+
+// FullOutput is what jj wrote for err when err came from a jj invocation, and err's own text
+// otherwise, which is what a "show me everything" view needs regardless of where err came from.
+func FullOutput(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	var failed *CommandError
+	if errors.As(err, &failed) {
+		return failed.Output()
+	}
+
+	return err.Error()
+}
+
 // wrapJJError classifies stderr from a failed jj invocation into the sentinel errors callers inspect
 // with errors.Is. A classified failure reports jj's own complaint alone, because it is shown to the
-// user in place; an unclassified one keeps the command line, because it is a bug report.
+// user in place; an unclassified one keeps the subcommand, so the footer says what failed.
 func wrapJJError(args []string, stderr string) error {
 	trimmed := strings.TrimSpace(stderr)
 
-	switch {
-	case strings.Contains(stderr, "Failed to parse revset"):
-		return fmt.Errorf("%w: %s", ErrRevsetSyntax, complaint(trimmed))
-	case strings.Contains(stderr, "is immutable"):
-		return fmt.Errorf("%w: %s", ErrImmutable, complaint(trimmed))
-	case strings.Contains(stderr, "Won't push"):
-		return fmt.Errorf("%w: %s", ErrPushRefused, complaint(trimmed))
-	case strings.Contains(stderr, "working copy is stale"):
-		return fmt.Errorf("%w: %s", ErrStaleWorkingCopy, complaint(trimmed))
+	failed := &CommandError{Args: args, Stderr: stderr}
+
+	for _, class := range classes {
+		if strings.Contains(stderr, class.marker) {
+			failed.sentinel = class.sentinel
+			failed.summary = class.sentinel.Error() + ": " + complaint(trimmed)
+
+			return failed
+		}
 	}
 
-	return fmt.Errorf("jj %s: %w: %s", strings.Join(args, " "), ErrCommandFailed, trimmed)
+	// The sentinel's own words add nothing to a line that already says which command failed.
+	failed.sentinel = ErrCommandFailed
+	failed.summary = "jj " + subcommand(args) + ": " + complaint(trimmed)
+
+	return failed
 }
+
+// classes are the failures a caller recovers from, each found by a phrase jj always prints for it.
+var classes = []struct {
+	sentinel error
+	marker   string
+}{
+	{ErrRevsetSyntax, "Failed to parse revset"},
+	{ErrImmutable, "is immutable"},
+	{ErrPushRefused, "Won't push"},
+	{ErrStaleWorkingCopy, "working copy is stale"},
+}
+
+// subcommand is the verbs of args without their flags and operands, which is enough to say which
+// command failed without repeating a description the user just typed.
+func subcommand(args []string) string {
+	var verbs []string
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") || len(verbs) == maxVerbs {
+			break
+		}
+
+		verbs = append(verbs, arg)
+	}
+
+	return strings.Join(verbs, " ")
+}
+
+// maxVerbs covers jj's deepest commands (`jj git remote add`) and stops before their operands.
+const maxVerbs = 2
 
 // complaint reduces jj's stderr to its headline and the one line that says something the headline
 // does not: the "= detail" of a caret diagram, or jj's own "Hint:" line. Both are where jj explains
-// what it wanted, which is the part worth putting in front of someone.
+// what it wanted, which is the part worth putting in front of someone. The headline is jj's "Error:"
+// line wherever it falls, because jj prints progress and warnings ahead of it.
 func complaint(stderr string) string {
 	lines := strings.Split(stderr, "\n")
-	headline := strings.TrimPrefix(strings.TrimSpace(lines[0]), "Error: ")
+	at := headlineAt(lines)
+	headline := strings.TrimSpace(lines[at])
 
-	for _, line := range lines[1:] {
+	for _, prefix := range []string{"Error: ", "error: "} {
+		headline = strings.TrimPrefix(headline, prefix)
+	}
+
+	for _, line := range lines[at+1:] {
 		detail := detailOf(line)
 		if detail == "" || strings.Contains(headline, detail) {
 			continue
@@ -205,6 +280,27 @@ func complaint(stderr string) string {
 	}
 
 	return headline
+}
+
+// headlineAt is the index of jj's error line, or of the first line that is neither a warning nor a
+// hint when jj wrote none.
+func headlineAt(lines []string) int {
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Error: ") || strings.HasPrefix(trimmed, "error: ") {
+			return i
+		}
+	}
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && !strings.HasPrefix(trimmed, "Warning: ") && !strings.HasPrefix(trimmed, "Hint: ") &&
+			!strings.HasPrefix(line, " ") {
+			return i
+		}
+	}
+
+	return 0
 }
 
 func detailOf(line string) string {

@@ -97,7 +97,7 @@ the handlers read. The ones worth knowing before you start:
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
 | `i` / `I` | squash hunks into the parent, or into any revision you pick |
-| `r` / `R` | rebase the revision, or it and its descendants; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
+| `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
 | `o` | the operation log, with restore, revert, and per-operation diff |
 | `E` | the evolution of the revision, with interdiff and restore |
@@ -105,6 +105,7 @@ the handlers read. The ones worth knowing before you start:
 | `p` | the forge pane |
 | <code>&#124;</code> `X` `B` | parallelize the checked revisions, `jj arrange`, bisect between two checked revisions |
 | `u` / `Ctrl+r` | undo the last operation, or redo it |
+| `!` | the full text of the last failure, when the footer only had room for one line of it |
 
 Every action runs immediately and tells you to press `u`, because jj's operation log
 makes all of them reversible. The footer keeps naming the operation `u` would reverse, so

@@ -110,7 +110,7 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 
 	if msg.err != nil {
 		if !errors.Is(msg.err, jj.ErrStaleWorkingCopy) {
-			m.message = msg.err.Error()
+			m.fail(msg.err)
 		}
 
 		return m

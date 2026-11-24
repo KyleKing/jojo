@@ -80,7 +80,7 @@ func (m Model) openDiff(msg diffLoadedMsg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case msg.err != nil:
-		m.message = msg.err.Error()
+		m.fail(msg.err)
 	case msg.text == "":
 		m.message = msg.title + ": nothing changed"
 	default:

@@ -31,6 +31,7 @@ const (
 	ctxLog         = "log"
 	ctxOpLog       = "oplog"
 	ctxPalette     = "palette"
+	ctxOutput      = "output"
 	ctxPrompt      = "prompt"
 	ctxSpaces      = "spaces"
 )

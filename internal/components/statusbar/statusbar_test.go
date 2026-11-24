@@ -132,3 +132,32 @@ func TestViewNeverOverflowsANarrowTerminal(t *testing.T) {
 		}
 	}
 }
+
+// A message too wide for the hints beside it used to drop the whole prefix, message included, so an
+// invalid bookmark name failed with nothing on screen but key hints.
+func TestView_TruncatesAWideMessageRatherThanDroppingIt(t *testing.T) {
+	t.Parallel()
+
+	message := "jj bookmark create: jj command failed: invalid value 'my topic' for '<NAMES>...': " +
+		"Failed to parse bookmark name: Syntax error (expected <EOI>)"
+
+	for _, width := range []int{30, 60, 100} {
+		got := ansi.Strip(testModel().View(width, statusbar.Context{Message: message, Hints: testHints()}))
+
+		if !strings.Contains(got, "jj bookmark") {
+			t.Errorf("width %d dropped the message: %q", width, got)
+		}
+
+		if !strings.Contains(got, "…") {
+			t.Errorf("width %d did not mark the cut: %q", width, got)
+		}
+
+		if !strings.Contains(got, "?] help") {
+			t.Errorf("width %d dropped the help hint: %q", width, got)
+		}
+
+		if w := lipgloss.Width(got); w != width {
+			t.Errorf("width %d rendered %d cells", width, w)
+		}
+	}
+}
