@@ -4,6 +4,7 @@
 package destpicker
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -55,6 +56,12 @@ func AllowImmutableDestination() OpenOption {
 	return func(m *Model) { m.immutableDest = true }
 }
 
+// Excluding leaves ids out of the list as well as the one Open names, since a batch cannot land on
+// one of its own members.
+func Excluding(ids ...string) OpenOption {
+	return func(m *Model) { m.excluded = ids }
+}
+
 // WithPlacement offers the two keys that land beside the picked revision instead of on it, which
 // only a rebase can act on.
 func WithPlacement() OpenOption {
@@ -68,6 +75,7 @@ type Model struct {
 	title          string
 	filter         string
 	revisions      []jj.Revision
+	excluded       []string
 	list           listview.Model[jj.Revision]
 	allowImmutable bool
 	immutableDest  bool
@@ -92,6 +100,7 @@ func (m *Model) Open(title string, rows []jj.LogRow, exclude string, opts ...Ope
 	m.title = title
 	m.filter = ""
 	m.allowImmutable, m.immutableDest, m.placing = false, false, false
+	m.excluded = nil
 
 	for _, opt := range opts {
 		opt(m)
@@ -100,7 +109,8 @@ func (m *Model) Open(title string, rows []jj.LogRow, exclude string, opts ...Ope
 	revisions := make([]jj.Revision, 0, len(rows))
 
 	for _, row := range rows {
-		if row.Revision == nil || row.Revision.ChangeID == exclude {
+		if row.Revision == nil || row.Revision.ChangeID == exclude ||
+			slices.Contains(m.excluded, row.Revision.ChangeID) {
 			continue
 		}
 

@@ -12,8 +12,9 @@ import (
 	"github.com/kyleking/jojo/internal/jj"
 )
 
-// targets is the checked revisions, or the one under the cursor. Batch and single share this path,
-// so a multi-select cannot silently act on one revision.
+// targets is the one rule every verb that takes several revisions follows: the checked revisions when
+// any are checked, else the one under the cursor. The footer counts the checks while they stand, and
+// a successful write or Esc clears them, so a check cannot quietly redirect a later action.
 func (m Model) targets() []string {
 	if checked := m.log.Checked(); len(checked) > 0 {
 		return checked
@@ -84,7 +85,9 @@ func (m Model) viewKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 	case "c":
 		return m.resolveKey(rev), true
 	case "P":
-		return m.previewPush(rev.ChangeID, jj.PushOptions{Revisions: []string{rev.ChangeID}}), true
+		targets := m.targets()
+
+		return m.previewPush(joinIDs(targets), jj.PushOptions{Revisions: targets}), true
 	case "enter":
 		return m.showDiff(jj.DiffTarget{Revision: rev.ChangeID}), true
 	}
@@ -100,15 +103,15 @@ func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 	case "alt+e":
 		return m, m.describeInEditor(rev.ChangeID, ""), true
 	case "s":
-		cmd := m.openSquash(rev)
+		cmd := m.openSquash(m.targets())
 
 		return m, cmd, true
 	case "r":
-		cmd := m.openRebase(rev, jj.RebaseScopeRevisions)
+		cmd := m.openRebase(m.targets(), jj.RebaseScopeRevisions)
 
 		return m, cmd, true
 	case "R":
-		cmd := m.openRebase(rev, jj.RebaseScopeSource)
+		cmd := m.openRebase(m.targets(), jj.RebaseScopeSource)
 
 		return m, cmd, true
 	case "S":
@@ -195,7 +198,7 @@ func wrote(ran, hint string, err error) tea.Msg {
 		return messageMsg{text: err.Error(), output: jj.FullOutput(err)}
 	}
 
-	return messageMsg{text: ran + hint}
+	return messageMsg{text: ran + hint, wrote: true}
 }
 
 // run executes a jj write then reloads the log.

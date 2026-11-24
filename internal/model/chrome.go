@@ -98,6 +98,7 @@ func (m Model) footer() string {
 		Bookmarks: m.nearbyBookmarks(),
 		Revset:    m.revset,
 		Message:   m.message,
+		Checked:   len(m.log.Checked()),
 		Undo:      m.lastOp,
 		Hints:     m.footerHints(),
 	})

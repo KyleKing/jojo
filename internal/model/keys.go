@@ -187,6 +187,14 @@ func (m Model) handleRootKey(key string) (tea.Model, tea.Cmd, bool) {
 		return m, m.redo(), true
 	case "ctrl+l":
 		return m, m.loadLog(m.revset), true
+	case keyEsc:
+		if len(m.log.Checked()) == 0 {
+			return m, nil, false
+		}
+
+		m.log.ClearChecked()
+
+		return m, m.say("checks cleared"), true
 	case "!":
 		cmd := m.showOutput()
 

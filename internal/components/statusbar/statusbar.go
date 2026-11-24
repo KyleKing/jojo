@@ -4,6 +4,7 @@
 package statusbar
 
 import (
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -35,6 +36,9 @@ type Context struct {
 	// Hints are shown most important first; the last one is never dropped, so
 	// callers put the route to the full legend (typically "?" help) there.
 	Hints []keyhint.Hint
+	// Checked counts the revisions the next batch action runs over, kept in view because a check on
+	// a row scrolled out of sight would otherwise redirect an action without warning.
+	Checked int
 }
 
 // Model is stateless: the footer is rendered entirely from the Context passed
@@ -85,7 +89,16 @@ func (m Model) message(ctx Context, width int) string {
 		return last
 	}
 
-	text := m.skin.Subtitle.Render(table.Truncate(oneLine(ctx.Message), room))
+	checked := m.checked(ctx)
+	if checked != "" {
+		room -= lipgloss.Width(checked) + len(partGap)
+	}
+
+	if room < minMessageWidth {
+		return joinParts(checked, last)
+	}
+
+	text := joinParts(checked, m.skin.Subtitle.Render(table.Truncate(oneLine(ctx.Message), room)))
 	if last == "" {
 		return text
 	}
@@ -135,8 +148,10 @@ const (
 )
 
 func (m Model) state(ctx Context) string {
+	checked := m.checked(ctx)
+
 	if ctx.Message != "" {
-		return m.skin.Subtitle.Render(oneLine(ctx.Message))
+		return joinParts(checked, m.skin.Subtitle.Render(oneLine(ctx.Message)))
 	}
 
 	var parts []string
@@ -149,7 +164,33 @@ func (m Model) state(ctx Context) string {
 		parts = append(parts, m.skin.Muted.Render(ctx.Revset))
 	}
 
-	return strings.Join(parts, partGap)
+	return joinParts(checked, strings.Join(parts, partGap))
+}
+
+// checked is the batch the next action runs over, with the way out of it.
+func (m Model) checked(ctx Context) string {
+	if ctx.Checked == 0 {
+		return ""
+	}
+
+	return m.skin.Accent.Render(CheckedLabel(ctx.Checked))
+}
+
+// CheckedLabel is how the footer counts the checked revisions.
+func CheckedLabel(n int) string {
+	return "● " + strconv.Itoa(n) + " checked, esc clears"
+}
+
+func joinParts(parts ...string) string {
+	kept := parts[:0]
+
+	for _, part := range parts {
+		if part != "" {
+			kept = append(kept, part)
+		}
+	}
+
+	return strings.Join(kept, partGap)
 }
 
 func (m Model) bookmarks(bookmarks []Bookmark) string {

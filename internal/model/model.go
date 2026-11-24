@@ -62,6 +62,8 @@ type messageMsg struct {
 	text string
 	// output is everything a failed command wrote, kept for ! when the footer can show one line of it.
 	output string
+	// wrote marks a write that went through, which ends the batch any checks were made for.
+	wrote bool
 }
 
 type clearMessageMsg struct{}
@@ -252,6 +254,10 @@ func (m Model) showMessage(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	m.message, m.failing = shown.text, shown.output != ""
+	if shown.wrote {
+		m.log.ClearChecked()
+	}
+
 	if shown.output != "" {
 		m.lastOutput = shown.output
 	}

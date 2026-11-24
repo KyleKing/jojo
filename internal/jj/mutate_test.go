@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 
@@ -94,5 +95,37 @@ func TestAbandonDivergent_SucceedsWithNothingToClean(t *testing.T) {
 
 	if ran != "jj abandon 'divergent() & ~::trunk()'" {
 		t.Errorf("ran = %q, want the divergent cleanup invocation", ran)
+	}
+}
+
+// Squashing a checked set is one operation that empties every source into the destination.
+func TestSquashAll_MovesEveryCheckedSourceIntoTheDestination(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	runJJ(t, dir, "describe", "-m", "dest")
+	runJJ(t, dir, "new", "-m", "one")
+	writeFile(t, dir, "one.txt", "1\n")
+	runJJ(t, dir, "new", "-m", "two")
+	writeFile(t, dir, "two.txt", "2\n")
+	runJJ(t, dir, "new")
+
+	const dest = "description(substring:dest)"
+
+	ran, err := client.SquashAll(ctx,
+		[]string{"description(substring:one)", "description(substring:two)"}, dest)
+	if err != nil {
+		t.Fatalf("SquashAll: %v", err)
+	}
+
+	if !strings.Contains(ran, "--from 'description(substring:one)' --from 'description(substring:two)'") {
+		t.Errorf("ran %q, want one --from per source", ran)
+	}
+
+	files := logOf(t, dir, dest, `diff.files().map(|f| f.path()).join(",")`)
+	if files != "one.txt,two.txt" {
+		t.Errorf("destination holds %q, want both sources' files", files)
 	}
 }

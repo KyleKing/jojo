@@ -83,7 +83,7 @@ the handlers read. The ones worth knowing before you start:
 | Key | Does |
 | --- | --- |
 | `j` / `k` | move a revision, skipping the graph connectors |
-| `space` | check a revision, so the next action runs over all the checked ones |
+| `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `D` `r` `R` `s` `P` run over all of them instead of the cursor; a write that goes through clears them |
 | `@` | jump to the working copy |
 | `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
 | `:` | the command palette, listing every action and the jj command it runs |

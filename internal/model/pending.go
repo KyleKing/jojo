@@ -81,17 +81,19 @@ func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, 
 	return run(m, msg.Value)
 }
 
-func (m *Model) openSquash(rev jj.Revision) tea.Cmd {
-	id := rev.ChangeID
+// openSquash asks where the targets go. Several checked revisions squash into one destination in one
+// operation, which jj takes as repeated --from.
+func (m *Model) openSquash(ids []string) tea.Cmd {
+	what := joinIDs(ids)
 	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
-		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
-			return c.Squash(ctx, id, dest.Revision.ChangeID)
+		cmd := m.act(what, func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.SquashAll(ctx, ids, dest.Revision.ChangeID)
 		})
 
 		return m, cmd
 	}
 
-	return m.destPicker.Open("squash "+id+" into", m.rows, id)
+	return m.destPicker.Open("squash "+what+" into", m.rows, ids[0], destpicker.Excluding(ids...))
 }
 
 // openMoveHunks asks for the destination, then hands the terminal to jj's configured diff editor,
@@ -126,12 +128,12 @@ func (m *Model) openMoveFile(from, path string) tea.Cmd {
 
 // openRebase asks for the destination. Scope is decided by the key that was pressed, because jj's -r
 // and -s move different things and guessing between them rewrites the wrong revisions.
-func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {
-	id := rev.ChangeID
+func (m *Model) openRebase(ids []string, scope jj.RebaseScope) tea.Cmd {
+	id := joinIDs(ids)
 	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
 		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
 			return c.Rebase(ctx, jj.RebaseOptions{
-				Revisions:   []string{id},
+				Revisions:   ids,
 				Destination: []string{dest.Revision.ChangeID},
 				Mode:        rebaseMode(dest.Placement),
 				Scope:       scope,
@@ -147,8 +149,8 @@ func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {
 	}
 
 	// Only what moves has to be mutable: landing on trunk() or the root rewrites nothing there.
-	return m.destPicker.Open(what+" onto", m.rows, id, destpicker.WithPlacement(),
-		destpicker.AllowImmutableDestination())
+	return m.destPicker.Open(what+" onto", m.rows, ids[0], destpicker.WithPlacement(),
+		destpicker.AllowImmutableDestination(), destpicker.Excluding(ids...))
 }
 
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {

@@ -106,6 +106,19 @@ func SquashArgs(from, into string, paths []string) []string {
 	return append(args, paths...)
 }
 
+// SquashAll moves every one of sources into into, as one operation.
+func (c *Client) SquashAll(ctx context.Context, sources []string, into string) (string, error) {
+	// A flag and a value per source, then the destination and the message flag.
+	args := make([]string, 0, 2*len(sources)+4)
+	args = append(args, "squash")
+
+	for _, from := range sources {
+		args = append(args, "--from", from)
+	}
+
+	return c.mutate(ctx, append(args, "--into", into, "--use-destination-message")...)
+}
+
 // Abandon abandons revs, rebasing their descendants onto their parents.
 func (c *Client) Abandon(ctx context.Context, revs []string) (string, error) {
 	args := append([]string{"abandon"}, revs...)

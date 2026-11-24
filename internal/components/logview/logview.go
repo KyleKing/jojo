@@ -120,6 +120,10 @@ func (m Model) Checked() []string {
 	return ids
 }
 
+// ClearChecked unchecks every revision, which a finished batch action and Esc both do, so a check
+// never outlives the action it was made for.
+func (m *Model) ClearChecked() { clear(m.checked) }
+
 // SetSearch records pattern and moves the cursor to the first matching row at
 // or after its current position, wrapping to the first match when there is
 // none after it. An empty pattern clears the search. It returns the match
