@@ -7,10 +7,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/filter"
+	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/ui"
 )
 
 // Styles is the vocabulary the log renders in. The caller owns it, so this
@@ -446,12 +446,14 @@ func (m Model) line(row jj.LogRow, layout table.Layout, graphWidth int, selected
 	gutter := m.gutter(*row.Revision)
 
 	// Every cell carries its own reset, so the row face is laid under each one rather than wrapped
-	// around the whole line, which would only reach the graph.
+	// around the whole line, which would only reach the graph. skin.Lit is aragonite's selection
+	// policy: a tint keeps each cell's colors, and reverse video (16 colors, NO_COLOR) drops them so
+	// the row is one even bar rather than a white bar with colored blocks in it.
 	switch {
 	case selected:
-		return ui.OnBackground(graph+gutter+body, m.styles.Selected)
+		return skin.Lit(graph+gutter+body, m.width, m.styles.Selected)
 	case m.searchPattern != "" && matchesSearch(*row.Revision, m.searchPattern):
-		return ui.OnBackground(graph+gutter+body, m.styles.Match)
+		return skin.Lit(graph+gutter+body, m.width, m.styles.Match)
 	default:
 		return graph + gutter + body
 	}

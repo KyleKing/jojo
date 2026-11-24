@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/logview"
@@ -386,5 +387,35 @@ func assertOnFace(t *testing.T, row, field, open string) {
 
 	if !strings.Contains(before[max(reset, 0):], open) {
 		t.Errorf("%q is drawn off the selection face: %q", field, before[max(reset, 0):])
+	}
+}
+
+// In 16 colors and under NO_COLOR the selection is reverse video, and a cell that kept its color
+// inside it drew as a colored block in a white bar: the selected row carries no color at all.
+func TestView_SelectedRowIsOneEvenBarIn16Colors(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{60, 80, 120} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			skin := ui.ForProfile(ui.New(theme.Macchiato()), colorprofile.ANSI)
+			m := logview.New(logview.StylesFrom(skin))
+			m.SetRows(fixture())
+			m.SetSize(width, 10)
+
+			lines := strings.Split(m.View(), "\n")
+			if colors := tuitest.ColorsIn(lines[0]); len(colors) > 0 {
+				t.Errorf("the selected row carries colors %q:\n%q", colors, lines[0])
+			}
+
+			if !strings.Contains(lines[0], "\x1b[7m") && !strings.Contains(lines[0], ";7m") {
+				t.Errorf("the selected row is not reverse video: %q", lines[0])
+			}
+
+			if colors := tuitest.ColorsIn(strings.Join(lines[1:], "\n")); len(colors) == 0 {
+				t.Error("the other rows lost their colors too")
+			}
+		})
 	}
 }

@@ -3,6 +3,8 @@
 package tuitest
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -120,4 +122,34 @@ func AssertGraphGolden(tb testing.TB, frame string) {
 	}
 
 	golden.RequireEqual(tb, StripANSI(frame))
+}
+
+// sgr matches one SGR sequence and captures its parameters.
+var sgr = regexp.MustCompile(`\x1b\[([0-9;:]*)m`)
+
+// ColorsIn is every SGR parameter in line that sets a foreground or background color, which a
+// reverse-video selected row must not carry: reversing a colored cell draws it as a block of that
+// color inside the bar.
+func ColorsIn(line string) []string {
+	var out []string
+
+	for _, m := range sgr.FindAllStringSubmatch(line, -1) {
+		params := strings.FieldsFunc(m[1], func(r rune) bool { return r == ';' || r == ':' })
+		for i := 0; i < len(params); i++ {
+			n, err := strconv.Atoi(params[i])
+			if err != nil {
+				continue
+			}
+
+			switch {
+			case n == 38 || n == 48: // extended fore- and background
+				out = append(out, m[0])
+				i = len(params)
+			case (n >= 30 && n <= 37) || (n >= 40 && n <= 47) || (n >= 90 && n <= 97) || (n >= 100 && n <= 107):
+				out = append(out, m[0])
+			}
+		}
+	}
+
+	return out
 }

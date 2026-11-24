@@ -460,7 +460,7 @@ func (m Model) row(i int, layout table.Layout) string {
 
 	line := strings.Repeat(" ", table.Gutter) + table.Join(cells)
 	if i == m.cursor {
-		return ui.OnBackground(line, m.skin.Selection)
+		return m.skin.Select(line, m.width)
 	}
 
 	return line

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/outlineview"
@@ -208,6 +209,39 @@ func TestView_DescriptionTakesTheSpareCells(t *testing.T) {
 			frame := tuitest.StripANSI(m.View())
 			if !strings.Contains(frame, "vwtrlsqy ×  refactor") {
 				t.Errorf("the flag is not one space after the change id:\n%s", frame)
+			}
+		})
+	}
+}
+
+// The chapter under the cursor is one even reverse bar in 16 colors: its conflict, size, and read
+// strip colors would otherwise draw as blocks inside it.
+func TestView_SelectedChapterIsOneEvenBarIn16Colors(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{60, 80, 120} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m := outlineview.New(ui.ForProfile(ui.New(theme.Macchiato()), colorprofile.ANSI))
+			m.SetChapters(stack())
+			m.SetSize(width, 8)
+			m.Focus("vwtrlsqy")
+
+			var selected string
+
+			for _, line := range strings.Split(m.View(), "\n") {
+				if strings.Contains(tuitest.StripANSI(line), "vwtrlsqy") {
+					selected = line
+				}
+			}
+
+			if colors := tuitest.ColorsIn(selected); len(colors) > 0 {
+				t.Errorf("the selected chapter carries colors %q:\n%q", colors, selected)
+			}
+
+			if lipgloss.Width(selected) != width {
+				t.Errorf("the bar is %d wide, want the whole %d", lipgloss.Width(selected), width)
 			}
 		})
 	}
