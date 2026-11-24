@@ -93,3 +93,58 @@ func TestViewGolden(t *testing.T) {
 
 	tuitest.AssertGolden(t, m.View(testWidth, testHeight))
 }
+
+// A description's body and trailers are part of it. The single-line field dropped every line after
+// the first, so Enter on an unedited prompt rewrote the description without them.
+func TestOpenText_KeepsEveryLineThroughSubmit(t *testing.T) {
+	t.Parallel()
+
+	full := "fix: side branch\n\nLong body paragraph explaining why.\nSigned-off-by: X"
+
+	m := prompt.New(testSkin())
+	m.OpenText("describe abc", full)
+
+	if got := m.Value(); got != full {
+		t.Fatalf("seeded %q, want %q", got, full)
+	}
+
+	m.Update(tuitest.Key("alt+enter"))
+
+	submitted, ok := drainMsg[prompt.SubmittedMsg](m.Update(tuitest.Key("enter")))
+	if !ok {
+		t.Fatal("enter did not submit")
+	}
+
+	if submitted.Value != "\n"+full {
+		t.Errorf("submitted %q, want the line break typed at the start plus every original line", submitted.Value)
+	}
+}
+
+func TestOpenText_AltEAsksForTheEditorWithWhatWasTyped(t *testing.T) {
+	t.Parallel()
+
+	m := prompt.New(testSkin())
+	m.OpenText("describe abc", "subject")
+	m.Update(tuitest.Key("x"))
+
+	asked, ok := drainMsg[prompt.EditorRequestedMsg](m.Update(tuitest.Key("alt+e")))
+	if !ok {
+		t.Fatal("alt+e did not ask for the editor")
+	}
+
+	if asked.Value != "xsubject" || m.IsOpen() {
+		t.Errorf("asked with %q (open %v), want the typed text and a closed prompt", asked.Value, m.IsOpen())
+	}
+}
+
+// The one-line prompts (bookmark names, workspace names) have no editor to hand off to.
+func TestOpen_AltEDoesNothingOnASingleLinePrompt(t *testing.T) {
+	t.Parallel()
+
+	m := prompt.New(testSkin())
+	m.Open("new bookmark", "")
+
+	if _, ok := drainMsg[prompt.EditorRequestedMsg](m.Update(tuitest.Key("alt+e"))); ok {
+		t.Error("a single-line prompt offered the editor")
+	}
+}

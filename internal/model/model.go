@@ -99,6 +99,7 @@ type Model struct {
 	forcible   forcible
 	pushing    pendingPush
 	onSubmit   submitted
+	onEditor   submitted
 	onPick     picked
 	keys       help.Keymap
 	usage      *keyusage.Recorder

@@ -25,6 +25,10 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handleSubmitted(msg)
 
 		return next, cmd, true
+	case prompt.EditorRequestedMsg:
+		next, cmd := m.handleEditorRequested(msg)
+
+		return next, cmd, true
 	case destpicker.PickedMsg:
 		next, cmd := m.handlePicked(msg)
 

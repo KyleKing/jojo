@@ -18,6 +18,7 @@
 │          n  new                                          │
 │          e  edit                                         │
 │          d  describe                                     │
+│      Alt+e  describe in $EDITOR                          │
 │          s  squash                                       │
 │          S  split                                        │
 │          i  squash interactively                         │
@@ -34,7 +35,6 @@
 │          c  resolve the conflict                         │
 │          b  bookmarks                                    │
 │          f  fetch                                        │
-│          P  push the revision's bookmarks                │
-│                                              1–35 of 58  │
+│                                              1–35 of 59  │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯

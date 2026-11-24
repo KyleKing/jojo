@@ -96,9 +96,9 @@ func (m Model) viewKey(key string, rev jj.Revision) (tea.Cmd, bool) {
 func (m Model) openKey(key string, rev jj.Revision) (tea.Model, tea.Cmd, bool) {
 	switch key {
 	case "d":
-		cmd := m.openDescribe(rev)
-
-		return m, cmd, true
+		return m, m.loadDescribe(rev), true
+	case "alt+e":
+		return m, m.describeInEditor(rev.ChangeID, ""), true
 	case "s":
 		cmd := m.openSquash(rev)
 

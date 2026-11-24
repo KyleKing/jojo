@@ -68,8 +68,12 @@ var defaultBindings = []Binding{
 	{Layer: L2, Run: "n", Action: "new", Cmd: "jj new <rev>", Hint: keyhint.Hint{Key: "n", What: "new"}},
 	{Layer: L2, Run: "e", Action: "edit", Cmd: "jj edit <rev>", Hint: keyhint.Hint{Key: "e", What: "edit"}},
 	{
-		Layer: L2, Run: "d", Action: "describe", Cmd: "jj describe -r <rev> -m",
+		Layer: L2, Run: "d", Action: "describe", Cmd: "jj describe -r <rev> -m <full description>",
 		Hint: keyhint.Hint{Key: "d", What: "describe"},
+	},
+	{
+		Layer: L2, Run: "alt+e", Action: "describe-editor", Cmd: "jj describe -r <rev>",
+		Hint: keyhint.Hint{Key: "Alt+e", What: "describe in $EDITOR"},
 	},
 	{
 		Layer: L2, Run: "s", Action: "squash", Cmd: "jj squash --from <rev> --into <dest>",

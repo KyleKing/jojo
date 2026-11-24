@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -21,19 +22,63 @@ type (
 	picked    func(Model, destpicker.PickedMsg) (Model, tea.Cmd)
 )
 
+// loadDescribe reads the whole description before the prompt opens, because the log row carries only
+// its first line and seeding the prompt with that dropped the body and trailers on Enter.
+func (m Model) loadDescribe(rev jj.Revision) tea.Cmd {
+	client, id := m.client, rev.ChangeID
+
+	return load(m.ctx,
+		func(ctx context.Context) (jj.Detail, error) { return client.RevisionDetail(ctx, id) },
+		openDescribe)
+}
+
 // openDescribe seeds the prompt with the current description, because an edit is far more common
-// than writing one from nothing.
-func (m *Model) openDescribe(rev jj.Revision) tea.Cmd {
-	id := rev.ChangeID
+// than writing one from nothing. Submitting it unchanged writes nothing, so Enter on a glance is not
+// an operation to undo.
+func openDescribe(m *Model, detail jj.Detail) tea.Cmd {
+	id, before := detail.ChangeID, detail.Description
 	m.onSubmit = func(m Model, text string) (Model, tea.Cmd) {
+		if sameDescription(text, before) {
+			return m, m.say("description of " + id + " unchanged")
+		}
+
 		cmd := m.act(id, func(ctx context.Context, c *jj.Client) (string, error) {
 			return c.Describe(ctx, id, text)
 		})
 
 		return m, cmd
 	}
+	m.onEditor = func(m Model, text string) (Model, tea.Cmd) { return m, m.describeInEditor(id, text) }
 
-	return m.prompt.Open("describe "+id, rev.Description)
+	return m.prompt.OpenText("describe "+id, before)
+}
+
+// sameDescription ignores the trailing newline jj adds to every description it stores.
+func sameDescription(a, b string) bool {
+	return strings.TrimRight(a, "\n") == strings.TrimRight(b, "\n")
+}
+
+// describeInEditor hands the terminal to $EDITOR through jj, seeded with text when the prompt had
+// one, which is the way to write a description longer than a prompt is comfortable for.
+func (m Model) describeInEditor(id, text string) tea.Cmd {
+	args := []string{"describe", "-r", id}
+	if text != "" {
+		args = append(args, "--editor", "-m", text)
+	}
+
+	return m.exec("described "+id+undoHint, args...)
+}
+
+func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, tea.Cmd) {
+	run := m.onEditor
+	m.prompt.Close()
+	m.onSubmit, m.onEditor = nil, nil
+
+	if run == nil {
+		return m, nil
+	}
+
+	return run(m, msg.Value)
 }
 
 func (m *Model) openSquash(rev jj.Revision) tea.Cmd {
@@ -109,7 +154,7 @@ func (m *Model) openRebase(rev jj.Revision, scope jj.RebaseScope) tea.Cmd {
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 	run := m.onSubmit
 	m.prompt.Close()
-	m.onSubmit = nil
+	m.onSubmit, m.onEditor = nil, nil
 
 	if run == nil {
 		return m, nil
@@ -206,7 +251,7 @@ func (m Model) cancelModals() Model {
 	m.detail.Close()
 	m.files.Close()
 	m.diff.Close()
-	m.onSubmit, m.onPick = nil, nil
+	m.onSubmit, m.onPick, m.onEditor = nil, nil, nil
 
 	return m
 }

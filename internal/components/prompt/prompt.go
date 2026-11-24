@@ -5,6 +5,7 @@ package prompt
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
@@ -23,6 +24,13 @@ type SubmittedMsg struct {
 // CancelledMsg is sent when Esc dismisses the prompt without submitting.
 type CancelledMsg struct{}
 
+// EditorRequestedMsg is sent when alt+e asks for $EDITOR instead, carrying what has been typed so far
+// so the editor opens on it rather than on what the prompt started with.
+type EditorRequestedMsg struct {
+	Title string
+	Value string
+}
+
 // Option configures a Model at construction.
 type Option func(*Model)
 
@@ -32,12 +40,21 @@ type Model struct {
 	skin  ui.Skin
 	title string
 	input textinput.Model
-	open  bool
+	// text is the multi-line field OpenText uses, for a value whose line breaks are part of it.
+	text      textarea.Model
+	open      bool
+	multiline bool
+	// editor offers alt+e, which only a caller that can hand the terminal to $EDITOR can act on.
+	editor bool
 }
 
 // New returns a closed prompt drawn in skin.
 func New(skin ui.Skin, opts ...Option) Model {
-	m := Model{skin: skin, input: textinput.New()}
+	text := textarea.New()
+	text.ShowLineNumbers = false
+	text.Prompt = ""
+
+	m := Model{skin: skin, input: textinput.New(), text: text}
 	for _, opt := range opts {
 		opt(&m)
 	}
@@ -49,17 +66,40 @@ func New(skin ui.Skin, opts ...Option) Model {
 // cursor at the end, and gives it keyboard focus.
 func (m *Model) Open(title, initial string) tea.Cmd {
 	m.title = title
-	m.open = true
+	m.open, m.multiline, m.editor = true, false, false
 	m.input.SetValue(initial)
 	m.input.CursorEnd()
 
 	return m.input.Focus()
 }
 
+// OpenText shows a multi-line field seeded with initial, whose line breaks survive the edit: Enter
+// submits, alt+enter or ctrl+j breaks the line, and alt+e asks for $EDITOR. It is the prompt for a
+// description, whose body and trailers a single line would drop.
+func (m *Model) OpenText(title, initial string) tea.Cmd {
+	m.title = title
+	m.open, m.multiline, m.editor = true, true, true
+	m.text.SetHeight(maxTextRows)
+	m.text.SetValue(initial)
+	m.text.MoveToBegin()
+
+	return m.text.Focus()
+}
+
 // Close hides the prompt and blurs its field.
 func (m *Model) Close() {
 	m.open = false
 	m.input.Blur()
+	m.text.Blur()
+}
+
+// Value is what the field holds.
+func (m Model) Value() string {
+	if m.multiline {
+		return m.text.Value()
+	}
+
+	return m.input.Value()
 }
 
 // IsOpen reports whether the prompt is currently shown.
@@ -74,21 +114,38 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
+	title, value := m.title, m.Value()
+
 	switch keyMsg.String() {
 	case "esc":
 		m.Close()
 
 		return func() tea.Msg { return CancelledMsg{} }
 	case "enter":
-		title, value := m.title, m.input.Value()
 		m.Close()
 
 		return func() tea.Msg { return SubmittedMsg{Title: title, Value: value} }
+	case "alt+e":
+		if m.editor {
+			m.Close()
+
+			return func() tea.Msg { return EditorRequestedMsg{Title: title, Value: value} }
+		}
+	case "alt+enter", "ctrl+j":
+		if m.multiline {
+			m.text.InsertString("\n")
+
+			return nil
+		}
 	}
 
 	var cmd tea.Cmd
 
-	m.input, cmd = m.input.Update(keyMsg)
+	if m.multiline {
+		m.text, cmd = m.text.Update(keyMsg)
+	} else {
+		m.input, cmd = m.input.Update(keyMsg)
+	}
 
 	return cmd
 }
@@ -96,6 +153,43 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 // minFieldWidth is the field's floor so a very narrow frame still draws a
 // usable input rather than clipping it to nothing.
 const minFieldWidth = 1
+
+// chromeRows is what the title and the hint line take from a multi-line field.
+const chromeRows = 2
+
+// minTextRows keeps room to see a line break land in a one-line description.
+const minTextRows = 3
+
+// maxTextRows bounds the multi-line field, since a description is read a screen at a time anyway.
+const maxTextRows = 12
+
+func (m Model) field(width, height int) string {
+	if !m.multiline {
+		input := m.input
+		input.SetWidth(max(width-len([]rune(input.Prompt))-cursorCellWidth, minFieldWidth))
+
+		return input.View()
+	}
+
+	text := m.text
+	text.SetWidth(max(width, minFieldWidth))
+	text.SetHeight(max(1, min(height-chromeRows, maxTextRows, max(minTextRows, text.LineCount()+1))))
+
+	return text.View()
+}
+
+func (m Model) hints() []keyhint.Hint {
+	hints := []keyhint.Hint{{Key: "enter", What: "submit"}}
+	if m.multiline {
+		hints = append(hints, keyhint.Hint{Key: "alt+enter", What: "new line"})
+	}
+
+	if m.editor {
+		hints = append(hints, keyhint.Hint{Key: "alt+e", What: "$EDITOR"})
+	}
+
+	return append(hints, keyhint.Hint{Key: "esc", What: "cancel"})
+}
 
 // cursorCellWidth is the extra column textinput's View reserves for the
 // virtual cursor sitting after the last character, which SetWidth's argument
@@ -113,17 +207,11 @@ func (m Model) View(width, height int) string {
 		return ui.TooSmall(width, height)
 	}
 
-	input := m.input
-	input.SetWidth(max(contentWidth-len([]rune(input.Prompt))-cursorCellWidth, minFieldWidth))
-
-	hint := ui.FitHints(m.skin.KeyHintStyles(), []keyhint.Hint{
-		{Key: "enter", What: "submit"},
-		{Key: "esc", What: "cancel"},
-	}, contentWidth)
+	hint := ui.FitHints(m.skin.KeyHintStyles(), m.hints(), contentWidth)
 
 	body := strings.Join([]string{
 		m.skin.Title.Render(m.title),
-		input.View(),
+		m.field(contentWidth, contentHeight),
 		hint,
 	}, "\n")
 

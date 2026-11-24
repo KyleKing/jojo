@@ -96,6 +96,7 @@ the handlers read. The ones worth knowing before you start:
 | `c` | resolve the conflict, in the whole revision or one file of it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks |
 | `n` `e` `d` `s` `S` `a` `A` `D` | new, edit, describe, squash, split, abandon, absorb, duplicate |
+| `d` / `Alt+e` | describe in a prompt that holds the whole description, body and trailers included (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
 | `i` / `I` | squash hunks into the parent, or into any revision you pick |
 | `r` / `R` | rebase the revision, or it and its descendants, onto any revision including `trunk()` and the root; the picker also offers `alt+a` and `alt+b` to insert beside the destination rather than onto it |
 | `b` | bookmarks: set, advance, create, rename, delete, forget, track, push |
