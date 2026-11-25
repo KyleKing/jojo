@@ -19,8 +19,8 @@ gt       jump to trunk()                                            jj log -r 't
 ]b       next bookmarked revision                                   jj log -r 'bookmarks() | remote_bookmarks()'
 [b       previous bookmarked revision                               jj log -r 'bookmarks() | remote_bookmarks()'
 ── Flags
--r       the revision alone (-r)                                    
--s       the revision and its descendants (-s)                      
+-r/r     the revision alone (-r)                                    
+-s/s     the revision and its descendants (-s)                      
 -b       the whole branch (-b)                                      
 -o       onto (-o)                                                  
 -A       insert after (-A)                                          

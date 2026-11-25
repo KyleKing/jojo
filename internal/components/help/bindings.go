@@ -221,6 +221,13 @@ var pickerFlags = map[string][]string{
 	keys.VerbRestore:   {"i", "d"},
 }
 
+// rebaseScopes are the rebase picker's modes that answer their bare letter as well as their flag: -r
+// and -s are what jj spells, and r and s are what a reader presses first. The b key is the family's
+// reserved prefix and never acts alone, so a bare b says to press - b instead.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var rebaseScopes = []string{"r", "s"}
+
 // PickerFlags is the flags of verb the picker offers, in aragonite's order.
 func PickerFlags(verb string) []keys.Flag {
 	var out []keys.Flag
@@ -255,8 +262,13 @@ func sharedBindings() []keys.Binding {
 		verb := PickVerbs[ctx]
 
 		for _, f := range keys.FlagBindings(verb) {
-			if slices.Contains(pickerFlags[verb], f.Keys[0][len("- "):]) {
+			letter := f.Keys[0][len("- "):]
+			if slices.Contains(pickerFlags[verb], letter) {
 				f.Contexts = ctx
+				if verb == keys.VerbRebase && slices.Contains(rebaseScopes, letter) {
+					f.Keys = append(slices.Clone(f.Keys), letter)
+				}
+
 				shared = append(shared, f)
 			}
 		}

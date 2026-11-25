@@ -83,6 +83,8 @@ func TestPicker_BuildsTheCommandTheFlagsName(t *testing.T) {
 	}{
 		{name: "rebase lands on the row below", keys: []string{"r"}, want: "jj rebase -r aaaa --onto bbbb"},
 		{name: "-s moves descendants", keys: []string{"r", "-", "s"}, want: "jj rebase -s aaaa --onto bbbb"},
+		{name: "a bare s is -s", keys: []string{"r", "s"}, want: "jj rebase -s aaaa --onto bbbb"},
+		{name: "a bare r is -r again", keys: []string{"r", "s", "r"}, want: "jj rebase -r aaaa --onto bbbb"},
 		{name: "-B is before", keys: []string{"r", "-", "B"}, want: "jj rebase -r aaaa --insert-before bbbb"},
 		{
 			name: "-b is the branch", keys: []string{"r", "-", "b", "-", "A"},
@@ -313,5 +315,35 @@ func TestChord_SecondKeyEndsIt(t *testing.T) {
 	m = asModel(t, update(m, tuitest.Key("j")))
 	if got := m.log.Selected().ChangeID; got != "bbbb" {
 		t.Errorf("j after a spent chord did not move the cursor, it is on %q", got)
+	}
+}
+
+// The rebase picker's footer reads "-r revs -s source -b branch", and a bare s did nothing at all. The
+// s and r keys now pick their mode; b is the family's prefix, so it says to press - b, and so does any
+// flag letter pressed bare, rather than doing nothing silently.
+func TestRebasePicker_BareModeLettersAnswer(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		want string
+		keys []string
+	}{
+		{"flags start with -: - b is -b, the whole branch", []string{"r", "b"}},
+		{"flags start with -: - e is --skip-emptied", []string{"r", "e"}},
+	} {
+		m := testModel(t, twoRows())
+		var msgs []tea.Msg
+
+		for _, key := range tc.keys {
+			m, msgs = pressOne(t, m, key)
+		}
+
+		if got := said(msgs); !strings.HasPrefix(got, tc.want) {
+			t.Errorf("%v said %q, want %q", tc.keys, got, tc.want)
+		}
+
+		if got := commandOf(m); got != "jj rebase -r aaaa --onto bbbb" {
+			t.Errorf("%v changed the command to %q", tc.keys, got)
+		}
 	}
 }

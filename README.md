@@ -154,7 +154,7 @@ graph redraws as it will be after the command, and the footer shows the live `jj
 
 | Verb | Flags |
 | --- | --- |
-| rebase `r` | `-r` • / `-s` / `-b` what moves; `-o` • / `-A` / `-B` where; `-e` skip emptied, `-d` keep divergent, `-p` simplify parents |
+| rebase `r` | `-r` • / `-s` / `-b` what moves (`r` and `s` alone pick their mode too; `b` is a prefix, so a bare `b` says to press `- b`); `-o` • / `-A` / `-B` where; `-e` skip emptied, `-d` keep divergent, `-p` simplify parents |
 | squash `s` | `-t` into • / `-o` / `-A` / `-B` (into a new commit placed there); `-u` keep the destination's message (on), `-m` write the message, `-k` keep emptied, `-i` choose hunks in the diff editor |
 | duplicate `y` | `-o` / `-A` / `-B` once you move; `Enter` straight away duplicates in place, `Backspace` returns to it |
 | new `N` | `-o` • / `-A` / `-B`, `-n` no-edit, `-m` write the message |

@@ -175,7 +175,25 @@ func (m Model) unbound(screen keys.Context, msg tea.KeyPressMsg) (tea.Model, tea
 		return m.dispatchOutline("")
 	}
 
+	if screen&keys.Picker != 0 {
+		return m, m.flagHint(msg.String())
+	}
+
 	return m, nil
+}
+
+// flagHint answers a picker's flag letter pressed bare, which the picker does not take alone, with
+// the key that sets it: nothing happening at all read as the flag being broken.
+func (m Model) flagHint(pressed string) tea.Cmd {
+	verb := pickFlagVerbs[m.pick.verb]
+
+	for _, f := range help.PickerFlags(verb) {
+		if f.Letter == pressed {
+			return m.say("flags start with -: - " + f.Letter + " is " + f.Arg + ", " + f.What)
+		}
+	}
+
+	return nil
 }
 
 // dispatch runs action on screen.
