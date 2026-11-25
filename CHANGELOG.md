@@ -1,3 +1,9 @@
+## v0.28.1 (2026-11-25)
+
+### Fix
+
+- **launch**: the first key of a session acts instead of vanishing
+
 ## v0.28.0 (2026-11-25)
 
 ### BREAKING CHANGE
