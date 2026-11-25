@@ -27,14 +27,14 @@ func TestProbeCached_AsksOncePerBinary(t *testing.T) {
 	run := func(ctx context.Context, path string, args ...string) ([]byte, error) {
 		asked++
 
-		return runner("0.12.1", "")(ctx, path, args...)
+		return runner("0.15.2", "")(ctx, path, args...)
 	}
 
 	cache := filepath.Join(dir, "cache")
 
 	for range 3 {
-		if tool := jjdiff.ProbeCached(t.Context(), find, run, cache); !tool.Modes || tool.Version != "0.12.1" {
-			t.Fatalf("ProbeCached = %+v, want 0.12.1 with its modes", tool)
+		if tool := jjdiff.ProbeCached(t.Context(), find, run, cache); !tool.Modes || tool.Version != "0.15.2" {
+			t.Fatalf("ProbeCached = %+v, want 0.15.2 with its modes", tool)
 		}
 	}
 

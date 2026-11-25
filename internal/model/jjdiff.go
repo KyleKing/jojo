@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"os/exec"
 	"strings"
 
@@ -55,10 +56,14 @@ func (m Model) openJJDiff(mode jjdiff.Mode, rev string) tea.Cmd {
 	cmd := exec.CommandContext(m.ctx, m.jjDiff.Path, jjdiff.Args(mode, rev)...)
 	cmd.Dir = m.repoPath
 
+	// jj-diff draws on the terminal and says what it did, or why it could not run, on stderr.
+	stderr := &bytes.Buffer{}
+	cmd.Stderr = stderr
+
 	known := m.knownChanges()
 
 	return m.execThen(cmd, func(err error, wrote bool) tea.Msg {
-		done := messageMsg{text: jjdiff.Outcome(mode, rev, err, wrote), wrote: wrote && err == nil}
+		done := messageMsg{text: jjdiff.Outcome(mode, rev, err, wrote, stderr.String()), wrote: wrote && err == nil}
 		if mode != jjdiff.Split || !done.wrote {
 			return done
 		}

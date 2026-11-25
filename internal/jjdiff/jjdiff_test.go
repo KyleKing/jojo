@@ -39,11 +39,11 @@ func TestProbe(t *testing.T) {
 	}{
 		{name: "not installed", find: missing, run: runner("", ""), why: "not on PATH"},
 		{
-			name: "the first release with the modes", find: found, run: runner("0.10.0", ""), modes: true,
-			version: "0.10.0",
+			name: "the first release with the exit contract", find: found, run: runner("0.15.2", ""), modes: true,
+			version: "0.15.2",
 		},
 		{name: "a later one", find: found, run: runner("v1.2.3", ""), modes: true, version: "1.2.3"},
-		{name: "too old", find: found, run: runner("0.9.0", ""), why: "older than v0.10.0", version: "0.9.0"},
+		{name: "too old", find: found, run: runner("0.15.1", ""), why: "older than v0.15.2", version: "0.15.1"},
 		{
 			name: "a dev build that has them", find: found, modes: true, version: "dev",
 			run: runner("dev", "  -resolve\n  -split\n"),
@@ -78,10 +78,11 @@ func TestOlder(t *testing.T) {
 		older, know bool
 	}{
 		{"0.9.9", true, true},
-		{"0.10.0", false, true},
-		{"0.10.1", false, true},
+		{"0.15.1", true, true},
+		{"0.15.2", false, true},
+		{"0.15.3", false, true},
 		{"1.0.0", false, true},
-		{"v0.11.0-rc1", false, true},
+		{"v0.16.0-rc1", false, true},
 		{"dev", false, false},
 		{"0.10", false, false},
 	} {
@@ -97,17 +98,22 @@ func TestOutcome(t *testing.T) {
 
 	quit := exec.CommandContext(t.Context(), "sh", "-c", "exit 1").Run()
 
+	said := "drawing\njj-diff: resolved 1 file in abc · jj resolve -r abc · jj undo undoes it\n"
+
 	for _, tc := range []struct {
-		err   error
-		want  string
-		wrote bool
+		err    error
+		want   string
+		stderr string
+		wrote  bool
 	}{
-		{nil, "jj-diff --resolve -r abc wrote abc, press u to undo", true},
-		{nil, "jj-diff --resolve -r abc closed, nothing written", false},
-		{quit, "jj-diff --resolve -r abc exited 1, nothing written", false},
-		{errMissing, "jj-diff --resolve -r abc did not run: not found", false},
+		{nil, "resolved 1 file in abc · jj resolve -r abc · u undoes it", said, true},
+		{nil, "jj-diff --resolve -r abc wrote abc, press u to undo", "", true},
+		{nil, "jj-diff --resolve -r abc closed, nothing written", "", false},
+		{quit, "jj-diff --resolve -r abc could not run: abc has no conflict", "jj-diff: abc has no conflict\n", false},
+		{quit, "jj-diff --resolve -r abc could not run: exited 1", "", false},
+		{errMissing, "jj-diff --resolve -r abc did not run: not found", "", false},
 	} {
-		if got := jjdiff.Outcome(jjdiff.Resolve, "abc", tc.err, tc.wrote); got != tc.want {
+		if got := jjdiff.Outcome(jjdiff.Resolve, "abc", tc.err, tc.wrote, tc.stderr); got != tc.want {
 			t.Errorf("Outcome(%v) = %q, want %q", tc.err, got, tc.want)
 		}
 	}

@@ -1,6 +1,6 @@
 // Package jjdiff finds the jj-diff on PATH and says whether it has the modes jojo launches from the
-// log: --split (one column per commit the split makes) and --resolve (the conflict viewer), both of
-// which landed in jj-diff v0.10.0.
+// log: --split (one column per commit the split makes) and --resolve (the conflict viewer). Both
+// landed in v0.10.0; v0.15.2 settled how they report back (see Outcome), which jojo now relies on.
 package jjdiff
 
 import (
@@ -16,8 +16,13 @@ import (
 // Binary is the program jojo launches.
 const Binary = "jj-diff"
 
-// MinVersion is the first release with --split and --resolve.
-const MinVersion = "0.10.0"
+// MinVersion is the first release whose --split and --resolve keep the exit contract Outcome reads:
+// exit 0 whether or not they wrote, non-zero only when they could not run, and the outcome of a
+// write as the last stderr line starting with OutcomePrefix.
+const MinVersion = "0.15.2"
+
+// OutcomePrefix starts the stderr line jj-diff ends a write with.
+const OutcomePrefix = "jj-diff: "
 
 // Mode is one of jj-diff's screens jojo opens on a revision.
 type Mode string
@@ -158,23 +163,53 @@ func firstLine(s string) string {
 // Args is the argument list that opens mode on rev.
 func Args(mode Mode, rev string) []string { return []string{string(mode), "-r", rev} }
 
-// Outcome is what the footer says once jj-diff has given the terminal back, in the command's own
-// words, since the repaint covers whatever it printed. Whether it wrote is whether jj's operation
-// log moved while it ran: jj-diff exits non-zero when quit without writing from some screens and
-// zero from others, so the exit alone cannot say.
-func Outcome(mode Mode, rev string, err error, wrote bool) string {
+// Outcome is what the footer says once jj-diff has given the terminal back, since the repaint covers
+// whatever it printed. Whether it wrote is whether jj's operation log moved while it ran, which holds
+// whatever jj-diff says. After a write jj-diff's own last "jj-diff: " line on stderr says what it
+// did (split X into 2 commits · the jj command · how to undo), which beats a generic "wrote"; its
+// "jj undo undoes it" becomes "u undoes it", jojo's key for the same thing. A non-zero exit means it
+// could not run, and stderr's last line says why.
+func Outcome(mode Mode, rev string, err error, wrote bool, stderr string) string {
 	command := Binary + " " + strings.Join(Args(mode, rev), " ")
+	said := lastOutcome(stderr)
 
 	var exit *exec.ExitError
 
 	switch {
+	case err == nil && wrote && said != "":
+		return strings.Replace(said, "jj undo undoes it", "u undoes it", 1)
 	case err == nil && wrote:
 		return command + " wrote " + rev + ", press u to undo"
 	case err == nil:
 		return command + " closed, nothing written"
 	case errors.As(err, &exit):
-		return command + " exited " + strconv.Itoa(exit.ExitCode()) + ", nothing written"
+		why := lastLine(stderr)
+		if why == "" {
+			why = "exited " + strconv.Itoa(exit.ExitCode())
+		}
+
+		return command + " could not run: " + why
 	}
 
 	return command + " did not run: " + firstLine(err.Error())
+}
+
+// lastOutcome is the last stderr line that starts with OutcomePrefix, without it.
+func lastOutcome(stderr string) string {
+	lines := strings.Split(strings.TrimRight(stderr, "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if said, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), OutcomePrefix); ok {
+			return said
+		}
+	}
+
+	return ""
+}
+
+// lastLine is stderr's last non-blank line, its OutcomePrefix dropped.
+func lastLine(stderr string) string {
+	lines := strings.Split(strings.TrimSpace(stderr), "\n")
+	line := strings.TrimSpace(lines[len(lines)-1])
+
+	return strings.TrimPrefix(line, OutcomePrefix)
 }

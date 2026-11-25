@@ -141,7 +141,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `'` / `Ctrl+o` / `Ctrl+i` | label jump: every revision on screen gets a letter (or two) in its gutter, and typing one lands the cursor there (in a picker, the destination); the jump list walks back and forward through where `gg`, `G`, `@`, `gt`, the `]`/`[` motions, and labels jumped from (`Tab` right after `Ctrl+o` walks forward too). The file list and the op log (`o`) answer the same three keys over their own rows, with `gg` and `G` as their jumps |
 | `Y` / `!` | yank the change id, or open a shell in the repository root |
 
-`S` and `x` hand the terminal to jj-diff v0.10.0 or newer, then read the log again and say in the
+`S` and `x` hand the terminal to jj-diff v0.15.2 or newer, then read the log again and say in the
 footer whether it wrote (judged by jj's operation log, so quitting without a pick says "nothing
 written"). Without jj-diff on PATH, or with an older one, they run `jj split -i` and `jj resolve`
 instead and the footer says why.

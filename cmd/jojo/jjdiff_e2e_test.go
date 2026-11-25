@@ -9,10 +9,11 @@ import (
 )
 
 // fakeJJDiff puts a jj-diff ahead of PATH that reports version, records the arguments it was run
-// with in the returned file, and exits with code, writing one jj operation (a describe of the
-// revision) when code is 0. It draws nothing, so the test pins jojo's half: the suspend, the launch,
-// the resume, and what the footer says after.
-func fakeJJDiff(t *testing.T, env []string, version string, code int) ([]string, string) {
+// with in the returned file, and keeps v0.15.2's exit contract: with code 0 it writes one jj
+// operation (a describe of the revision) when write is set and says so on stderr in a "jj-diff: "
+// line; a non-zero code means it could not run, and stderr says why. It draws nothing, so the test
+// pins jojo's half: the suspend, the launch, the resume, and what the footer says after.
+func fakeJJDiff(t *testing.T, env []string, version string, code int, write bool) ([]string, string) {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -22,8 +23,15 @@ func fakeJJDiff(t *testing.T, env []string, version string, code int) ([]string,
 		"  echo 'jj-diff " + version + " (commit: none, built: unknown)'; exit 0\n" +
 		"fi\n" +
 		"echo \"$@\" > '" + record + "'\n" +
-		"[ " + strconv.Itoa(code) + " = 0 ] && jj describe -r \"$3\" -m 'split by the fake'\n" +
-		"exit " + strconv.Itoa(code) + "\n"
+		"if [ " + strconv.Itoa(code) + " != 0 ]; then echo \"jj-diff: no revision $3\" >&2; exit " +
+		strconv.Itoa(code) + "; fi\n"
+
+	if write {
+		script += "jj describe -r \"$3\" -m 'split by the fake'\n" +
+			"echo \"jj-diff: split $3 into 2 commits · jj split -r $3 -B $3 · jj undo undoes it\" >&2\n"
+	}
+
+	script += "exit 0\n"
 
 	//nolint:gosec // G306: the fixture is a program, so it must be executable.
 	if err := os.WriteFile(filepath.Join(dir, "jj-diff"), []byte(script), 0o700); err != nil {
@@ -44,23 +52,24 @@ func fakeJJDiff(t *testing.T, env []string, version string, code int) ([]string,
 }
 
 // S on a revision suspends jojo, runs jj-diff --split -r on it, and on return reads the log again and
-// says whether jj-diff wrote, in the command's own words.
+// says what jj-diff did, in its own outcome line, or that it wrote nothing, or why it could not run.
 func TestJJDiff_SplitLaunchesAndReportsTheExit(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name string
-		want string
-		code int
+		name  string
+		want  string
+		code  int
+		write bool
 	}{
-		{name: "wrote", code: 0, want: "wrote"},
-		{name: "quit without writing", code: 1, want: "exited 1, nothing written"},
-		{name: "any other exit", code: 2, want: "exited 2, nothing written"},
+		{name: "wrote", code: 0, write: true, want: "into 2 commits · jj split -r"},
+		{name: "closed without writing", code: 0, want: "jj-diff --split -r"},
+		{name: "could not run", code: 2, want: "could not run: no revision"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			env, record := fakeJJDiff(t, isolated(t), "0.10.0", tc.code)
+			env, record := fakeJJDiff(t, isolated(t), "0.15.2", tc.code, tc.write)
 			dir := historyRepo(t, env, 3)
 
 			sc := open(t, size{120, 24}, dir, env)
@@ -72,7 +81,8 @@ func TestJJDiff_SplitLaunchesAndReportsTheExit(t *testing.T) {
 			sc.awaitFrame("the outcome", func(f []string) bool {
 				last := f[len(f)-1]
 
-				return strings.Contains(last, "jj-diff --split -r") && strings.Contains(last, tc.want)
+				return strings.Contains(last, tc.want) && (tc.write || strings.Contains(last, "nothing written") ||
+					strings.Contains(last, "could not run"))
 			})
 
 			args, err := os.ReadFile(record) //nolint:gosec // G304: the fixture's own file.
@@ -85,7 +95,7 @@ func TestJJDiff_SplitLaunchesAndReportsTheExit(t *testing.T) {
 			}
 
 			// The log is read after jj-diff exits, so what it wrote is on screen when the terminal returns.
-			if tc.code == 0 {
+			if tc.write {
 				sc.awaitFrame("the log jj-diff left", func(f []string) bool {
 					return strings.Contains(strings.Join(f, "\n"), "split by the fake")
 				})
