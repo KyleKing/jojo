@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/trail"
@@ -252,10 +253,9 @@ func (m Model) execCommand(done string, cmd *exec.Cmd) tea.Cmd {
 // The trail records the program as a write, since it was handed the terminal to change something;
 // what it wrote went to the terminal, so its row has no stderr.
 func (m Model) execThen(cmd *exec.Cmd, outcome func(err error, wrote bool) tea.Msg) tea.Cmd {
-	client, log := m.client, m.trail
+	client := m.client
 	before := new(string)
-
-	var running *trail.Running
+	call := new(trail.Call)
 
 	return tea.Sequence(
 		func() tea.Msg {
@@ -267,34 +267,45 @@ func (m Model) execThen(cmd *exec.Cmd, outcome func(err error, wrote bool) tea.M
 				argv[0] = filepath.Base(argv[0])
 			}
 
-			running = log.Start(argv, cmd.Dir, true)
+			*call = trail.Call{Argv: argv, Dir: cmd.Dir, Start: time.Now()}
 
 			return nil
 		},
 		tea.ExecProcess(cmd, func(err error) tea.Msg {
-			running.Done(err, nil)
+			call.Took, call.Exit = time.Since(call.Start), trail.ExitCode(err)
+			if err != nil && call.Exit == -1 {
+				call.Stderr = err.Error()
+			}
 
-			return execDoneMsg{err: err, before: *before, outcome: outcome}
+			return execDoneMsg{err: err, before: *before, outcome: outcome, call: *call}
 		}),
 	)
 }
 
-// execDoneMsg is a program jojo handed the terminal to having exited.
+// execDoneMsg is a program jojo handed the terminal to having exited, with its call for the trail,
+// which is filed once it is known whether the program wrote.
 type execDoneMsg struct {
 	err     error
 	outcome func(err error, wrote bool) tea.Msg
 	before  string
+	call    trail.Call
 }
 
-// finishExec gives the queue back, then says how the program went and reads the log it left.
+// finishExec gives the queue back, files the call in the trail as a write only when jj's operation
+// log moved under it, then says how the program went and reads the log it left. A split canceled in
+// jj-diff wrote nothing, and the trail counted it as a write.
 func (m Model) finishExec(msg execDoneMsg) tea.Cmd {
-	client, ctx := m.client, m.ctx
+	client, ctx, log := m.client, m.ctx, m.trail
 
 	return tea.Sequence(
 		func() tea.Msg {
 			client.ReleaseQueue()
 
-			return msg.outcome(msg.err, headOp(ctx, client) != msg.before)
+			wrote := headOp(ctx, client) != msg.before
+			msg.call.Write = wrote
+			log.Add(msg.call)
+
+			return msg.outcome(msg.err, wrote)
 		},
 		m.loadLog(m.revset),
 	)

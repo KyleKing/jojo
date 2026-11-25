@@ -111,3 +111,43 @@ func TestMessages_ShowsTheFullTextOfTheLastFailure(t *testing.T) {
 		t.Error("esc left the stderr open")
 	}
 }
+
+// A split canceled in jj-diff wrote nothing, and the trail still counted it as one write. A program
+// jojo hands the terminal to is filed as a write only when jj's operation log moved under it.
+func TestExec_TrailCountsAWriteOnlyWhenTheOpLogMoved(t *testing.T) {
+	t.Parallel()
+
+	dir := liveRepo(t)
+	m := liveModel(t, dir, "top")
+
+	for _, tc := range []struct {
+		write func()
+		name  string
+		want  bool
+	}{
+		{func() {}, "canceled", false},
+		{func() { jjRun(t, dir, "describe", "-m", "renamed", "-r", changeFor(t, dir, "top")) }, "wrote", true},
+	} {
+		before := headOp(t.Context(), m.client)
+		tc.write()
+		m.client.AcquireQueue()
+
+		msg := execDoneMsg{
+			before: before, outcome: func(error, bool) tea.Msg { return nil },
+			call: trail.Call{Argv: []string{"jj-diff", "--split", tc.name}},
+		}
+		m = pump(t, m, m.finishExec(msg))
+
+		var filed, wrote bool
+
+		for _, c := range m.trail.Calls(false) {
+			if len(c.Argv) == 3 && c.Argv[2] == tc.name {
+				filed, wrote = true, c.Write
+			}
+		}
+
+		if !filed || wrote != tc.want {
+			t.Errorf("%s: filed %v as a write %v, want filed as a write %v", tc.name, filed, wrote, tc.want)
+		}
+	}
+}
