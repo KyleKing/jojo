@@ -1,12 +1,14 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/tuitest"
 )
 
 // The coach's next step follows the what-next table: what is wrong first (a conflict, divergence, an
@@ -94,5 +96,23 @@ func TestNextStep_FollowsTheWhatNextTable(t *testing.T) {
 				t.Errorf("key = %q, want %q", next.Key, tc.key)
 			}
 		})
+	}
+}
+
+// The footer named jj's default revset, builtin_log(), beside every bookmark, which crowded out the
+// hints; it names a revset only when it is one a reader chose.
+func TestFooter_LeavesOutJJsDefaultRevset(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		revset string
+		shown  bool
+	}{{jj.BuiltinLog, false}, {"trunk()..@", true}} {
+		m := testModel(t, twoRows())
+		m.width, m.revset = 120, tc.revset
+
+		if got := strings.Contains(tuitest.StripANSI(m.footer()), tc.revset); got != tc.shown {
+			t.Errorf("footer names %q: %v, want %v", tc.revset, got, tc.shown)
+		}
 	}
 }

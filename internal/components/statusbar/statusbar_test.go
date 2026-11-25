@@ -161,3 +161,36 @@ func TestView_TruncatesAWideMessageRatherThanDroppingIt(t *testing.T) {
 		}
 	}
 }
+
+// The footer named every bookmark in the log, which crowded the hints out at 120 and 200 columns. It
+// names the one at @ and counts the rest, which the log draws on their rows anyway.
+func TestView_NamesOneBookmarkAndCountsTheRest(t *testing.T) {
+	t.Parallel()
+
+	rest := []string{"stack-a-2", "stack-a-1", "side", "main*", "main@origin", "stack-b"}
+	marks := make([]statusbar.Bookmark, 0, 2+len(rest))
+	marks = append(marks, statusbar.Bookmark{Name: "stack-a-3"},
+		statusbar.Bookmark{Name: "stack-a-4", AtWorkingCopy: true})
+
+	for _, name := range rest {
+		marks = append(marks, statusbar.Bookmark{Name: name})
+	}
+
+	for _, width := range []int{80, 120} {
+		got := ansi.Strip(testModel().View(width, statusbar.Context{Bookmarks: marks, Hints: testHints()}))
+
+		if !strings.HasPrefix(got, "stack-a-4 +7  ") || strings.Contains(got, "stack-a-3") {
+			t.Errorf("at %d the footer reads %q, want stack-a-4 +7 alone", width, got)
+		}
+
+		if !strings.Contains(got, "d describe") {
+			t.Errorf("at %d the bookmarks crowded out the hints: %q", width, got)
+		}
+	}
+
+	one := statusbar.Context{Bookmarks: marks[:1], Hints: testHints()}
+	got := ansi.Strip(testModel().View(80, one))
+	if !strings.HasPrefix(got, "stack-a-3 ") || strings.Contains(got, "+") {
+		t.Errorf("one bookmark reads %q, want it alone", got)
+	}
+}

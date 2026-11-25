@@ -17,7 +17,10 @@ import (
 
 // defaultRevsetFallback is jj's own built-in default for revsets.log, used when the config key
 // carries no value at all rather than an override.
-const defaultRevsetFallback = "builtin_log()"
+const defaultRevsetFallback = BuiltinLog
+
+// BuiltinLog is the name jj gives its own default log revset.
+const BuiltinLog = "builtin_log()"
 
 // Client runs jj in one repository. Every call shells out and blocks, so callers wrap them in a
 // tea.Cmd.

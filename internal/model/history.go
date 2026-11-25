@@ -223,10 +223,16 @@ func (m Model) historyAction(action string) (tea.Model, tea.Cmd, bool) {
 }
 
 // footerRevset is the revset the footer names: in a file's history the file, since the revset that
-// reads it is a fileset no one typed and the banner above spells out.
+// reads it is a fileset no one typed and the banner above spells out, and nothing for jj's own
+// default.
 func (m Model) footerRevset() string {
 	if m.history.active {
 		return "★ " + m.history.file.Names[0]
+	}
+
+	// jj's own default says nothing a reader needs, and cost the hints their room.
+	if m.revset == jj.BuiltinLog {
+		return ""
 	}
 
 	return m.revset

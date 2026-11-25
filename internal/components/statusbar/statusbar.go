@@ -200,23 +200,34 @@ func joinParts(parts ...string) string {
 	return strings.Join(kept, partGap)
 }
 
+// bookmarks names one bookmark, the one at @ when there is one, and counts the rest. Every bookmark is
+// on its row in the log already, and naming each here crowded the hints out of the footer.
 func (m Model) bookmarks(bookmarks []Bookmark) string {
 	if len(bookmarks) == 0 {
 		return ""
 	}
 
-	rendered := make([]string, len(bookmarks))
+	named := bookmarks[0]
 
-	for i, b := range bookmarks {
-		style := m.skin.Bookmark
+	for _, b := range bookmarks {
 		if b.AtWorkingCopy {
-			style = m.skin.WorkingCopy
-		}
+			named = b
 
-		rendered[i] = style.Render(b.Name)
+			break
+		}
 	}
 
-	return strings.Join(rendered, " ")
+	style := m.skin.Bookmark
+	if named.AtWorkingCopy {
+		style = m.skin.WorkingCopy
+	}
+
+	out := style.Render(named.Name)
+	if rest := len(bookmarks) - 1; rest > 0 {
+		out += " " + m.skin.Muted.Render("+"+strconv.Itoa(rest))
+	}
+
+	return out
 }
 
 // padTo pads s to exactly width cells and never truncates, since cutting an
