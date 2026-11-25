@@ -185,6 +185,9 @@ func (p *pickState) command() string { return jj.CommandLine(p.args(false)) }
 // opened behind the first frame.
 func (m *Model) openPicker(verb pickVerb, sources []string, presets ...string) tea.Cmd {
 	m.pickSession++
+	// The picker's status line shows the message, so one left from before it opened would read as
+	// the picker's own.
+	m.message, m.failing = "", false
 	m.pick = pickState{
 		active: true, verb: verb, sources: sources, base: m.rows, session: m.pickSession,
 		view: logview.New(logview.StylesFrom(m.skin)), flags: keys.NewFlagSet(pickFlagVerbs[verb]),

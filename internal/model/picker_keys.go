@@ -34,6 +34,9 @@ const (
 // dispatchPick owns every key while the picker is open, so a verb pressed by habit cannot run
 // against the log underneath. A flag is "- letter" as jj spells it.
 func (m Model) dispatchPick(action string) (tea.Model, tea.Cmd) {
+	// A refusal stands until the next key, which is the reader acting on it.
+	m.message, m.failing = "", false
+
 	if next, cmd, handled := m.pickExtra(action); handled {
 		return next, cmd
 	}
@@ -177,6 +180,11 @@ func (m Model) pickStatus() string {
 
 	command := m.pick.command()
 	state, face := m.previewState()
+
+	// A refused enter says why where the reader is looking: the picker has no other status line.
+	if m.message != "" {
+		state, face = "· "+m.message, m.skin.Error
+	}
 	room := max(0, m.width-len(state)-1)
 	line := m.skin.Accent.Render(table.Truncate(command, room))
 

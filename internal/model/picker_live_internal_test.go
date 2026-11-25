@@ -529,6 +529,11 @@ func TestPicker_RebaseEnterOnTheStartingParentWritesNothing(t *testing.T) {
 		t.Errorf("picker open %v, footer %q; want it open and saying why", m.pick.active, m.message)
 	}
 
+	// The picker draws its own status line, which has to carry the refusal or Enter looks dead.
+	if frame := tuitest.StripANSI(m.render()); !strings.Contains(frame, "still the parent") {
+		t.Errorf("the picker's frame does not say why enter did nothing:\n%s", frame)
+	}
+
 	press(t, m, "j", "enter")
 
 	if opCount(t, dir) == ops {
