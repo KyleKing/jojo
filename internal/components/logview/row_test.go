@@ -164,3 +164,58 @@ func TestGraphWidth(t *testing.T) {
 		t.Errorf("GraphWidth = %d, want 3", got)
 	}
 }
+
+// A big refactor's size was cut to "92f +1837 -…" even at 200 columns. Counts are compact, as
+// second-look writes them, and the widest one fits the column whole.
+func TestCells_CompactSize(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		want                  string
+		files, added, removed int
+	}{
+		{"92f +1.8k -1.8k", 92, 1837, 1837},
+		{"3f +999 -1k", 3, 999, 1000},
+		{"1f +1k -1.1k", 1, 1049, 1050},
+		{"12f +10k -18k", 12, 9960, 18_400},
+		{"999f +180k -1M", 999, 180_000, 999_600},
+		{"1.2kf +1.5M -12M", 1234, 1_450_000, 12_000_000},
+	} {
+		got := logview.Cells(jj.Revision{Files: tc.files, Added: tc.added, Removed: tc.removed})[logview.ColSize]
+		if got != tc.want {
+			t.Errorf("size of %d/%d/%d = %q, want %q", tc.files, tc.added, tc.removed, got, tc.want)
+		}
+	}
+
+	var size table.Column
+
+	for _, col := range logview.Columns() {
+		if col.Key == logview.ColSize {
+			size = col
+		}
+	}
+
+	if widest := len("999f +9.9k -9.9k"); size.Max < widest {
+		t.Errorf("the size column holds %d cells, want room for %d", size.Max, widest)
+	}
+}
+
+// The size column stayed at its floor, so even at 200 columns a big change's counts were cut. It is
+// as wide as the widest size among the rows, and only that wide.
+func TestFitRows_SizeColumnHoldsTheWidestSize(t *testing.T) {
+	t.Parallel()
+
+	small := jj.LogRow{Revision: &jj.Revision{ChangeID: "aaaa", Files: 2, Added: 4}}
+	big := jj.LogRow{Revision: &jj.Revision{ChangeID: "bbbb", Files: 92, Added: 1837, Removed: 1837}}
+
+	for _, width := range []int{120, 200} {
+		got := logview.FitRows(width, 2, []jj.LogRow{small, big}).Width(logview.ColSize)
+		if got < len("92f +1.8k -1.8k") {
+			t.Errorf("at %d the size column is %d cells, too narrow for 92f +1.8k -1.8k", width, got)
+		}
+
+		if got = logview.FitRows(width, 2, []jj.LogRow{small}).Width(logview.ColSize); got != 12 {
+			t.Errorf("at %d with small sizes the column is %d cells, want its floor of 12", width, got)
+		}
+	}
+}

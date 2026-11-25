@@ -41,11 +41,12 @@ const (
 	descMin       = 20
 	descWeight    = 4
 	sizeMin       = 12
-	sizeMax       = 14
-	authorMin     = 8
-	authorMax     = 14
-	ageMin        = 4
-	ageMax        = 6
+	// The widest compact size, "999f +9.9k -9.9k", fits sizeMax whole.
+	sizeMax   = 16
+	authorMin = 8
+	authorMax = 14
+	ageMin    = 4
+	ageMax    = 6
 )
 
 // Collapse order: the lowest positive priority goes first, so the row gives up
@@ -59,19 +60,21 @@ const (
 
 // Columns orders the row and sets what collapse gives up first. Priority zero
 // never collapses, so the description and the change id survive any width.
-func Columns() []table.Column { return columnsFor(0) }
+func Columns() []table.Column { return columnsFor(0, 0) }
 
 // columnsFor is Columns with the bookmark column at least as wide as the widest bookmark text in the
 // log, up to its cap: a narrow log (the dock beside it) gives up the author, the age, and the size
-// before it cuts a bookmark name to "ttl-k…", since a cut name names nothing.
-func columnsFor(bookmarks int) []table.Column {
+// before it cuts a bookmark name to "ttl-k…", since a cut name names nothing. The size column is as
+// wide as the widest size, up to its cap, so a big change's counts are not cut at any width.
+func columnsFor(bookmarks, sizes int) []table.Column {
 	least := min(max(bookmarks, bookmarksMin), bookmarksMax)
+	sized := min(max(sizes, sizeMin), sizeMax)
 
 	return []table.Column{
 		{Key: ColChange, Title: "change", Min: changeIDWidth, Max: changeIDWidth},
 		{Key: ColBookmarks, Title: "bookmarks", Min: least, Max: bookmarksMax, Priority: prioBookmarks},
 		{Key: ColDesc, Title: "description", Min: descMin, Weight: descWeight},
-		{Key: ColSize, Title: "size", Min: sizeMin, Max: sizeMax, Priority: prioSize, Align: table.AlignRight},
+		{Key: ColSize, Title: "size", Min: sized, Max: sizeMax, Priority: prioSize, Align: table.AlignRight},
 		{Key: ColAuthor, Title: "author", Min: authorMin, Max: authorMax, Priority: prioAuthor, Trim: table.TrimRight},
 		{Key: ColAge, Title: "age", Min: ageMin, Max: ageMax, Priority: prioAge, Align: table.AlignRight},
 	}
@@ -110,7 +113,42 @@ func size(r jj.Revision) string {
 		return ""
 	}
 
-	return strconv.Itoa(r.Files) + "f +" + strconv.Itoa(r.Added) + " -" + strconv.Itoa(r.Removed)
+	return compact(r.Files) + "f +" + compact(r.Added) + " -" + compact(r.Removed)
+}
+
+// compact writes a count in at most four cells, the way second-look does: 999, 1.8k, 18k, 180k, 1.8M.
+// A full count of a big refactor was cut to "92f +1837 -…" at any width.
+func compact(n int) string {
+	const (
+		thousand = 1000
+		million  = thousand * thousand
+		tenths   = 10
+	)
+
+	switch {
+	case n < thousand:
+		return strconv.Itoa(n)
+	case n < tenths*thousand-thousand/tenths/2:
+		return decimal(n, thousand) + "k"
+	case n < million-thousand/2:
+		return strconv.Itoa((n+thousand/2)/thousand) + "k"
+	case n < tenths*million-million/tenths/2:
+		return decimal(n, million) + "M"
+	}
+
+	return strconv.Itoa((n+million/2)/million) + "M"
+}
+
+// decimal is n/unit to one place, rounded, without a trailing ".0".
+func decimal(n, unit int) string {
+	const tenths = 10
+
+	t := (n*tenths + unit/2) / unit
+	if t%tenths == 0 {
+		return strconv.Itoa(t / tenths)
+	}
+
+	return strconv.Itoa(t/tenths) + "." + strconv.Itoa(t%tenths)
 }
 
 // ageUnits abbreviates jj's prose ago() to its first letter, so "3 months ago"
@@ -159,9 +197,22 @@ func Fit(width, graphWidth int) table.Layout {
 	return table.FitCompact(Columns(), width-graphWidth-table.Gutter)
 }
 
-// FitRows is Fit for these rows, the bookmark column kept as wide as their widest bookmark text.
+// FitRows is Fit for these rows, the bookmark and size columns kept as wide as their widest text.
 func FitRows(width, graphWidth int, rows []jj.LogRow) table.Layout {
-	return table.FitCompact(columnsFor(BookmarkWidth(rows)), width-graphWidth-table.Gutter)
+	return table.FitCompact(columnsFor(BookmarkWidth(rows), SizeWidth(rows)), width-graphWidth-table.Gutter)
+}
+
+// SizeWidth is the widest size text among rows, in cells: a size is ASCII, so its length.
+func SizeWidth(rows []jj.LogRow) int {
+	widest := 0
+
+	for _, row := range rows {
+		if row.Revision != nil && row.Revision.Files > 0 {
+			widest = max(widest, len(size(*row.Revision)))
+		}
+	}
+
+	return widest
 }
 
 // BookmarkWidth is the widest bookmark text among rows, in display cells.
