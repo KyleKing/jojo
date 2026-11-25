@@ -30,6 +30,9 @@ type Revision struct {
 	// the "@remote" suffix dropped, so a revision that was pushed but never
 	// tracked locally can still be matched to a pull request.
 	RemoteBookmarks []string
+	// Parents are the parents' commit IDs, in CommitID's form, so ancestry can be walked across the
+	// rows a log read without asking jj again.
+	Parents []string
 	// Added, Removed, and Files arrive after the graph (Stats), and stay zero until they do.
 	Added     int
 	Removed   int
@@ -41,6 +44,8 @@ type Revision struct {
 	Divergent   bool
 	Empty       bool
 	WorkingCopy bool
+	// Trunk marks the commit trunk() resolves to, whose remote bookmarks name the trunk branch.
+	Trunk bool
 }
 
 // GraphLine is a log line carrying no revision, such as a connector between two

@@ -72,6 +72,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A question in the footer takes the next key, whatever it is.
+	if m.asking != nil {
+		next, cmd := m.answer(msg)
+
+		return next, tea.Batch(cmd, m.coach.WakeAt(now))
+	}
+
 	// A prompt is on its way: what is typed now is its text, never a command.
 	if m.opening && !m.prompt.IsOpen() {
 		m.typeahead = append(slices.Clip(m.typeahead), msg)

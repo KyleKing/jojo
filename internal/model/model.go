@@ -135,6 +135,8 @@ type Model struct {
 	output     textview.Model
 	forcible   forcible
 	pushing    pendingPush
+	// asking is the footer's open question, nil when none waits on a key.
+	asking *ask
 	// restoring is the operation a restore confirmation is standing over.
 	restoring jj.Operation
 	onSubmit  submitted

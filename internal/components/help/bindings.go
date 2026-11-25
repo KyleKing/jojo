@@ -401,7 +401,7 @@ func logBindings() []keys.Binding {
 		b(ActionBookmarks, GroupRepo, "bookmarks: the list", "bookmarks", "b b"),
 		b(ActionBookmarkCreate, GroupRepo, "create a bookmark here", "", "b c"),
 		b(ActionBookmarkSet, GroupRepo, "set: move a bookmark here, previewed (-B: backwards)", "", "b s"),
-		b(ActionBookmarkAdvance, GroupRepo, "advance: tug the nearest bookmark below up to here", "", "b a"),
+		b(ActionBookmarkAdvance, GroupRepo, "advance: tug an ancestor's bookmark here, asks first", "", "b a"),
 		b(ActionBookmarkRename, GroupRepo, "rename a bookmark here", "", "b r"),
 		b(ActionBookmarkDelete, GroupRepo, "delete a bookmark here (the remote's on the next push)", "", "b d"),
 		b(ActionBookmarkForget, GroupRepo, "forget a bookmark here (nothing to push)", "", "b f"),

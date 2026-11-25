@@ -34,7 +34,7 @@ func TestParseLog(t *testing.T) {
 			name: "empty description and no bookmarks",
 			out: "◉ zzzzzzzz" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"" + fieldSep + "a@b.com" + fieldSep + "1 hour ago" + fieldSep + "000000000000" + fieldSep +
-				"zzzzzzzzzzzz" + fieldSep + "\n",
+				"zzzzzzzzzzzz" + fieldSep + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				Graph:        "◉ ",
 				ChangeID:     "zzzzzzzz",
@@ -45,10 +45,10 @@ func TestParseLog(t *testing.T) {
 			}}},
 		},
 		{
-			name: "flags combine immutable, conflict, empty, and working copy",
+			name: "flags combine immutable, conflict, empty, working copy, and trunk, and parents split on comma",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
-				"ICE@" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
-				"abcdefghij" + fieldSep + "a change\n",
+				"ICE@T" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
+				"abcdefghij" + fieldSep + "beef00000001,beef00000002" + fieldSep + "a change\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:     "abcdefgh",
 				FullChangeID: "abcdefghij",
@@ -60,13 +60,15 @@ func TestParseLog(t *testing.T) {
 				Conflict:     true,
 				Empty:        true,
 				WorkingCopy:  true,
+				Trunk:        true,
+				Parents:      []string{"beef00000001", "beef00000002"},
 			}}},
 		},
 		{
 			name: "bookmarks split on comma and the same name tracked at two remotes collapses to one",
 			out: "abcdefgh" + fieldSep + "main,feat" + fieldSep + "main,feat" +
 				fieldSep + "main,main" + fieldSep + "" + fieldSep + "a@b.com" + fieldSep +
-				"now" + fieldSep + "c0ffee" + fieldSep + "abcdefghij" + fieldSep + "\n",
+				"now" + fieldSep + "c0ffee" + fieldSep + "abcdefghij" + fieldSep + fieldSep + "\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:        "abcdefgh",
 				FullChangeID:    "abcdefghij",
@@ -82,7 +84,7 @@ func TestParseLog(t *testing.T) {
 			name: "a field adjacent to the separator byte in the ASCII table is not mistaken for it",
 			out: "abcdefgh" + fieldSep + fieldSep + fieldSep + fieldSep +
 				"" + fieldSep + "a@b.com" + fieldSep + "now" + fieldSep + "c0ffee" + fieldSep +
-				"abcdefghij" + fieldSep + "desc with \x1e and \x20 bytes\n",
+				"abcdefghij" + fieldSep + fieldSep + "desc with \x1e and \x20 bytes\n",
 			want: []LogRow{{Revision: &Revision{
 				ChangeID:     "abcdefgh",
 				FullChangeID: "abcdefghij",
@@ -375,5 +377,28 @@ func TestRefusal_SnapshotAndPush(t *testing.T) {
 		if got := (Operation{Description: desc}).Refusal() != ""; got != refused {
 			t.Errorf("Refusal(%q) refused = %v, want %v", desc, got, refused)
 		}
+	}
+}
+
+// A bookmark is the trunk's when trunk() carries its name, even after the local one has moved ahead
+// of the remote onto a mutable commit, or when it sits on an immutable commit. Only the from-revset's
+// commits are candidates; trunk() rides along to name the trunk.
+func TestParseAdvances_NamesTrunkByTrunksBookmarks(t *testing.T) {
+	t.Parallel()
+
+	out := fields("mainlocl", "main", "", "F") +
+		fields("featfeat", "feat,wip", "", "F") +
+		fields("oldoldol", "release", "release", "IF") +
+		fields("trunktrk", "", "main", "IT")
+
+	want := []Advance{
+		{Name: "main", From: "mainlocl", Trunk: true},
+		{Name: "feat", From: "featfeat"},
+		{Name: "wip", From: "featfeat"},
+		{Name: "release", From: "oldoldol", Trunk: true},
+	}
+
+	if got := parseAdvances(out); !reflect.DeepEqual(got, want) {
+		t.Errorf("parseAdvances = %+v, want %+v", got, want)
 	}
 }

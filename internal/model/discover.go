@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -48,8 +49,8 @@ const (
 type logState struct {
 	cursor *jj.Revision
 	wc     *jj.Revision
-	// below is the first local bookmark on the row right under the cursor, which b a tugs up.
-	below string
+	// below is the bookmark b a would tug up to the cursor, read off the log's own ancestry.
+	below advanceTip
 	// restack is the first stack root a sync found left on the old trunk, "" when trunk did not move.
 	restack string
 	// checked counts the checked revisions, and empty says the revset matched nothing.
@@ -95,31 +96,86 @@ func (m *Model) state() logState {
 	return s
 }
 
-// bookmarkBelow is the first local bookmark on the revision drawn right under the cursor, "" when it
-// has none: the bookmark a commit on top of it has left behind.
-func (m Model) bookmarkBelow() string {
+// advanceTip is the one bookmark b a would move onto the cursor, and the change it sits on now.
+type advanceTip struct {
+	name, from string
+}
+
+// bookmarkBelow is the bookmark b a would tug up to the cursor, read off the rows the log holds: the
+// local bookmark on the cursor's nearest bookmarked ancestor, which is what jj bookmark advance moves.
+// It is the zero tip when that is not exactly one bookmark, when the walk leaves the rows (an elided
+// ancestor might hold one), or when the bookmark is the trunk's, which the coach never suggests moving
+// onto work trunk does not hold yet.
+//
+// A row drawn under the cursor is not its parent: a sibling branch sits there as often as not, and
+// naming its bookmark sent a tip at the wrong one while b a moved trunk.
+func (m Model) bookmarkBelow() advanceTip {
 	cursor := m.log.Selected()
-	if cursor == nil {
-		return ""
+	if cursor == nil || len(cursor.Parents) == 0 {
+		return advanceTip{}
 	}
 
-	for i, row := range m.rows {
-		if row.Revision == nil || row.Revision.ChangeID != cursor.ChangeID {
-			continue
-		}
+	byCommit := make(map[string]*jj.Revision, len(m.rows))
+	trunk := map[string]bool{}
 
-		for _, next := range m.rows[i+1:] {
-			if next.Revision != nil {
-				if len(next.Revision.LocalBookmarks) > 0 && !next.Revision.Immutable {
-					return next.Revision.LocalBookmarks[0]
+	for _, row := range m.rows {
+		if rev := row.Revision; rev != nil {
+			byCommit[rev.CommitID] = rev
+
+			if rev.Trunk {
+				for _, name := range append(slices.Clone(rev.LocalBookmarks), rev.RemoteBookmarks...) {
+					trunk[name] = true
 				}
-
-				return ""
 			}
 		}
 	}
 
-	return ""
+	found, ok := nearestBookmarked(byCommit, cursor.Parents)
+	if !ok || len(found) != 1 || len(found[0].LocalBookmarks) != 1 {
+		return advanceTip{}
+	}
+
+	rev := found[0]
+	if name := rev.LocalBookmarks[0]; !rev.Immutable && !trunk[name] {
+		return advanceTip{name: name, from: shortID(rev)}
+	}
+
+	return advanceTip{}
+}
+
+// nearestBookmarked walks back from the commits named to the first revision on each path that holds
+// a local bookmark. It reports false when a path leaves the rows before it finds one.
+func nearestBookmarked(byCommit map[string]*jj.Revision, start []string) ([]*jj.Revision, bool) {
+	var found []*jj.Revision
+
+	seen := map[string]bool{}
+	queue := slices.Clone(start)
+
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+
+		if seen[id] {
+			continue
+		}
+
+		seen[id] = true
+
+		rev, ok := byCommit[id]
+		if !ok {
+			return nil, false
+		}
+
+		if len(rev.LocalBookmarks) > 0 {
+			found = append(found, rev)
+
+			continue
+		}
+
+		queue = append(queue, rev.Parents...)
+	}
+
+	return found, true
 }
 
 // loaded reports whether a log read has landed, so an empty log before the first is not taken for a
@@ -270,11 +326,16 @@ func bookmarkRules() []coach.Rule[logState] {
 			When: func(s logState) bool {
 				r := s.cursor
 
-				return s.below != "" && r != nil && len(r.LocalBookmarks) == 0 && !r.Immutable && !r.Empty &&
+				return s.below.name != "" && r != nil && len(r.LocalBookmarks) == 0 && !r.Immutable && !r.Empty &&
 					r.Description != ""
 			},
-			Say: func(s logState) string { return s.below + " sits just below " + shortID(s.cursor) },
-			Why: says("tug it up to here before you push"),
+			Say: func(s logState) string {
+				return s.below.name + " is on " + s.below.from + ", an ancestor of " + shortID(s.cursor)
+			},
+			Why: func(s logState) string {
+				return "b a moves " + s.below.name + " from " + s.below.from + " to " + shortID(s.cursor) +
+					" before you push"
+			},
 			Cmd: "jj bookmark advance --to <rev>",
 		},
 	}

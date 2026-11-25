@@ -134,6 +134,10 @@ func (m *Model) fail(err error) {
 func (m *Model) showOutput() { m.trailView.Open(m.trail, m.failing) }
 
 func (m Model) footer() string {
+	if m.asking != nil {
+		return m.askFooter()
+	}
+
 	return m.status.View(m.width, statusbar.Context{
 		Bookmarks: m.nearbyBookmarks(),
 		Revset:    m.footerRevset(),

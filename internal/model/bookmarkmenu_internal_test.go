@@ -120,16 +120,149 @@ func TestBookmarkMenuLive_BackwardsNeedsTheFlag(t *testing.T) {
 	}
 }
 
-// b a tugs the nearest bookmark below the cursor up to it.
-func TestBookmarkMenuLive_AdvanceTugsTheBookmarkBelow(t *testing.T) {
+// b a names the bookmark it would tug, from where to where, and moves it only on y.
+func TestBookmarkMenuLive_AdvanceAsksThenTugs(t *testing.T) {
 	t.Parallel()
 
 	dir, m := bookmarkRepo(t, "top", [2]string{"feat", "bottom"})
 
-	press(t, m, "b", "a")
+	m = press(t, m, "b", "a")
+	if m.asking == nil {
+		t.Fatalf("b a moved without asking: %q", m.message)
+	}
+
+	want := "advance feat from " + changeFor(t, dir, "bottom") + " to " + changeFor(t, dir, "top") + "?"
+	if frame := tuitest.StripANSI(m.render()); !strings.Contains(frame, want) {
+		t.Errorf("the footer does not ask %q:\n%s", want, frame)
+	}
+
+	if got := bookmarkAt(t, dir, "feat"); got != "bottom" {
+		t.Fatalf("asking moved feat to %q", got)
+	}
+
+	press(t, m, "y")
 
 	if got := bookmarkAt(t, dir, "feat"); got != "top" {
-		t.Errorf("after b a feat is on %q, want top", got)
+		t.Errorf("after b a y feat is on %q, want top", got)
+	}
+}
+
+// siblingRepo is liveRepo with a bookmark on the side branch, which jj draws right under middle, and
+// one on bottom, middle's real ancestor.
+func siblingRepo(t *testing.T) string {
+	t.Helper()
+
+	dir := liveRepo(t)
+	jjRun(t, dir, "bookmark", "set", "side", "-r", changeFor(t, dir, "side"))
+	jjRun(t, dir, "bookmark", "set", "feat", "-r", changeFor(t, dir, "bottom"))
+
+	return dir
+}
+
+// rowBelow is the description of the revision drawn right under the cursor.
+func rowBelow(m Model) string {
+	cursor := m.log.Selected()
+
+	for i, row := range m.rows {
+		if row.Revision == nil || row.Revision.ChangeID != cursor.ChangeID {
+			continue
+		}
+
+		for _, next := range m.rows[i+1:] {
+			if next.Revision != nil {
+				return next.Revision.Description
+			}
+		}
+	}
+
+	return ""
+}
+
+// A sibling branch drawn under the cursor is not below it in history: the tip names the ancestor's
+// bookmark, and b a moves that one and leaves the sibling's alone.
+func TestTugTip_SiblingDrawnBelowIsNotTheAncestor(t *testing.T) {
+	t.Parallel()
+
+	dir := siblingRepo(t)
+	m := liveModel(t, dir, "middle")
+
+	if got := rowBelow(m); got != "side" {
+		t.Fatalf("the fixture draws %q under middle, want the side branch", got)
+	}
+
+	if got := m.state().below; got.name != "feat" || got.from != changeFor(t, dir, "bottom") {
+		t.Errorf("the tip names %+v, want feat on bottom", got)
+	}
+
+	m = press(t, m, "b", "a")
+	if m.asking == nil || !strings.Contains(m.asking.question, "advance feat from") ||
+		strings.Contains(m.asking.question, "side") {
+		t.Fatalf("b a asks %+v, want feat alone", m.asking)
+	}
+
+	press(t, m, "y")
+
+	if got := bookmarkAt(t, dir, "feat"); got != "middle" {
+		t.Errorf("feat is on %q, want middle", got)
+	}
+
+	if got := bookmarkAt(t, dir, "side"); got != "side" {
+		t.Errorf("b a moved the sibling's bookmark to %q", got)
+	}
+}
+
+// trunkRepo is liveRepo with main on bottom pushed to a local remote, so trunk() resolves to it.
+func trunkRepo(t *testing.T) string {
+	t.Helper()
+
+	dir := liveRepo(t)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+
+	//nolint:gosec // G204: fixture helper runs the literal git binary on a temp path.
+	git := exec.CommandContext(context.Background(), "git", "init", "-q", "--bare", remote)
+	if out, err := git.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+
+	jjRun(t, dir, "git", "remote", "add", "origin", remote)
+	jjRun(t, dir, "bookmark", "set", "main", "-r", changeFor(t, dir, "bottom"))
+	jjRun(t, dir, "git", "push", "-b", "main")
+
+	return dir
+}
+
+// Trunk's bookmark is never suggested for a tug onto work trunk does not hold, and b a names it as
+// trunk's before it moves: any key but y keeps it, and that key does nothing else.
+func TestTugTip_NeverSuggestsMovingTrunk(t *testing.T) {
+	t.Parallel()
+
+	dir := trunkRepo(t)
+	m := liveModel(t, dir, "middle")
+
+	if got := m.state().below; got.name != "" {
+		t.Errorf("the tip suggests tugging %+v, trunk's bookmark", got)
+	}
+
+	m = press(t, m, "b", "a")
+	if m.asking == nil || !strings.Contains(m.asking.question, "main (trunk) from") || m.asking.verb != "advance main" {
+		t.Fatalf("b a on trunk's bookmark asks %+v, want it named as trunk's", m.asking)
+	}
+
+	cursor := m.log.Selected().ChangeID
+	m = press(t, m, "j")
+
+	if m.asking != nil || m.log.Selected().ChangeID != cursor {
+		t.Error("the key that declined also moved the cursor")
+	}
+
+	if got := bookmarkAt(t, dir, "main"); got != "bottom" || !strings.Contains(m.message, "kept main") {
+		t.Fatalf("declining left main on %q and said %q", got, m.message)
+	}
+
+	press(t, m, "b", "a", "y")
+
+	if got := bookmarkAt(t, dir, "main"); got != "middle" {
+		t.Errorf("b a y left main on %q, want middle", got)
 	}
 }
 

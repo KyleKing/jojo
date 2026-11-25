@@ -2,6 +2,7 @@ package jj
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -137,4 +138,90 @@ func (c *Client) BookmarkAdvance(ctx context.Context, names []string, rev string
 	args := append([]string{"bookmark", "advance", "--to", rev}, names...)
 
 	return c.mutate(ctx, args...)
+}
+
+// Advance is one bookmark BookmarkAdvance would move: its name, the change it sits on now, and
+// whether it is the trunk's, which a tug onto unreviewed work would publish on the next push.
+type Advance struct {
+	Name string
+	From string
+	// Trunk marks a bookmark named like one trunk() resolves to, or one on an immutable commit.
+	Trunk bool
+}
+
+// advanceFromRevset is the bookmarks a tug to rev moves: those on its nearest bookmarked ancestors,
+// which is jj bookmark advance's own default from-revset, heads(::to & bookmarks()), with rev's own
+// bookmarks left out.
+func advanceFromRevset(rev string) string {
+	return "heads(::(" + rev + ")- & bookmarks())"
+}
+
+// advanceTemplate is one line per commit the read names: its change id, its local and remote
+// bookmark names, and flags for immutable (I), trunk() (T), and a from-revset member (F).
+func advanceTemplate(from string) string {
+	return `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
+		`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
+		`remote_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
+		`if(immutable,"I","") ++ if(self.contained_in("trunk()"),"T","") ++ ` +
+		`if(self.contained_in("` + from + `"),"F","") ++ "\n"`
+}
+
+const advanceFieldCount = 4
+
+// Advances is what a tug to rev would move, read before it moves anything so the move can be named
+// first. A bookmark is the trunk's when trunk() carries its name, locally or at a remote, or when it
+// sits on an immutable commit.
+func (c *Client) Advances(ctx context.Context, rev string) ([]Advance, error) {
+	from := advanceFromRevset(rev)
+
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy",
+		"-r", from+" | trunk()", "-T", advanceTemplate(from))
+	if err != nil {
+		return nil, err
+	}
+
+	return parseAdvances(out), nil
+}
+
+func parseAdvances(out string) []Advance {
+	type line struct {
+		change, flags string
+		local, remote []string
+	}
+
+	var lines []line
+
+	trunk := map[string]bool{}
+
+	for _, raw := range strings.Split(out, "\n") {
+		fields := strings.Split(raw, fieldSep)
+		if len(fields) != advanceFieldCount {
+			continue
+		}
+
+		l := line{change: fields[0], local: splitList(fields[1]), remote: splitList(fields[2]), flags: fields[3]}
+		if strings.Contains(l.flags, "T") {
+			for _, name := range append(slices.Clone(l.local), l.remote...) {
+				trunk[name] = true
+			}
+		}
+
+		lines = append(lines, l)
+	}
+
+	var advances []Advance
+
+	for _, l := range lines {
+		if !strings.Contains(l.flags, "F") {
+			continue
+		}
+
+		for _, name := range l.local {
+			advances = append(advances, Advance{
+				Name: name, From: l.change, Trunk: trunk[name] || strings.Contains(l.flags, "I"),
+			})
+		}
+	}
+
+	return advances
 }

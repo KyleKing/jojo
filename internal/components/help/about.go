@@ -252,8 +252,10 @@ var abouts = map[string]about{
 	},
 	ActionBookmarkAdvance: {
 		cmd: "jj bookmark advance --to <rev>", also: []string{"tug", "fast-forward", "merge --ff-only", "branch -f"},
-		prose: "Pulls the nearest bookmark below the cursor up to it: the tug a stack's branch needs " +
-			"after you commit on top of it, since a bookmark never moves by itself.",
+		prose: "Pulls the bookmark on the cursor's nearest bookmarked ancestor up to it: the tug a " +
+			"stack's branch needs after you commit on top of it, since a bookmark never moves by itself. " +
+			"It names what moves, from where to where, and waits for y; a trunk bookmark is named as " +
+			"the trunk's, since pushing it would publish the change as trunk.",
 		related: []string{ActionBookmarkSet, ActionPush},
 	},
 	ActionBookmarkRename: {

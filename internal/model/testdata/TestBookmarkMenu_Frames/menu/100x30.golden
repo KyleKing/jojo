@@ -20,7 +20,7 @@
                                        │ b  bookmarks: the list                                    │
                                        │ c  create a bookmark here                                 │
                                        │ s  set: move a bookmark here, previewed (-B: backwards)   │
-                                       │ a  advance: tug the nearest bookmark below up to here     │
+                                       │ a  advance: tug an ancestor's bookmark here, asks first   │
                                        │ r  rename a bookmark here                                 │
                                        │ d  delete a bookmark here (the remote's on the next push) │
                                        │ f  forget a bookmark here (nothing to push)               │

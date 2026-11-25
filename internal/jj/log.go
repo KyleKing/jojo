@@ -12,19 +12,21 @@ import (
 const fieldSep = "\x1f"
 
 // logTemplate renders one line per revision with change ID, bookmarks, a flags string, author email,
-// age, commit ID, and the description's first line, leaving the graph itself to jj since this runs
-// without --no-graph. It carries no diff stats: computing them is about ten times the cost of the
+// age, commit ID, the parents' commit IDs, and the description's first line, leaving the graph itself
+// to jj since this runs without --no-graph. It carries no diff stats: computing them is about ten times the cost of the
 // whole graph, so Stats reads them afterwards for the rows on screen.
 const logTemplate = `change_id.shortest(8) ++ "` + fieldSep + `" ++ ` +
 	`bookmarks.join(",") ++ "` + fieldSep + `" ++ ` +
 	`local_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`remote_bookmarks.map(|b| b.name()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`(if(immutable,"I","") ++ if(conflict,"C","") ++ if(divergent,"D","") ++ ` +
-	`if(empty,"E","") ++ if(current_working_copy,"@","")) ++ "` + fieldSep + `" ++ ` +
+	`if(empty,"E","") ++ if(current_working_copy,"@","") ++ ` +
+	`if(self.contained_in("trunk()"),"T","")) ++ "` + fieldSep + `" ++ ` +
 	`author.email() ++ "` + fieldSep + `" ++ ` +
 	`committer.timestamp().ago() ++ "` + fieldSep + `" ++ ` +
 	`commit_id.short(12) ++ "` + fieldSep + `" ++ ` +
 	`change_id ++ "` + fieldSep + `" ++ ` +
+	`parents.map(|c| c.commit_id().short(12)).join(",") ++ "` + fieldSep + `" ++ ` +
 	`description.first_line() ++ "\n"`
 
 // statsTemplate is the expensive part of a row, read only for the commits a caller names.
@@ -81,7 +83,7 @@ func parseStats(out string) map[string]Stats {
 // change ID alphabet (lowercase k-z) never overlaps with the symbols and spaces that make up a graph.
 var changeIDSuffix = regexp.MustCompile(`[a-z]+$`)
 
-const logFieldCount = 10
+const logFieldCount = 11
 
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
@@ -166,7 +168,8 @@ func parseRevisionLine(line string) *Revision {
 		ChangeID:        changeID,
 		CommitID:        fields[7],
 		FullChangeID:    fields[8],
-		Description:     fields[9],
+		Parents:         splitList(fields[9]),
+		Description:     fields[10],
 		AuthorEmail:     fields[5],
 		Age:             fields[6],
 		Graph:           graph,
@@ -178,6 +181,7 @@ func parseRevisionLine(line string) *Revision {
 		Divergent:       strings.Contains(flags, "D"),
 		Empty:           strings.Contains(flags, "E"),
 		WorkingCopy:     strings.Contains(flags, "@"),
+		Trunk:           strings.Contains(flags, "T"),
 	}
 }
 

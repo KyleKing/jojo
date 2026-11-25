@@ -33,9 +33,8 @@ func (m Model) bookmarkMenu(action string, rev jj.Revision) (Model, tea.Cmd, boo
 	switch action {
 	case help.ActionBookmarkAdvance:
 		m.noteWrite(action)
-		cmd := m.advanceTo(rev.ChangeID)
 
-		return m, cmd, true
+		return m, m.readAdvances(rev), true
 	case help.ActionBookmarkResolve:
 		marks := make([]jj.Bookmark, 0, len(rev.Bookmarks))
 		for _, name := range conflictedOn(rev) {
@@ -59,12 +58,90 @@ func (m Model) bookmarkMenu(action string, rev jj.Revision) (Model, tea.Cmd, boo
 	return m, nil, false
 }
 
-// advanceTo tugs the nearest bookmark below rev up to it, which is jj bookmark advance's default
-// from-revset, heads(::rev & bookmarks()).
-func (m *Model) advanceTo(rev string) tea.Cmd {
-	return m.act(rev, func(ctx context.Context, c *jj.Client) (string, error) {
-		return c.BookmarkAdvance(ctx, nil, rev)
+// advancesMsg is what a tug to rev would move, read before anything moves.
+type advancesMsg struct {
+	err      error
+	advances []jj.Advance
+	rev      jj.Revision
+}
+
+// readAdvances asks jj which bookmarks a tug to rev would move: those on its nearest bookmarked
+// ancestors, never the row the log happens to draw under it.
+func (m Model) readAdvances(rev jj.Revision) tea.Cmd {
+	client, ctx := m.client, m.ctx
+
+	return func() tea.Msg {
+		advances, err := client.Advances(ctx, rev.ChangeID)
+
+		return advancesMsg{rev: rev, advances: advances, err: err}
+	}
+}
+
+// landAdvances asks before a tug moves anything, naming each bookmark, where it is, and where it
+// goes. A trunk bookmark is named as the trunk's, because tugging it onto a change publishes that
+// change as trunk on the next push.
+func (m Model) landAdvances(msg advancesMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		m.fail(msg.err)
+
+		return m, nil
+	}
+
+	to := shortID(&msg.rev)
+	if len(msg.advances) == 0 {
+		return m, m.say("no bookmark on an ancestor of " + to + " to advance; b c creates one here")
+	}
+
+	names := make([]string, 0, len(msg.advances))
+	moves := make([]string, 0, len(msg.advances))
+	trunk := ""
+
+	for _, a := range msg.advances {
+		names = append(names, a.Name)
+
+		move := a.Name + " from " + a.From
+		if a.Trunk {
+			move = a.Name + " (trunk) from " + a.From
+			trunk = a.Name
+		}
+
+		moves = append(moves, move)
+	}
+
+	question := "advance " + joinNames(moves) + " to " + to + "?"
+	verb := "advance"
+
+	if trunk != "" {
+		question += " " + to + " is not on trunk yet"
+		verb = "advance " + trunk
+	}
+
+	rev := msg.rev.ChangeID
+
+	m.openAsk(ask{
+		question: question,
+		verb:     verb,
+		declined: "kept " + joinNames(names) + " where " + pluralIt(len(names)),
+		undoable: true,
+		run: func(m Model) (Model, tea.Cmd) {
+			cmd := m.act(rev, func(ctx context.Context, c *jj.Client) (string, error) {
+				return c.BookmarkAdvance(ctx, names, rev)
+			})
+
+			return m, cmd
+		},
 	})
+
+	return m, nil
+}
+
+// pluralIt is "it is" or "they are", for n things.
+func pluralIt(n int) string {
+	if n == 1 {
+		return "it is"
+	}
+
+	return "they are"
 }
 
 // conflictedOn is the names of rev's bookmarks that moved both ways.
@@ -221,6 +298,10 @@ func (m Model) bookmarkMenuMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.landBookmarks(msg)
 
 		return next, cmd, true
+	case advancesMsg:
+		next, cmd := m.landAdvances(msg)
+
+		return next, cmd, true
 	case bookmarkview.ChosenMsg:
 		next, cmd := m.bookmarkChosen(msg.Verb, msg.Bookmark)
 
@@ -248,7 +329,7 @@ func bookmarkGate(action string, rev *jj.Revision) (keys.Availability, bool) {
 	case help.ActionBookmarkAdvance:
 		if len(rev.LocalBookmarks) > 0 {
 			return keys.Refuse(shortID(rev) + " holds " + rev.LocalBookmarks[0] +
-				" already; b a tugs the nearest bookmark below up to the cursor"), true
+				" already; b a tugs the nearest bookmark on an ancestor up to the cursor"), true
 		}
 	default:
 		return keys.Availability{}, false
