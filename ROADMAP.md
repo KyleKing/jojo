@@ -122,6 +122,19 @@ per row, and reaching the last row doubles the window and reloads, so deep histo
 in rather than cutting off. Startup cost on a repo with tens of thousands of reachable
 revisions is still unmeasured.
 
+**Two reserved keys are still unbound.** The family keymap (aragonite `docs/keymap.md`)
+reserves both, so they cannot be spent on anything else in the meantime:
+
+- Graph folds under the `z` prefix (`za` toggles the fold under the cursor, `zM`/`zR` close
+  and open all). The candidates are a merged stack below a bookmark, a run of immutable
+  history, and an abandoned or hidden branch. A folded run draws as one row that names how
+  many changes it holds and keeps the graph's edges joined.
+- A range check on `v`/`V` (visual range). Mark a span of the log and run one command
+  across it: a check command such as `go test ./...` once per change, through `jj run`
+  when jj ships it, or `jj exec` per revision until then. The result is a pass or fail
+  mark in each row's gutter. This is the interactive form of the scripted bisect on `B`,
+  and it shares that runner.
+
 [docs/requirements.md](docs/requirements.md) carries the rest: conflict resolution inside
 jj-diff's hunk engine rather than shelling out to `jj resolve`, a manual bisect form to sit
 beside the scripted one, and sharing the operation log between machines.
