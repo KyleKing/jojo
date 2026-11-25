@@ -1,3 +1,9 @@
+## v0.28.3 (2026-11-25)
+
+### Fix
+
+- **deps**: aragonite v1.34.2 (no detached git maintenance in test homes)
+
 ## v0.28.2 (2026-11-25)
 
 ### Fix
