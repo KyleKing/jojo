@@ -1,3 +1,17 @@
+## v0.30.0 (2026-11-25)
+
+### Feat
+
+- **prompt**: edit every prompt with aragonite's vim field
+
+### Fix
+
+- **picker**: name the rebase modes' bare letters in the footer
+
+### Perf
+
+- **dock**: lex only the files near the cursor
+
 ## v0.29.1 (2026-11-25)
 
 ### Fix
