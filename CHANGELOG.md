@@ -1,3 +1,17 @@
+## v0.28.0 (2026-11-25)
+
+### BREAKING CHANGE
+
+- the staging vocabulary is gone. The file list of @ no
+longer lists @-'s files as staged, space no longer stages or unstages,
+and c commits the checked files of @ rather than describing @- and
+inserting a new index. A [keys] rebind of file-stage lands on check with
+a footer warning saying staging is retired.
+
+### Feat
+
+- **keys**: space checks files in the file list, and staging is retired
+
 ## v0.27.3 (2026-11-25)
 
 ### Fix
