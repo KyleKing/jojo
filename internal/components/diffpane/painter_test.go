@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
+	"github.com/kyleking/jojo/internal/tuitest"
 	"github.com/kyleking/jojo/internal/ui"
 )
 
@@ -171,5 +172,40 @@ func TestColored_OnlyReachesThePaneThatAsked(t *testing.T) {
 
 	if full.Colorize() == nil {
 		t.Error("the full-screen pane took colors the dock asked for")
+	}
+}
+
+// A log walked with the diff docked shows each revision for a moment, and lexing every file of a
+// large one cost 20 ms of CPU a keypress for colors nobody scrolled to. Only the files around the
+// cursor are lexed, and a move that brings an unlexed file near it asks for that one then.
+func TestColorize_LexesTheFilesNearTheCursorOnly(t *testing.T) {
+	t.Parallel()
+
+	const files, lines = 40, 30
+
+	m := docked()
+	m.Show("diff large", benchDiff(files, lines), 100, "")
+	plain := slices.Clone(m.Lines())
+	first, last := plain[:lines+2], plain[len(plain)-lines-2:]
+
+	colorize(t, &m)
+
+	if got := m.Lines(); slices.Equal(first, got[:lines+2]) {
+		t.Error("the file under the cursor is still plain once its colors landed")
+	} else if !slices.Equal(last, got[len(got)-lines-2:]) {
+		t.Error("the last file was lexed with the cursor on the first")
+	}
+
+	m.Update(tuitest.Key("G"))
+	colorize(t, &m)
+
+	if got := m.Lines(); slices.Equal(last, got[len(got)-lines-2:]) {
+		t.Error("moving to the last file did not color it")
+	}
+
+	m.Update(tuitest.Key("g"))
+
+	if m.Colorize() != nil {
+		t.Error("returning to the first file lexed it again")
 	}
 }

@@ -55,13 +55,12 @@ type Model struct {
 	hints []keyhint.Hint
 	// read says which hunks draw as read, nil for none.
 	read ReadFunc
-	// key is what the rows on show are drawn from, and plain that they draw without syntax colors,
-	// which Colorize then asks for. colors keeps the colored diffs this pane has drawn.
+	// colors keeps the diffs this pane has drawn, each
+	// with whatever of it has been lexed.
 	colors *colorCache
 	// sheet is the diff on show as documents, which draw the rows a frame shows and no others. The
 	// list holds row numbers.
 	sheet *sheet
-	key   drawKey
 	list  listview.Model[int]
 	width int
 	// sideBySide survives a close, so the layout chosen once holds for the next diff too.
@@ -69,7 +68,6 @@ type Model struct {
 	// docked draws the pane flat beside the log rather than framed over it, so its lines take the
 	// whole width it is given.
 	docked bool
-	plain  bool
 }
 
 // New returns a closed pane drawn in skin.
@@ -108,21 +106,19 @@ func (m *Model) SetWidth(width int) {
 	m.list.Open(m.title, m.list.Items(), cursor)
 }
 
-// render lays the diff out for the pane's width, drawing none of it: a frame draws its own rows. It is
-// in color when a lexed copy is already kept, and otherwise plain, leaving the colors to Colorize so
-// the update loop never waits on a lexer.
+// render lays the diff out for the pane's width, drawing none of it: a frame draws its own rows. A
+// diff drawn before comes back with whatever of it was lexed, and the rest is drawn plain, leaving the
+// colors to Colorize so the update loop never waits on a lexer.
 func (m *Model) render() {
 	key := m.keyFor(m.text)
-	m.key = key
 
-	sh, lexed := m.colors.get(key)
-	if !lexed {
+	sh, kept := m.colors.get(key)
+	if !kept {
 		sh = m.parse(key)
+		m.colors.put(key, sh)
 	}
 
 	m.sheet = sh
-	// A diff with no file in it has no code to color, only jj's prose.
-	m.plain = !lexed && sh.hasCode()
 	m.files, m.paths = sh.files, sh.paths
 	m.list.Open(m.title, rowNumbers(sh.rows), 0)
 }

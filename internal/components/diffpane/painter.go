@@ -13,9 +13,15 @@ import (
 // tens more. The pane pays neither on the update loop. A diff is a render.Document per file, which
 // parses and counts its rows without drawing them, and the pane draws only the rows on screen and a
 // margin around them, with Peek, which never lexes and draws a file plain until Start has lexed it.
-// Colorize starts the lexers and answers a command that only waits for them; Colored then marks the
-// documents lexed, and the next frame Peeks the same window again, now in color. Peek draws the same
-// rows in the same places either way, so a cursor kept across the swap stays on its line.
+// Colorize starts the lexers of the files around the cursor and answers a command that only waits
+// for them; Colored then marks those documents lexed, and the next frame Peeks the same window again,
+// now in color. Peek draws the same rows in the same places either way, so a cursor kept across the
+// swap stays on its line.
+//
+// Only the files near the cursor are lexed, never the whole diff: a log walked with the diff docked
+// shows each revision for a moment, and lexing all 92 files of a large one cost 20 ms of CPU per
+// keypress for colors nobody scrolled to. A move that brings an unlexed file near the cursor asks
+// for it then.
 
 // coloredKeep is how many colored diffs a pane remembers, so stepping back to a revision the cursor
 // just left draws it in color at once rather than plain and then again.
@@ -25,11 +31,16 @@ const coloredKeep = 8
 // few rows draws from the window rather than asking the documents again.
 const windowMargin = 32
 
+// lexMargin is how far from the cursor, each way, a file is lexed: past any row a frame around the
+// cursor draws, a dock's or a full screen's, and no further.
+const lexMargin = 2 * windowMargin
+
 // ColoredMsg says the lexers of a diff a pane drew plain have finished, so its rows can be drawn
 // again in color. Docked names which pane asked, since the full-screen pane and the dock can each be
 // waiting.
 type ColoredMsg struct {
-	key    drawKey
+	sheet  *sheet
+	parts  []int
 	docked bool
 }
 
@@ -52,13 +63,15 @@ type sheet struct {
 	paths []string
 	// hunks is each file's hunk label rows, read the first time a motion needs them.
 	hunks map[int][]int
-	// win is the rows last drawn, from row lo, and winLexed whether the documents were lexed when
-	// they were drawn, so the first frame after the colors land draws the window again.
-	win      []string
-	lo       int
-	rows     int
-	lexed    bool
-	winLexed bool
+	// asked is the parts whose lexers have been started, and lexed those whose colors have landed.
+	asked, lexed []bool
+	// win is the rows last drawn, from row lo, and winGen the lexed generation they were drawn at, so
+	// the first frame after more colors land draws the window again.
+	win    []string
+	lo     int
+	rows   int
+	gen    int
+	winGen int
 }
 
 // part is one file's document, or one line of prose, starting at row at.
@@ -103,6 +116,9 @@ func (m *Model) parse(key drawKey) *sheet {
 			sh.addFile(file)
 		}
 	}
+
+	sh.asked = make([]bool, len(sh.parts))
+	sh.lexed = make([]bool, len(sh.parts))
 
 	return sh
 }
@@ -187,7 +203,7 @@ func (sh *sheet) row(i int) string {
 		return ""
 	}
 
-	if i < sh.lo || i >= sh.lo+len(sh.win) || sh.lexed != sh.winLexed {
+	if i < sh.lo || i >= sh.lo+len(sh.win) || sh.gen != sh.winGen {
 		sh.window(i-windowMargin, i+2*windowMargin)
 	}
 
@@ -198,7 +214,7 @@ func (sh *sheet) row(i int) string {
 func (sh *sheet) window(from, to int) {
 	from = max(0, from)
 	sh.win = sh.rowsIn(from, to)
-	sh.lo, sh.winLexed = from, sh.lexed
+	sh.lo, sh.winGen = from, sh.gen
 }
 
 // all draws every row, which only a caller that wants the whole text pays for.
@@ -206,21 +222,35 @@ func (sh *sheet) all() []string {
 	return sh.rowsIn(0, sh.rows)
 }
 
-// start lexes every document in the background, answering a channel per document.
-func (sh *sheet) start() []<-chan struct{} {
-	var done []<-chan struct{}
+// start lexes, in the background, every document drawing a row in [from, to) whose lexer has not
+// been started, answering those parts and a channel per document.
+func (sh *sheet) start(from, to int) ([]int, []<-chan struct{}) {
+	var (
+		parts []int
+		done  []<-chan struct{}
+	)
 
-	for _, p := range sh.parts {
-		if p.doc != nil {
-			done = append(done, p.doc.Start())
+	for i, p := range sh.parts {
+		if p.doc == nil || sh.asked[i] || p.at+p.n <= from || p.at >= to {
+			continue
 		}
+
+		sh.asked[i] = true
+		parts = append(parts, i)
+		done = append(done, p.doc.Start())
 	}
 
-	return done
+	return parts, done
 }
 
-// hasCode reports whether the sheet has a file whose rows colors could change.
-func (sh *sheet) hasCode() bool { return len(sh.files) > 0 }
+// landed marks parts lexed, so the next frame draws them in color.
+func (sh *sheet) landed(parts []int) {
+	for _, i := range parts {
+		sh.lexed[i] = true
+	}
+
+	sh.gen++
+}
 
 // hunkPast is the first hunk label past cursor in dir, walking files from the cursor's own outward
 // and reading each one's hunks only when the walk reaches it.
@@ -398,16 +428,15 @@ func splitHunks(text string) (string, []string) {
 	return head.String(), hunks
 }
 
-// colorCache is the lexed sheets a pane has, most recent last, and the sheets still being lexed. It
-// is shared by every copy of the pane and only touched on the update loop.
+// colorCache is the sheets a pane has drawn, most recent last, each keeping whatever of it has been
+// lexed. It is shared by every copy of the pane and only touched on the update loop.
 type colorCache struct {
-	sheets   map[drawKey]*sheet
-	inflight map[drawKey]*sheet
-	order    []drawKey
+	sheets map[drawKey]*sheet
+	order  []drawKey
 }
 
 func newColorCache() *colorCache {
-	return &colorCache{sheets: map[drawKey]*sheet{}, inflight: map[drawKey]*sheet{}}
+	return &colorCache{sheets: map[drawKey]*sheet{}}
 }
 
 func (c *colorCache) get(key drawKey) (*sheet, bool) {
@@ -439,22 +468,24 @@ func (m *Model) keyFor(text string) drawKey {
 	return drawKey{text: text, width: width, sideBySide: m.sideBySide}
 }
 
-// Colorize starts lexing the diff on show when it is drawn plain and nothing is lexing it yet, and
-// answers a command that waits for the lexers and nothing else, since a Document is not safe to
-// draw from off the update loop. The parent calls it after every update, so whatever re-drew the pane
-// (a new diff, a resize, the side-by-side toggle) is colored without each path asking.
+// Colorize starts lexing the files near the cursor that nothing has started on, and answers a command
+// that waits for those lexers and nothing else, since a Document is not safe to draw from off the
+// update loop. The parent calls it after every update, so whatever re-drew the pane or moved its
+// cursor (a new diff, a resize, the side-by-side toggle, a scroll into a file not yet lexed) is
+// colored without each path asking.
 func (m *Model) Colorize() tea.Cmd {
-	if !m.plain || !m.list.IsOpen() || m.sheet == nil {
+	if !m.list.IsOpen() || m.sheet == nil {
 		return nil
 	}
 
-	if _, waiting := m.colors.inflight[m.key]; waiting {
+	cursor := m.list.Cursor()
+
+	parts, done := m.sheet.start(cursor-lexMargin, cursor+lexMargin)
+	if len(parts) == 0 {
 		return nil
 	}
 
-	m.colors.inflight[m.key] = m.sheet
-	done := m.sheet.start()
-	msg := ColoredMsg{key: m.key, docked: m.docked}
+	msg := ColoredMsg{sheet: m.sheet, parts: parts, docked: m.docked}
 
 	return func() tea.Msg {
 		for _, ch := range done {
@@ -465,25 +496,13 @@ func (m *Model) Colorize() tea.Cmd {
 	}
 }
 
-// Colored marks a diff whose lexers finished as lexed, so the next frame draws its window in color,
-// and keeps it for a return to that diff. The rows on show keep their cursor, since only their colors
-// change.
+// Colored marks the files whose lexers finished as lexed, so the next frame that draws them draws
+// them in color, on show now or on a return to that diff. The rows on show keep their cursor, since
+// only their colors change.
 func (m *Model) Colored(msg ColoredMsg) {
-	if msg.docked != m.docked {
+	if msg.docked != m.docked || msg.sheet == nil {
 		return
 	}
 
-	sh, ok := m.colors.inflight[msg.key]
-	if !ok {
-		return
-	}
-
-	delete(m.colors.inflight, msg.key)
-
-	sh.lexed = true
-	m.colors.put(msg.key, sh)
-
-	if msg.key == m.key && sh == m.sheet {
-		m.plain = false
-	}
+	msg.sheet.landed(msg.parts)
 }
