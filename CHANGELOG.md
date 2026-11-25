@@ -1,3 +1,19 @@
+## v0.29.1 (2026-11-25)
+
+### Fix
+
+- **trail**: count a handed-off program as a write only when it wrote
+- **oplog**: give the operation list half the frame over the log it explains
+- **palette**: rank the op log first for "operation"
+- **footer**: show a write's message without the undo segment beside it
+- **log**: write the size column's counts compactly and fit the widest
+- **footer**: name one bookmark and count the rest, and leave out builtin_log()
+- **picker**: bare r and s pick the rebase mode, and a bare flag says to press -
+- **reads**: count unread hunks for the log's rows from launch
+- **prompt**: dock describe under the log with the cursor at the end
+- **abandon**: ask before abandoning a change that has files
+- **bookmarks**: advance names the ancestor's bookmark and asks before moving it
+
 ## v0.29.0 (2026-11-25)
 
 ### Feat
