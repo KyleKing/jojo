@@ -155,6 +155,9 @@ type Model struct {
 	splitKnown map[string]bool
 	// typeahead holds the keys typed while a prompt is being read (opening), which it is then given.
 	typeahead []tea.KeyPressMsg
+	// early holds the keys pressed before the first log read landed, which act once it has: until
+	// then there is no row for a j to move to or an e to edit.
+	early []tea.KeyPressMsg
 	// converging is the divergent change the converge dialog is standing over, "" for all of them.
 	converging string
 	lastOp     string
@@ -229,8 +232,11 @@ type Model struct {
 	// revsetLoaded is whether a log read has landed, so an empty log before it is not a revset that
 	// matched nothing.
 	revsetLoaded bool
-	logFull      bool
-	quitting     bool
+	// logLanded is whether any log read has come back, failed ones included, which is what lets the
+	// early keys go: a log that failed still answers the keys that report it or quit.
+	logLanded bool
+	logFull   bool
+	quitting  bool
 	// opening says a prompt is being read and will open: keys go to typeahead until it does.
 	opening bool
 	// revsetShown is whether the layout last gave the revset row its line.
@@ -501,7 +507,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case logLoadedMsg:
-		return m.applyLog(msg)
+		return m.landLog(msg)
 	case statsMsg:
 		return m.applyStats(msg)
 	case staleMsg:
@@ -601,6 +607,8 @@ func (m Model) routeToPanes(msg tea.Msg) (tea.Model, tea.Cmd) {
 // applyLog keeps the last good log on screen when a revset fails, since one is invalid for most of
 // the time it is being typed.
 func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
+	m.logLanded = true
+
 	if msg.err != nil {
 		if errors.Is(msg.err, jj.ErrRevsetSyntax) {
 			m.revsetBox.SetError(msg.err)

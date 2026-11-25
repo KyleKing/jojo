@@ -19,6 +19,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/config"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/launch"
 	"github.com/kyleking/jojo/internal/model"
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -72,27 +73,34 @@ func probe(ctx context.Context, client *jj.Client, wantRevset bool) (string, str
 	return root, revset, nil
 }
 
-// configure reads config.toml and turns it into the two things the app is built from. A setting jojo
-// cannot honor stops startup, since a TUI has nowhere to report it afterwards.
-func configure() (ui.Skin, help.Keymap, config.Config, error) {
+// configure reads config.toml and turns it into the two things the app is built from: the skin, as
+// a picker the terminal's background chooses from when ask says the theme leaves it to the terminal,
+// and the keymap. A setting jojo cannot honor stops startup, since a TUI has nowhere to report it
+// afterwards.
+func configure() (ui.Picker, bool, help.Keymap, config.Config, error) {
 	settings, err := config.Load()
 	if err != nil {
-		return ui.Skin{}, help.Keymap{}, settings, fmt.Errorf("loading the config: %w", err)
+		return nil, false, help.Keymap{}, settings, fmt.Errorf("loading the config: %w", err)
 	}
 
-	skin, err := ui.Flavor(settings.Theme)
+	flavor, ask, err := ui.Flavor(settings.Theme)
 	if err != nil {
-		return ui.Skin{}, help.Keymap{}, settings, fmt.Errorf("reading theme: %w", err)
+		return nil, false, help.Keymap{}, settings, fmt.Errorf("reading theme: %w", err)
 	}
 
-	skin = skin.WithIcons(icons.New(icons.Resolve(settings.Icons), skin.Palette))
-
-	keys, err := help.NewKeymap(settings.Keys)
+	km, err := help.NewKeymap(settings.Keys)
 	if err != nil {
-		return ui.Skin{}, help.Keymap{}, settings, fmt.Errorf("reading keys: %w", err)
+		return nil, false, help.Keymap{}, settings, fmt.Errorf("reading keys: %w", err)
 	}
 
-	return skin, keys, settings, nil
+	set := icons.Resolve(settings.Icons)
+	pick := func(dark bool) ui.Skin {
+		skin := flavor(dark)
+
+		return skin.WithIcons(icons.New(set, skin.Palette))
+	}
+
+	return pick, ask, km, settings, nil
 }
 
 func main() {
@@ -136,7 +144,7 @@ func run() error {
 		return nil
 	}
 
-	skin, keys, settings, err := configure()
+	pick, ask, keys, settings, err := configure()
 	if err != nil {
 		return err
 	}
@@ -189,7 +197,14 @@ func run() error {
 		opts.Reads = reads
 	}
 
-	app := model.New(ctx, client, skin, root, *revset, opts)
+	build := func(dark bool) tea.Model { return model.New(ctx, client, pick(dark), root, *revset, opts) }
+
+	// A theme left to the terminal is asked for inside the program, where its answer cannot eat a key.
+	var app tea.Model = launch.New(build)
+	if !ask {
+		app = build(true)
+	}
+
 	// The renderer downsamples to the profile the skin was fitted to, detected the one way, so the two
 	// never disagree under tmux with COLORTERM set.
 	profile := tea.WithColorProfile(theme.Profile(os.Stdout, os.Environ()))

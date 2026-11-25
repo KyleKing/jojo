@@ -138,29 +138,36 @@ func (s Skin) WithIcons(set icons.Set) Skin {
 	return Skin{&f}
 }
 
-// Detected builds a skin for whichever flavor the terminal's background calls
-// for, which is what main starts with.
-func Detected() Skin {
-	return forTerminal(New(theme.Detect()))
-}
-
 // ErrUnknownFlavor marks a theme name no flavor answers to.
 var ErrUnknownFlavor = errors.New("unknown theme")
 
-// Flavor builds a skin for a named flavor, or reads the terminal when the name is empty. A name
-// jojo does not know is an error rather than a silent fallback, since a typo would otherwise look
-// like the setting having no effect.
-func Flavor(name string) (Skin, error) {
+// Picker is the skin for a terminal whose background is dark or not. A named flavor ignores it.
+type Picker func(dark bool) Skin
+
+// Flavor resolves a configured theme name. A named flavor is fixed; an empty name leaves it to
+// CATPPUCCIN_THEME and then to the terminal's background, and ask reports that the background is
+// needed. Flavor never queries the terminal itself: a query made before the program reads its
+// input reads the keys typed meanwhile too, and throws them away with the reply, so the caller
+// learns the background from the program's own input (launch). A name jojo does not know is an
+// error rather than a silent fallback, since a typo would otherwise look like the setting having
+// no effect.
+func Flavor(name string) (Picker, bool, error) {
 	switch strings.ToLower(name) {
 	case "":
-		return Detected(), nil
+		override := os.Getenv(theme.EnvOverride)
+		ask := false
+		theme.Select(override, func() bool { ask = true; return true })
+
+		return func(dark bool) Skin {
+			return forTerminal(New(theme.Select(override, func() bool { return dark })))
+		}, ask, nil
 	case "latte", "light":
-		return forTerminal(New(theme.Latte())), nil
+		return func(bool) Skin { return forTerminal(New(theme.Latte())) }, false, nil
 	case "macchiato", "dark":
-		return forTerminal(New(theme.Macchiato())), nil
+		return func(bool) Skin { return forTerminal(New(theme.Macchiato())) }, false, nil
 	}
 
-	return Skin{}, fmt.Errorf("%w: %q, want latte or macchiato", ErrUnknownFlavor, name)
+	return nil, false, fmt.Errorf("%w: %q, want latte or macchiato", ErrUnknownFlavor, name)
 }
 
 // KeyHintStyles is the face keyhint renders every binding hint and legend
