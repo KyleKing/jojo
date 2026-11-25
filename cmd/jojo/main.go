@@ -14,12 +14,12 @@ import (
 	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/icons"
+	"github.com/kyleking/aragonite/tui/launch"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/config"
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/launch"
 	"github.com/kyleking/jojo/internal/model"
 	"github.com/kyleking/jojo/internal/ui"
 )

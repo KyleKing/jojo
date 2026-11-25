@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/launch"
 	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jojo/internal/components/help"
@@ -67,9 +68,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	// The log is on its way: a key pressed now means the log it is about to show. ctrl+c is never
 	// held, so a jj that never answers can still be left.
-	if !m.logLanded && msg.String() != keyQuit {
-		m.early = append(slices.Clip(m.early), msg)
-
+	if m.early.Hold(msg) {
 		return m, nil
 	}
 
@@ -85,41 +84,16 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return next, tea.Batch(cmd, m.coach.WakeAt(now))
 }
 
-// landLog applies a log read, and on the first to land presses, in order, the keys held for it.
+// landLog applies a log read, and on the first to land replays, in order, the keys held for it
+// through Update. It takes them before applyLog, which marks the model ready; later reads hold none.
 func (m Model) landLog(msg logLoadedMsg) (tea.Model, tea.Cmd) {
-	first := !m.logLanded
+	held := m.early.Release()
 
 	landed, cmd := m.applyLog(msg)
-	if !first {
-		return landed, cmd
-	}
 
-	held := landed.early
-	landed.early = nil
+	next, pressed := launch.Replay(landed, held)
 
-	return landed.press(held, cmd)
-}
-
-// press hands keys to the model one after another, as typed, batched after cmd.
-func (m Model) press(held []tea.KeyPressMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	cmds := make([]tea.Cmd, 0, len(held)+1)
-	cmds = append(cmds, cmd)
-
-	var next tea.Model = m
-
-	for _, key := range held {
-		current, ok := next.(Model)
-		if !ok {
-			break
-		}
-
-		var pressed tea.Cmd
-
-		next, pressed = current.handleKeyPress(key)
-		cmds = append(cmds, pressed)
-	}
-
-	return next, tea.Batch(cmds...)
+	return next, tea.Batch(cmd, pressed)
 }
 
 // routeKey sends a key where it lands. The palette, while open, takes every key; overlays with keys

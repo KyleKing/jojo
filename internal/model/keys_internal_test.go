@@ -74,14 +74,14 @@ func TestLaunch_KeyBeforeTheLogActsOnceItLands(t *testing.T) {
 				m = asModel(t, update(m, tuitest.Key(key)))
 			}
 
-			if len(m.early) != len(tc.keys) {
-				t.Fatalf("held %d keys before the log, want %d", len(m.early), len(tc.keys))
+			if m.early.Ready() {
+				t.Fatalf("keys released before the log landed")
 			}
 
 			m = asModel(t, update(m, tc.landed))
 
-			if len(m.early) != 0 {
-				t.Errorf("%d keys still held after the log landed", len(m.early))
+			if !m.early.Ready() {
+				t.Errorf("keys still held after the log landed")
 			}
 
 			got := ""
@@ -103,7 +103,8 @@ func TestLaunch_CtrlCIsNeverHeld(t *testing.T) {
 	m := launching(t)
 
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	if held := asModel(t, next).early; len(held) != 0 {
+	early := asModel(t, next).early
+	if held := early.Release(); len(held) != 0 {
 		t.Errorf("ctrl+c was held for the log: %v", held)
 	}
 }

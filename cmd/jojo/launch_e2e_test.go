@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/kyleking/aragonite/tui/launch"
 )
 
 // selectedRow is the row of the log the cursor is on: the selection is a background laid under the
@@ -72,7 +75,7 @@ func TestLaunch_FirstKeyActs(t *testing.T) {
 
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
-						firstKeyActs(t, sz, dir, silent, early, welcomed)
+						firstKeyActs(t, sz, dir, env, silent, early, welcomed)
 					})
 				}
 			}
@@ -80,12 +83,9 @@ func TestLaunch_FirstKeyActs(t *testing.T) {
 	}
 }
 
-func firstKeyActs(t *testing.T, sz size, dir string, silent, early, welcomed bool) {
+func firstKeyActs(t *testing.T, sz size, dir string, env []string, silent, early, welcomed bool) {
 	t.Helper()
 
-	// A home per run: jojo writes the coach's ledger on the way out, and two sessions sharing one
-	// race on its temp file.
-	env := isolated(t)
 	if !welcomed {
 		env = firstLaunch(t)
 	}
@@ -122,4 +122,51 @@ func firstKeyActs(t *testing.T, sz size, dir string, silent, early, welcomed boo
 	})
 
 	sc.quit()
+}
+
+// TestLaunch_CtrlCLeavesDuringTheWait pins the way out of a terminal that never answers the
+// background question: ctrl+c pressed while jojo waits on it leaves at once, rather than after the
+// whole wait. Half the wait is the bound, so a jojo that sat it out cannot pass however late the
+// key went in.
+func TestLaunch_CtrlCLeavesDuringTheWait(t *testing.T) {
+	t.Parallel()
+
+	env := isolated(t)
+	dir := historyRepo(t, env, 3)
+
+	for _, sz := range []size{{80, 24}, {120, 40}} {
+		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
+			t.Parallel()
+
+			sc := start(t, sz, dir, env, true, "")
+
+			select {
+			case <-sc.asked:
+			case <-time.After(10 * time.Second):
+				t.Fatal("jojo never asked for the background")
+			}
+
+			sc.press("\x03")
+			pressed := time.Now()
+
+			done := make(chan error, 1)
+
+			go func() { done <- sc.cmd.Wait() }()
+
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("jojo exited on ctrl+c with %v", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("jojo did not quit on ctrl+c")
+			}
+
+			<-sc.drained
+
+			if took := time.Since(pressed); took >= launch.Settle/2 {
+				t.Errorf("jojo took %v to leave on ctrl+c, want under %v", took, launch.Settle/2)
+			}
+		})
+	}
 }

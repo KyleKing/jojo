@@ -154,13 +154,9 @@ type Picker func(dark bool) Skin
 func Flavor(name string) (Picker, bool, error) {
 	switch strings.ToLower(name) {
 	case "":
-		override := os.Getenv(theme.EnvOverride)
-		ask := false
-		theme.Select(override, func() bool { ask = true; return true })
-
 		return func(dark bool) Skin {
-			return forTerminal(New(theme.Select(override, func() bool { return dark })))
-		}, ask, nil
+			return forTerminal(New(theme.ForBackground(dark)))
+		}, !theme.Pinned(), nil
 	case "latte", "light":
 		return func(bool) Skin { return forTerminal(New(theme.Latte())) }, false, nil
 	case "macchiato", "dark":

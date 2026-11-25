@@ -68,7 +68,11 @@ type screen struct {
 	cmd     *exec.Cmd
 	term    *vt.SafeEmulator
 	drained chan struct{}
-	mu      sync.Mutex
+	// asked closes once the program has asked for the background, which it does after taking the
+	// terminal into raw mode, so a key pressed from then on reaches it as a key.
+	asked     chan struct{}
+	mu        sync.Mutex
+	askedOnce sync.Once
 	// silent is a terminal that answers no capability query, as a bare pty or a minimal emulator does.
 	silent bool
 }
@@ -81,6 +85,10 @@ func (s *screen) drain() {
 	for {
 		n, err := s.pty.Read(chunk)
 		s.feed(chunk[:n])
+
+		if strings.Contains(string(chunk[:n]), answers[0].query) {
+			s.askedOnce.Do(func() { close(s.asked) })
+		}
 
 		for _, a := range answers {
 			if !s.silent && strings.Contains(string(chunk[:n]), a.query) {
@@ -304,7 +312,10 @@ func start(t *testing.T, sz size, dir string, env []string, silent bool, typed s
 
 	_ = tty.Close() //nolint:errcheck // the child holds its own descriptor
 
-	s := &screen{t: t, pty: f, cmd: cmd, term: emulate(sz), drained: make(chan struct{}), silent: silent}
+	s := &screen{
+		t: t, pty: f, cmd: cmd, term: emulate(sz), silent: silent,
+		drained: make(chan struct{}), asked: make(chan struct{}),
+	}
 
 	go s.drain()
 

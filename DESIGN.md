@@ -2,8 +2,9 @@
 
 ## Architecture
 
-`cmd/jojo` parses flags and hands a `model.Model` to Bubble Tea, behind `internal/launch`
-when the theme is left to the terminal's background. Everything else is under `internal/`.
+`cmd/jojo` parses flags and hands a `model.Model` to Bubble Tea, behind aragonite's
+`tui/launch` when the theme is left to the terminal's background. Everything else is under
+`internal/`.
 
 `internal/jj` is the only package that runs `jj`. It shells out, parses, and returns
 structured values. Nothing else in the tree knows the CLI exists, which is what keeps a
@@ -44,12 +45,13 @@ a real terminal. [docs/dogfooding.md](docs/dogfooding.md) has the commands.
 the terminal's input queue when jojo starts, and two things used to drop it. A background
 query run before Bubble Tea (`lipgloss.HasDarkBackground`) reads the input itself and
 discards everything that is not its reply, for up to four seconds on a terminal that
-answers nothing; `internal/launch` asks through the program's own input instead, holds
-every message until the answer (or a two-second wait), then builds the model for that
-background and hands it what it held, in order. A key that reaches the model before the
-first log read lands would act on no rows, so it waits in `early` and is pressed once a
-read lands, failed or not; ctrl+c never waits. The welcome card closing on the first key
-is the card's design, not this. `TestLaunch_FirstKeyActs` pins it on a pty.
+answers nothing; aragonite's `tui/launch` asks through the program's own input instead, holds
+every message until the answer (or a two-second wait, cut short by ctrl+c), then builds the
+model for that background (`ui.Flavor`, through `theme.Pinned` and `theme.ForBackground`) and
+hands it what it held, in order. A key that reaches the model before the first log read lands
+would act on no rows, so `early` (a `launch.Keys`) holds it until a read lands, failed or not,
+and `landLog` replays it through `Update`; ctrl+c is never held. The welcome card closing on the
+first key is the card's design, not this. `TestLaunch_FirstKeyActs` pins it on a pty.
 
 **Every jj call goes through one queue.** A second jj process writing the op log while
 a command is still running diverges the op heads and strands the checkout, so the
