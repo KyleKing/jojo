@@ -173,6 +173,8 @@ type Model struct {
 	// are maps, so the copies Update makes of the model share them.
 	stats      statsCache
 	statsAsked map[string]bool
+	// countAsked is the commits an unread count has been asked for, so each is read once.
+	countAsked map[string]bool
 	// versions is every change evolution read this session, keyed by the commit it was read at, and
 	// interdiffs every round's diff, keyed by its two commits. Neither can go stale: a commit id
 	// names its content.
@@ -385,6 +387,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		logWindow:       logLimit,
 		stats:           statsCache{},
 		statsAsked:      map[string]bool{},
+		countAsked:      map[string]bool{},
 
 		diffPreference: opts.DiffTool,
 	}

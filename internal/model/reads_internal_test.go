@@ -381,8 +381,11 @@ func TestReads_GatesSayWhy(t *testing.T) {
 		t.Errorf("space without a store said %q", m.message)
 	}
 
-	m = press(t, readsModel(t, dir, "two", seen.Open(t.TempDir())), "]", "u")
-	if !strings.Contains(m.message, "no diff here is counted yet") {
+	// Before the launch count lands, ]u has nothing to go on and says so.
+	m = readsModel(t, dir, "two", seen.Open(t.TempDir()))
+	m.marks.live = map[string]liveHunks{}
+
+	if m = press(t, m, "]", "u"); !strings.Contains(m.message, "no diff here is counted yet") {
 		t.Errorf("]u in a log with nothing counted said %q", m.message)
 	}
 
@@ -583,4 +586,54 @@ func TestReads_MarksUnderAShortScopeMoveToTheFullID(t *testing.T) {
 	if seen.Open(state).Unread(full, string(refs[1].ID)) {
 		t.Error("the full-id file does not hold the moved mark")
 	}
+}
+
+// The log's unread counts are right from launch, for every mutable revision on screen and not only
+// those the dock has opened this session: a blank row meant either read or never loaded, and the
+// coach's count changed from one session to the next.
+func TestUnreadCounts_RightFromLaunch(t *testing.T) {
+	t.Parallel()
+
+	dir := readsRepo(t)
+	root := t.TempDir()
+
+	frame := tuitest.StripANSI(readsModel(t, dir, "two", seen.Open(root)).render())
+	if !strings.Contains(rowOf(frame, "two"), "◌3") || !strings.Contains(rowOf(frame, "base"), "◌2") {
+		t.Fatalf("a fresh launch does not count every row's unread hunks:\n%s", frame)
+	}
+
+	// Read all of two in another session (jj-diff, say), then launch again: two is read, base is not.
+	two := changeFor(t, dir, "two")
+	refs := refsOf(t, dir, two)
+	ids := make([]seen.ID, 0, len(refs))
+
+	for _, r := range refs {
+		ids = append(ids, r.ID)
+	}
+
+	if err := seen.Open(root).Mark(fullOf(t, dir, two), true, refs, ids...); err != nil {
+		t.Fatal(err)
+	}
+
+	m := readsModel(t, dir, "base", seen.Open(root))
+
+	frame = tuitest.StripANSI(m.render())
+	if strings.Contains(rowOf(frame, "two"), "◌") || !strings.Contains(rowOf(frame, "base"), "◌2") {
+		t.Errorf("the next launch does not count from the store:\n%s", frame)
+	}
+
+	if m.docked {
+		t.Error("counting opened the dock")
+	}
+}
+
+// rowOf is the frame's first line that holds text.
+func rowOf(frame, text string) string {
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.Contains(line, " "+text+" ") {
+			return line
+		}
+	}
+
+	return ""
 }

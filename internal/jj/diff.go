@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // DiffTarget names exactly one diff to render: a single revision (jj diff -r), a from/to pair
@@ -72,4 +73,33 @@ func (c *Client) GitDiff(ctx context.Context, t DiffTarget) (string, error) {
 	}
 
 	return c.executeJJ(ctx, append(args, "--git")...)
+}
+
+// commitSep ends each commit's diff in GitDiffs' output: record and group separators on a line of
+// their own, which no git-format diff jj writes contains.
+const commitSep = "\x1e\x1d\n"
+
+// GitDiffs is GitDiff for many commits in one jj call, keyed by the commit IDs the log reported. It
+// reads at the operation the log left, without snapshotting, so it never contends with a write.
+func (c *Client) GitDiffs(ctx context.Context, commitIDs []string) (map[string]string, error) {
+	if len(commitIDs) == 0 {
+		return map[string]string{}, nil
+	}
+
+	out, err := c.executeJJ(ctx, "log", "--no-graph", "--ignore-working-copy", "-r", strings.Join(commitIDs, "|"),
+		"-T", `commit_id.short(12) ++ "\n" ++ diff.git() ++ "`+commitSep[:2]+`\n"`)
+	if err != nil {
+		return nil, err
+	}
+
+	diffs := make(map[string]string, len(commitIDs))
+
+	for _, chunk := range strings.Split(out, commitSep) {
+		commit, text, ok := strings.Cut(chunk, "\n")
+		if ok && commit != "" {
+			diffs[commit] = text
+		}
+	}
+
+	return diffs, nil
 }

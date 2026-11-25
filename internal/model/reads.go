@@ -590,9 +590,11 @@ func (m Model) countStack() tea.Cmd {
 	return tea.Sequence(cmds...)
 }
 
-// handleReadMsg lands a saved mark and a hunk list read in the background.
+// handleReadMsg lands a saved mark, a hunk list read in the background, and the log's unread count.
 func (m Model) handleReadMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case unreadCountedMsg:
+		return m.applyUnreadCount(msg), nil, true
 	case markedMsg:
 		if msg.err != nil {
 			m.fail(msg.err)

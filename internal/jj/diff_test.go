@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -425,4 +426,49 @@ func diffArgs(t *testing.T, client *jj.Client, target jj.DiffTarget) ([]string, 
 	}
 
 	return cmd.Args[1:], nil
+}
+
+// GitDiffs reads many commits' diffs in one call, each the same text GitDiff gives it alone, so a hunk
+// counted from either is the same hunk.
+func TestGitDiffs_MatchesGitDiffPerCommit(t *testing.T) {
+	t.Parallel()
+
+	client, dir := baseRepo(t)
+	writeFile(t, dir, "one.txt", "one\n")
+	runJJ(t, dir, "commit", "-m", "one")
+	writeFile(t, dir, "two.txt", "two\nlines\n")
+	writeFile(t, dir, "one.txt", "one\nmore\n")
+	runJJ(t, dir, "commit", "-m", "two")
+
+	commits := map[string]string{}
+
+	for _, desc := range []string{"one", "two"} {
+		//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
+		cmd := exec.CommandContext(t.Context(), "jj", "log", "--no-graph", "--ignore-working-copy",
+			"-r", "description(exact:'"+desc+"\n')", "-T", "commit_id.short(12)")
+		cmd.Dir = dir
+
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("jj log: %v", err)
+		}
+
+		commits[desc] = string(out)
+	}
+
+	diffs, err := client.GitDiffs(t.Context(), []string{commits["one"], commits["two"]})
+	if err != nil {
+		t.Fatalf("GitDiffs: %v", err)
+	}
+
+	for desc, commit := range commits {
+		want, err := client.GitDiff(t.Context(), jj.DiffTarget{Revision: commit})
+		if err != nil {
+			t.Fatalf("GitDiff %s: %v", desc, err)
+		}
+
+		if diffs[commit] != want {
+			t.Errorf("%s: GitDiffs gave\n%q\nGitDiff gives\n%q", desc, diffs[commit], want)
+		}
+	}
 }
