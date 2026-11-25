@@ -1,3 +1,9 @@
+## v0.29.0 (2026-11-25)
+
+### Feat
+
+- detect Nerd-capable terminals for icons (aragonite v1.35.0)
+
 ## v0.28.3 (2026-11-25)
 
 ### Fix
