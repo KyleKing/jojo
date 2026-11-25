@@ -108,3 +108,26 @@ func TestLaunch_CtrlCIsNeverHeld(t *testing.T) {
 		t.Errorf("ctrl+c was held for the log: %v", held)
 	}
 }
+
+// Esc backs out one level and never quits: at the log's root, with nothing checked, it does nothing,
+// so esc pressed to dismiss something already gone cannot end the session, as it did in second-look.
+func TestEsc_AtTheRootNeverQuits(t *testing.T) {
+	t.Parallel()
+
+	m := asModel(t, update(testModel(t, twoRows()), tea.WindowSizeMsg{Width: 100, Height: 30}))
+
+	for range 3 {
+		next, cmd := m.Update(tuitest.Key("esc"))
+		m = asModel(t, next)
+
+		if m.quitting {
+			t.Fatal("esc at the root quit")
+		}
+
+		for _, msg := range flatten(cmd) {
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("esc at the root sent a quit")
+			}
+		}
+	}
+}
