@@ -121,9 +121,9 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `d` / `D` | describe in a prompt docked under the log, so the change stays in view, holding the whole description with the cursor at its end (`enter` submits, `ctrl+j` or `alt+enter` breaks a line, `alt+e` moves to `$EDITOR`, `esc` cancels: every prompt keeps that contract), or straight in `$EDITOR` |
 | `c` | commit `@`: describe it and start a new change (`jj commit`) |
 | `s` / `r` / `y` / `R` | squash, rebase, duplicate, or restore, each in the picker below |
-| `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit |
+| `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit; `q` there returns without writing |
 | `a` / `A` | abandon (an empty change at once; one with changes names its files and waits for `y`, any other key keeps it), absorb |
-| `x` / `X` | resolve the conflict in jj-diff's conflict viewer (`jj-diff --resolve -r`), or converge divergent changes (`jj converge`) |
+| `x` / `X` | resolve the conflict in jj-diff's conflict viewer (`jj-diff --resolve -r`; `q` there returns without writing), or converge divergent changes (`jj converge`) |
 | `I` | the stack outline: the revisions between `trunk()` and the cursor, plus what is stacked on it, as chapters parent first, each with its size, empty and conflict flags, bookmark, PR and CI state (asked of gh as it opens, and drawn compact as `#41 ○✓` when narrow), and a read strip with its unread count; the diff docks beside it, `]]` / `[[` step chapters, `]u` / `[u` chapters with unread hunks, `]h` the dock's hunks, `Enter` reads in the dock, `Space` marks the chapter read, `P` submits the stack as stacked pull requests (below), `Esc` returns to the log |
 | `[r` / `]r` / `H` | rounds: step the docked diff through the change's `jj evolog` versions, each a true `jj interdiff` from the version before it; `H` lists the rounds to jump to one, and `R` there restores the change to it |
 | `f` / `P` | fetch every remote, or push the revision's bookmarks, shown in a confirmation first |

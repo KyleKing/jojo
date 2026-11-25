@@ -111,8 +111,9 @@ var abouts = map[string]about{
 	},
 	ActionSplit: {
 		cmd: "jj-diff --split -r <rev>", also: []string{gitStage, "add -p", "commit -p"},
-		prose: "Splits the revision into commits, one column each, in jj-diff. In the file list it splits " +
-			"the checked files out into a commit of their own (jj split -r <rev> <paths>). Nothing is lost; u undoes.",
+		prose: "Splits the revision into commits, one column each, in jj-diff; q there returns without writing. " +
+			"In the file list it splits the checked files out into a commit of their own " +
+			"(jj split -r <rev> <paths>). Nothing is lost; u undoes.",
 		related: []string{ActionSquash},
 	},
 	ActionDuplicate: {
@@ -148,8 +149,8 @@ var abouts = map[string]about{
 	},
 	ActionResolve: {
 		cmd: "jj-diff --resolve -r <rev>", also: []string{"merge", "mergetool", "conflict"},
-		prose: "Resolves the revision's conflict side by side in jj-diff. A conflict in jj is a " +
-			"state a commit can be in, so resolving is just another rewrite.",
+		prose: "Resolves the revision's conflict side by side in jj-diff; q there returns without writing. " +
+			"A conflict in jj is a state a commit can be in, so resolving is just another rewrite.",
 	},
 	ActionConverge: {
 		cmd: "jj converge [-r change_id(<rev>)]", also: []string{"divergent", "dedupe"},

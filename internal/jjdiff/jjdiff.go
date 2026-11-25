@@ -18,7 +18,8 @@ const Binary = "jj-diff"
 
 // MinVersion is the first release whose --split and --resolve keep the exit contract Outcome reads:
 // exit 0 whether or not they wrote, non-zero only when they could not run, and the outcome of a
-// write as the last stderr line starting with OutcomePrefix.
+// write as the last stderr line starting with OutcomePrefix. Release v0.18.0 made q, not esc, the key that
+// returns from them without writing; that changes no part of this contract, so it is not the floor.
 const MinVersion = "0.15.2"
 
 // OutcomePrefix starts the stderr line jj-diff ends a write with.
