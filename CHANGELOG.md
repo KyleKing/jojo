@@ -1,3 +1,9 @@
+## v0.26.2 (2026-11-25)
+
+### Perf
+
+- **model**: hold the skin and the big fields by pointer, so a keypress stops copying 700 KB
+
 ## v0.26.1 (2026-11-24)
 
 ### Fix
