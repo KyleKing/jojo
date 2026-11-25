@@ -1,3 +1,9 @@
+## v0.27.0 (2026-11-25)
+
+### Feat
+
+- **flows**: describe from the outline, a split asks to describe what it made, and refusals land where they point
+
 ## v0.26.4 (2026-11-25)
 
 ### Fix
