@@ -1,3 +1,9 @@
+## v0.26.4 (2026-11-25)
+
+### Fix
+
+- **deps**: aragonite v1.32.0, whose welcome card only closes on a verb and whose framecheck reads jj's graph
+
 ## v0.26.3 (2026-11-25)
 
 ### Perf
