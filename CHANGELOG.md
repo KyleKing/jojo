@@ -1,3 +1,9 @@
+## v0.27.1 (2026-11-25)
+
+### Fix
+
+- **rounds**: size a squash against the change's own previous version, and say when a rebase conflicted
+
 ## v0.27.0 (2026-11-25)
 
 ### Feat
