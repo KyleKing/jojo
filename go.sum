@@ -50,8 +50,8 @@ github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSo
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/kyleking/aragonite v1.35.0 h1:hvaWcjwjDv0+J2Q2eaqH1as0nkPFQRRYRdhZ5Q+Vdtg=
-github.com/kyleking/aragonite v1.35.0/go.mod h1:rFsVDPHuKvvHfI/H1v1O01//VjDTOqhgChHmuEQn9Qo=
+github.com/kyleking/aragonite v1.35.1 h1:nPRZTVOnqDst2hB9rrJUI4Xe9fd+ztP6u3AIPP/Fqok=
+github.com/kyleking/aragonite v1.35.1/go.mod h1:rFsVDPHuKvvHfI/H1v1O01//VjDTOqhgChHmuEQn9Qo=
 github.com/kyleking/jj-diff v0.12.1 h1:/7RlL3kN2WpG/ih7eEd05msR5tgPCMk+e1ncztYynk4=
 github.com/kyleking/jj-diff v0.12.1/go.mod h1:r+Q2jA6gLWgNkzh0K4Cbh0JCAg4jFdc0FTgCpolQNR8=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
