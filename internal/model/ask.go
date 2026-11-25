@@ -1,6 +1,8 @@
 package model
 
 import (
+	"context"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -8,6 +10,7 @@ import (
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/table"
 
+	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/ui"
 )
 
@@ -81,4 +84,105 @@ func joinNames(names []string) string {
 	}
 
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+// abandon drops the targets at once when none of them changes anything, and otherwise asks first,
+// naming what goes with them: an abandon of work is one key from gone, and u is a way back only for
+// whoever knows to press it.
+func (m *Model) abandon(targets []string) tea.Cmd {
+	run := func(m Model) (Model, tea.Cmd) {
+		cmd := m.act(joinIDs(targets),
+			func(ctx context.Context, c *jj.Client) (string, error) { return c.Abandon(ctx, targets) })
+
+		return m, cmd
+	}
+
+	held := m.contentOf(targets)
+	if held.losing == 0 {
+		_, cmd := run(*m)
+
+		return cmd
+	}
+
+	m.openAsk(ask{
+		question: "abandon " + abandonNames(targets) + " and " + filesLabel(len(targets), held) + "?",
+		verb:     "abandon",
+		declined: "kept " + abandonNames(targets),
+		undoable: true,
+		run:      run,
+	})
+
+	return nil
+}
+
+// content is what an abandon would take with it: how many targets change something, and the files
+// they change, which counted says are all known.
+type content struct {
+	losing, files int
+	counted       bool
+}
+
+// contentOf counts the targets that change something, and the files they change. A target the log
+// has not read, or whose stats have not landed, counts as changing something and leaves the count
+// unknown, so nothing claims a file count it does not have.
+func (m Model) contentOf(targets []string) content {
+	c := content{counted: true}
+
+	for _, id := range targets {
+		rev := m.revisionByChange(id)
+
+		switch {
+		case rev == nil, !rev.Empty && rev.Files == 0:
+			c.losing++
+			c.counted = false
+		case rev.Empty:
+		default:
+			c.losing++
+			c.files += rev.Files
+		}
+	}
+
+	return c
+}
+
+// revisionByChange is the log's revision with change id prefix id, nil when the log holds none.
+func (m Model) revisionByChange(id string) *jj.Revision {
+	for _, row := range m.rows {
+		if row.Revision != nil && sameChange(row.Revision.ChangeID, id) {
+			return row.Revision
+		}
+	}
+
+	return nil
+}
+
+// abandonListed is how many targets an abandon question names before it counts the rest.
+const abandonListed = 3
+
+// abandonNames names the targets of an abandon for a sentence, counting past the first few.
+func abandonNames(targets []string) string {
+	if len(targets) <= abandonListed {
+		return joinNames(targets)
+	}
+
+	return strings.Join(targets[:abandonListed-1], ", ") + " and " + strconv.Itoa(len(targets)-abandonListed+1) +
+		" more"
+}
+
+// filesLabel says what an abandon of n changes takes with it: their changed files, counted when the
+// count is known.
+func filesLabel(n int, held content) string {
+	its := "its"
+	if n > 1 {
+		its = "their"
+	}
+
+	switch {
+	case !held.counted:
+		return its + " changes"
+	case held.files == 1:
+		return its + " 1 changed file"
+	}
+
+	return its + " " + strconv.Itoa(held.files) + " changed files"
 }

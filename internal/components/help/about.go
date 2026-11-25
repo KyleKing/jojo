@@ -137,7 +137,8 @@ var abouts = map[string]about{
 	},
 	ActionAbandon: {
 		cmd: "jj abandon <revs>", also: []string{"drop", "reset --hard", gitRevert, "delete"},
-		prose:   "Drops the revision; its children move onto its parent. u brings it back.",
+		prose: "Drops the revision; its children move onto its parent. An empty one goes on the key; " +
+			"one with changes names its files and waits for y, and any other key keeps it. u brings it back.",
 		related: []string{keys.ActionUndo, ActionRestore},
 	},
 	ActionAbsorb: {

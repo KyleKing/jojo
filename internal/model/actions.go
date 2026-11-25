@@ -71,8 +71,7 @@ func (m *Model) writeAction(action string, rev jj.Revision) (tea.Cmd, bool) {
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Edit(ctx, rev.ChangeID) }), true
 	case help.ActionAbandon:
-		return m.act(joinIDs(targets),
-			func(ctx context.Context, c *jj.Client) (string, error) { return c.Abandon(ctx, targets) }), true
+		return m.abandon(targets), true
 	case help.ActionAbsorb:
 		return m.act(rev.ChangeID,
 			func(ctx context.Context, c *jj.Client) (string, error) { return c.Absorb(ctx, rev.ChangeID) }), true
