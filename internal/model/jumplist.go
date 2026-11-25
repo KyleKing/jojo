@@ -43,7 +43,7 @@ func (m *Model) noteJump(from *jj.Revision) {
 }
 
 // jumpGate says why ctrl+o or ctrl+i has nowhere to go.
-func (m Model) jumpGate(action string) (keys.Availability, bool) {
+func (m *Model) jumpGate(action string) (keys.Availability, bool) {
 	switch action {
 	case keys.ActionJumpBack:
 		if len(m.jumps.back) == 0 {

@@ -45,7 +45,7 @@ func (m *Model) rememberPick(p *pickState) {
 
 // repeatGate says why the repeat key cannot run: nothing written yet, or a picker verb whose fixed destination is
 // the revision it would now act on.
-func (m Model) repeatGate() keys.Availability {
+func (m *Model) repeatGate() keys.Availability {
 	r := m.last
 	if r.action == "" {
 		return keys.Refuse("nothing to repeat yet: . runs the last write again on the cursor")

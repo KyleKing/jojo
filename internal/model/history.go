@@ -82,7 +82,7 @@ func (m Model) historyOrigin() (jj.FileOrigin, bool) {
 }
 
 // historyGate says why * has no file to show the history of.
-func (m Model) historyGate() keys.Availability {
+func (m *Model) historyGate() keys.Availability {
 	if _, ok := m.historyOrigin(); ok {
 		return keys.Allow()
 	}

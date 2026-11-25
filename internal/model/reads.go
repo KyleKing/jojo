@@ -315,7 +315,7 @@ func (m Model) unreadIn(changeID string) int {
 
 // readGate answers the read keys: the mark, the unread motions, and U, on whichever screen they were
 // pressed. The second result is false for an action that is not one of them.
-func (m Model) readGate(screen keys.Context, action string) (keys.Availability, bool) {
+func (m *Model) readGate(screen keys.Context, action string) (keys.Availability, bool) {
 	motion := action == keys.NextAction(keys.ObjUnread) || action == keys.PrevAction(keys.ObjUnread)
 	if action != keys.ActionRead && action != keys.ActionOnlyUnread && !motion {
 		return keys.Availability{}, false

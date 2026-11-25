@@ -50,12 +50,13 @@ func WithAliases(source AliasSource) Option {
 // Model is the revset box's state: the wrapped textinput, the completion popup, the
 // signature-help line, and the last error the parent reported via SetError.
 type Model struct {
-	err              error
-	aliasSource      AliasSource
+	err         error
+	aliasSource AliasSource
+	// input is held by pointer and copied before each edit (editInput), as prompt's is.
+	input            *textinput.Model
 	signature        string
 	aliases          []string
 	candidates       []string
-	input            textinput.Model
 	selectedIdx      int
 	debounceGen      int
 	aliasesRequested bool
@@ -70,7 +71,7 @@ func New(initial string, opts ...Option) Model {
 	input.SetValue(initial)
 	input.CursorEnd()
 
-	m := Model{input: input}
+	m := Model{input: &input}
 	for _, opt := range opts {
 		opt(&m)
 	}
@@ -86,8 +87,8 @@ func (m Model) Value() string {
 // SetValue replaces the revset text, moving the cursor to the end and recomputing
 // completion and signature-help state.
 func (m *Model) SetValue(v string) {
-	m.input.SetValue(v)
-	m.input.CursorEnd()
+	m.editInput().SetValue(v)
+	m.editInput().CursorEnd()
 	m.refresh()
 }
 
@@ -99,7 +100,7 @@ func (m *Model) SetError(err error) {
 
 // Focus gives the box keyboard focus and, the first time, kicks off the alias fetch.
 func (m *Model) Focus() tea.Cmd {
-	cmd := m.input.Focus()
+	cmd := m.editInput().Focus()
 
 	if m.aliasSource == nil || m.aliasesRequested {
 		return cmd
@@ -119,7 +120,7 @@ func (m *Model) Focus() tea.Cmd {
 
 // Blur removes keyboard focus and closes the completion popup.
 func (m *Model) Blur() {
-	m.input.Blur()
+	m.editInput().Blur()
 	m.closeCompletion()
 }
 
@@ -195,7 +196,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 
 	var cmd tea.Cmd
 
-	m.input, cmd = m.input.Update(msg)
+	var input textinput.Model
+
+	input, cmd = m.input.Update(msg)
+	m.input = &input
 	m.refresh()
 
 	if m.input.Value() == before {
@@ -315,8 +319,8 @@ func (m *Model) acceptCandidate() {
 	b.WriteString("()")
 	b.WriteString(string(runes[end:]))
 
-	m.input.SetValue(b.String())
-	m.input.SetCursor(start + len([]rune(name)) + 1)
+	m.editInput().SetValue(b.String())
+	m.editInput().SetCursor(start + len([]rune(name)) + 1)
 	m.closeCompletion()
 	m.refresh()
 }
@@ -342,7 +346,7 @@ func (m Model) View(width int) string {
 		return ""
 	}
 
-	input := m.input
+	input := *m.input
 	input.SetWidth(max(width-len([]rune(input.Prompt)), 1))
 
 	lines := []string{input.View()}
@@ -397,4 +401,12 @@ func truncate(s string, width int) string {
 	}
 
 	return string(runes[:width])
+}
+
+// editInput replaces the field with a copy of its own and returns it to edit.
+func (m *Model) editInput() *textinput.Model {
+	input := *m.input
+	m.input = &input
+
+	return m.input
 }

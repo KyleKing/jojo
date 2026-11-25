@@ -87,7 +87,7 @@ var viewFooter = []string{
 // footerHints ends on help, because the footer drops hints from the right and keeps the last. A key
 // the gate refuses here is drawn flat rather than dropped, and the key the coach's next step names is
 // brightened, so the footer itself points at it.
-func (m Model) footerHints() []keyhint.Hint {
+func (m *Model) footerHints() []keyhint.Hint {
 	var hints []keyhint.Hint
 
 	switch m.screen() {
@@ -230,7 +230,7 @@ func (m Model) inspector(rev *jj.Revision, overflow []string) []string {
 func oneLineText(text string) string { return strings.Join(strings.Fields(text), " ") }
 
 // outlineHints are the footer's while the outline is open: its own keys, most used first.
-func (m Model) outlineHints() []keyhint.Hint {
+func (m *Model) outlineHints() []keyhint.Hint {
 	return m.keys.HintsAt(m.gate, keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter),
 		help.ActionChapterRead, keys.ActionRead, keys.NextAction(keys.ObjUnread), help.ActionSubmit,
 		keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionBack)

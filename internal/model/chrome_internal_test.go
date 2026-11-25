@@ -76,7 +76,8 @@ func TestNextStep_FollowsTheWhatNextTable(t *testing.T) {
 				rows = append(rows, jj.LogRow{Revision: r})
 			}
 
-			next, ok := testModel(t, rows).nextStep()
+			m := testModel(t, rows)
+			next, ok := m.nextStep()
 			if tc.want == "" {
 				if ok {
 					t.Fatalf("nextStep = %+v, want nothing to say", next)

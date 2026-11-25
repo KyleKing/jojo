@@ -259,7 +259,7 @@ func bookmarkGate(action string, rev *jj.Revision) (keys.Availability, bool) {
 
 // pickGate is the picker's part of the gate: a bookmark move jj would refuse says so on enter rather
 // than failing after it, and names the flag that allows it.
-func (m Model) pickGate(action string) keys.Availability {
+func (m *Model) pickGate(action string) keys.Availability {
 	p := &m.pick
 	if action != help.ActionPickApply || p.verb != pickBookmark || p.shownFor != p.command() {
 		return keys.Allow()

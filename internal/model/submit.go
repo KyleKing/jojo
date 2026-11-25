@@ -160,7 +160,7 @@ func ghRepo(client *jj.Client) func(context.Context) (string, error) {
 }
 
 // submitGate refuses a submit of the outline's stack, naming every change that blocks it.
-func (m Model) submitGate() keys.Availability {
+func (m *Model) submitGate() keys.Availability {
 	if m.submit.ghMissing != nil {
 		return keys.Refuse("gh is not on PATH: a submit opens pull requests through it")
 	}

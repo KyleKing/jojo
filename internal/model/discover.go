@@ -66,7 +66,7 @@ type logState struct {
 }
 
 // state is the log as the coach's rules read it.
-func (m Model) state() logState {
+func (m *Model) state() logState {
 	s := logState{cursor: m.log.Selected(), checked: len(m.log.Checked()), empty: m.loaded() && !m.anyRevision()}
 
 	s.below, s.restack = m.bookmarkBelow(), m.synced.restackRoot()
@@ -340,7 +340,7 @@ func newCoach(km help.Keymap, ledger *coach.Ledger) *coach.Coach[logState] {
 // it refuses, the palette and the legend say the reason, and pressing the key says it in the status
 // line rather than doing nothing. Only the log's verbs are gated; every other screen's keys act on
 // what that screen shows.
-func (m Model) gate(action string) keys.Availability {
+func (m *Model) gate(action string) keys.Availability {
 	if a, ok := m.readGate(m.screen(), action); ok {
 		return a
 	}
@@ -687,7 +687,7 @@ func (m Model) idle(msg coach.IdleMsg) tea.Cmd {
 
 // nextStep is the step the coach points at in the log, false when none holds or the log is not on
 // screen.
-func (m Model) nextStep() (coach.Suggestion, bool) {
+func (m *Model) nextStep() (coach.Suggestion, bool) {
 	if m.screen() != keys.Log {
 		return coach.Suggestion{}, false
 	}

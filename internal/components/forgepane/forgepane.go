@@ -58,7 +58,7 @@ type Model struct {
 	// ctx carries what every poll runs under: the program's lifetime and the gh runner the parent
 	// routes the pane's calls through (forge/github.WithRunner).
 	ctx       context.Context //nolint:containedctx // the pane's polls outlive no call of their own.
-	styles    Styles
+	styles    *Styles
 	detection forge.Detection
 	poller    *forge.Poller
 	bookmark  string
@@ -72,7 +72,7 @@ type Model struct {
 func New(ctx context.Context, styles Styles, repoPath, bookmark string, opts ...forge.Option) Model {
 	detection := forge.Detect(ctx, repoPath)
 
-	m := Model{ctx: ctx, styles: styles, detection: detection, bookmark: bookmark}
+	m := Model{ctx: ctx, styles: &styles, detection: detection, bookmark: bookmark}
 
 	if detection.Supported() {
 		allOpts := append([]forge.Option{forge.WithDiskCache(forge.UserDiskCache())}, opts...)

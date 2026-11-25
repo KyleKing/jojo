@@ -85,7 +85,7 @@ func configure() (ui.Skin, help.Keymap, config.Config, error) {
 		return ui.Skin{}, help.Keymap{}, settings, fmt.Errorf("reading theme: %w", err)
 	}
 
-	skin.Icons = icons.New(icons.Resolve(settings.Icons), skin.Palette)
+	skin = skin.WithIcons(icons.New(icons.Resolve(settings.Icons), skin.Palette))
 
 	keys, err := help.NewKeymap(settings.Keys)
 	if err != nil {

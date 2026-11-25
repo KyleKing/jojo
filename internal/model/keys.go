@@ -13,7 +13,7 @@ import (
 
 // screen is where the next key lands, which decides what it means: the shared keymap's contexts plus
 // jojo's modes of the log (help.Travel, help.Outline, and one picker screen per verb).
-func (m Model) screen() keys.Context {
+func (m *Model) screen() keys.Context {
 	switch {
 	case m.diff.IsOpen() && m.openModal() == ctxDiff:
 		return keys.View

@@ -20,10 +20,17 @@ import (
 	"github.com/kyleking/aragonite/tui/theme"
 )
 
-// Skin is the full set of faces jojo draws with: aragonite's generic skin,
-// plus the jj-specific roles, each paired with an attribute (weight, slant,
-// or decoration) that keeps the roles apart even once NO_COLOR strips color.
+// Skin is the full set of faces jojo draws with, held by pointer: the faces are about 23 KB, and
+// every pane keeps the skin it was built with, so a value would be copied into each pane and again
+// on every message the root model handles. A Skin is never changed once built; ForProfile and
+// WithIcons return a new one.
 type Skin struct {
+	*Faces
+}
+
+// Faces is aragonite's generic skin plus the jj-specific roles, each paired with an attribute
+// (weight, slant, or decoration) that keeps the roles apart even once NO_COLOR strips color.
+type Faces struct {
 	skin.Skin
 
 	// Immutable dims a row jj refuses to rewrite.
@@ -65,7 +72,7 @@ func accent(p theme.Palette) color.Color {
 // New builds a skin from a palette, so callers (and tests) can pin a flavor
 // rather than reading the terminal.
 func New(p theme.Palette) Skin {
-	s := Skin{
+	f := &Faces{
 		Skin:     skin.New(p, accent(p)),
 		Selected: lipgloss.NewStyle().Reverse(true),
 		Icons:    icons.New(icons.Resolve(""), p),
@@ -73,26 +80,27 @@ func New(p theme.Palette) Skin {
 		Palette:  p,
 		Profile:  colorprofile.TrueColor,
 	}
+	f.withRoles()
 
-	return s.withRoles()
+	return Skin{f}
 }
 
 // withRoles builds jojo's own faces for the skin's profile. Each carries its meaning by hue (a
 // conflict red, a bookmark green), so each goes through Hue, which keeps it off the grey ramp in 256
 // colors: Latte's red would otherwise answer grey 241.
-func (s Skin) withRoles() Skin {
-	p, a, base := s.Palette, s.Hue(accent(s.Palette)), lipgloss.NewStyle()
+func (s *Faces) withRoles() {
+	p, base := s.Palette, lipgloss.NewStyle()
+	hue := func(c color.Color) color.Color { return theme.Hue(c, s.Profile) }
+	a := hue(accent(p))
 
 	s.Immutable = base.Foreground(p.Overlay1).Faint(true)
-	s.Conflicted = base.Foreground(s.Hue(p.Red)).Bold(true)
-	s.Divergent = base.Foreground(s.Hue(p.Yellow)).Strikethrough(true)
+	s.Conflicted = base.Foreground(hue(p.Red)).Bold(true)
+	s.Divergent = base.Foreground(hue(p.Yellow)).Strikethrough(true)
 	s.WorkingCopy = base.Foreground(a).Bold(true).Underline(true)
-	s.Bookmark = base.Foreground(s.Hue(p.Green)).Italic(true)
+	s.Bookmark = base.Foreground(hue(p.Green)).Italic(true)
 	s.ChangeIDPrefix = base.Foreground(a).Bold(true)
-	s.Added = base.Foreground(s.Hue(p.Green))
-	s.Removed = base.Foreground(s.Hue(p.Red))
-
-	return s
+	s.Added = base.Foreground(hue(p.Green))
+	s.Removed = base.Foreground(hue(p.Red))
 }
 
 // Hue is c fitted to the skin's profile for a color that means something by its hue: a side of a
@@ -113,11 +121,21 @@ func forTerminal(s Skin) Skin {
 
 // ForProfile refits s to profile, which is what main also hands tea.WithColorProfile.
 func ForProfile(s Skin, profile colorprofile.Profile) Skin {
-	s.Skin = skin.For(s.Palette, accent(s.Palette), profile)
-	s.Diff = skin.DiffFor(s.Palette, profile)
-	s.Profile = profile
+	f := *s.Faces
+	f.Skin = skin.For(f.Palette, accent(f.Palette), profile)
+	f.Diff = skin.DiffFor(f.Palette, profile)
+	f.Profile = profile
+	f.withRoles()
 
-	return s.withRoles()
+	return Skin{&f}
+}
+
+// WithIcons is s drawing file types with set.
+func (s Skin) WithIcons(set icons.Set) Skin {
+	f := *s.Faces
+	f.Icons = set
+
+	return Skin{&f}
 }
 
 // Detected builds a skin for whichever flavor the terminal's background calls

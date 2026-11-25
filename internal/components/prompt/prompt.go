@@ -37,11 +37,14 @@ type Option func(*Model)
 // Model is the prompt's state: a title, the wrapped textinput, and whether
 // the modal is currently shown.
 type Model struct {
-	skin  ui.Skin
-	title string
-	input textinput.Model
+	skin ui.Skin
+	// input and text are held by pointer, since the root model is copied on every message and the
+	// two fields are most of this pane; each edit swaps in a fresh copy (editInput, editText), so a
+	// copy of the prompt never sees another's edits.
+	input *textinput.Model
 	// text is the multi-line field OpenText uses, for a value whose line breaks are part of it.
-	text      textarea.Model
+	text      *textarea.Model
+	title     string
 	open      bool
 	multiline bool
 	// editor offers alt+e, which only a caller that can hand the terminal to $EDITOR can act on.
@@ -54,7 +57,8 @@ func New(skin ui.Skin, opts ...Option) Model {
 	text.ShowLineNumbers = false
 	text.Prompt = ""
 
-	m := Model{skin: skin, input: textinput.New(), text: text}
+	input := textinput.New()
+	m := Model{skin: skin, input: &input, text: &text}
 	for _, opt := range opts {
 		opt(&m)
 	}
@@ -67,10 +71,10 @@ func New(skin ui.Skin, opts ...Option) Model {
 func (m *Model) Open(title, initial string) tea.Cmd {
 	m.title = title
 	m.open, m.multiline, m.editor = true, false, false
-	m.input.SetValue(initial)
-	m.input.CursorEnd()
+	m.editInput().SetValue(initial)
+	m.editInput().CursorEnd()
 
-	return m.input.Focus()
+	return m.editInput().Focus()
 }
 
 // OpenText shows a multi-line field seeded with initial, whose line breaks survive the edit: Enter
@@ -79,18 +83,18 @@ func (m *Model) Open(title, initial string) tea.Cmd {
 func (m *Model) OpenText(title, initial string) tea.Cmd {
 	m.title = title
 	m.open, m.multiline, m.editor = true, true, true
-	m.text.SetHeight(maxTextRows)
-	m.text.SetValue(initial)
-	m.text.MoveToBegin()
+	m.editText().SetHeight(maxTextRows)
+	m.editText().SetValue(initial)
+	m.editText().MoveToBegin()
 
-	return m.text.Focus()
+	return m.editText().Focus()
 }
 
 // Close hides the prompt and blurs its field.
 func (m *Model) Close() {
 	m.open = false
-	m.input.Blur()
-	m.text.Blur()
+	m.editInput().Blur()
+	m.editText().Blur()
 }
 
 // Value is what the field holds.
@@ -133,7 +137,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		}
 	case "alt+enter", "ctrl+j":
 		if m.multiline {
-			m.text.InsertString("\n")
+			m.editText().InsertString("\n")
 
 			return nil
 		}
@@ -142,9 +146,13 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 
 	if m.multiline {
-		m.text, cmd = m.text.Update(keyMsg)
+		var text textarea.Model
+		text, cmd = m.text.Update(keyMsg)
+		m.text = &text
 	} else {
-		m.input, cmd = m.input.Update(keyMsg)
+		var input textinput.Model
+		input, cmd = m.input.Update(keyMsg)
+		m.input = &input
 	}
 
 	return cmd
@@ -165,13 +173,13 @@ const maxTextRows = 12
 
 func (m Model) field(width, height int) string {
 	if !m.multiline {
-		input := m.input
+		input := *m.input
 		input.SetWidth(max(width-len([]rune(input.Prompt))-cursorCellWidth, minFieldWidth))
 
 		return input.View()
 	}
 
-	text := m.text
+	text := *m.text
 	text.SetWidth(max(width, minFieldWidth))
 	text.SetHeight(max(1, min(height-chromeRows, maxTextRows, max(minTextRows, text.LineCount()+1))))
 
@@ -216,4 +224,20 @@ func (m Model) View(width, height int) string {
 	}, "\n")
 
 	return overlay.Center(body, width, height, styles)
+}
+
+// editInput replaces the single-line field with a copy of its own and returns it to edit.
+func (m *Model) editInput() *textinput.Model {
+	input := *m.input
+	m.input = &input
+
+	return m.input
+}
+
+// editText replaces the multi-line field with a copy of its own and returns it to edit.
+func (m *Model) editText() *textarea.Model {
+	text := *m.text
+	m.text = &text
+
+	return m.text
 }

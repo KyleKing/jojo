@@ -36,8 +36,8 @@ type CancelledMsg struct{}
 // Model is the search bar's state: the pattern and the match position the
 // parent last reported.
 type Model struct {
-	pattern string
 	skin    ui.Skin
+	pattern string
 	matches int
 	index   int
 	open    bool

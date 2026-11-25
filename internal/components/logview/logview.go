@@ -62,7 +62,7 @@ type SelectedMsg struct {
 // Model is the log list: rows, a cursor that skips the graph-only lines, and a
 // multi-select set for batch actions.
 type Model struct {
-	styles        Styles
+	styles        *Styles
 	checked       map[string]bool
 	marks         map[string]Mark
 	labels        map[string]string
@@ -78,7 +78,7 @@ type Model struct {
 
 // New returns an empty log. Call SetRows once jj has answered.
 func New(styles Styles) Model {
-	return Model{styles: styles, checked: map[string]bool{}, unread: map[string]string{}}
+	return Model{styles: &styles, checked: map[string]bool{}, unread: map[string]string{}}
 }
 
 // SetUnread is the unread count a revision's row ends its description with ("◌3"), "" for none:

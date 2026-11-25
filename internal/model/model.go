@@ -446,12 +446,14 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.paletteKey(paste)
 	}
 
-	for _, handle := range []func(tea.Msg) (tea.Model, tea.Cmd, bool){
-		m.handleModeMsg, m.handleSubmitMsg, m.handleOverlayMsg, m.handleFindMsg, m.discoverMsg, m.trailMsg,
-		m.handleBookmarkMsg, m.bookmarkMenuMsg, m.syncMsg, m.edgeMsgs, m.handleExternalMsg, m.handleReadMsg,
-		m.handleHistoryMsg,
+	// Method expressions rather than method values: a method value binds a copy of the model, and
+	// building thirteen of them per message was a quarter of every keypress.
+	for _, handle := range []func(Model, tea.Msg) (tea.Model, tea.Cmd, bool){
+		Model.handleModeMsg, Model.handleSubmitMsg, Model.handleOverlayMsg, Model.handleFindMsg, Model.discoverMsg,
+		Model.trailMsg, Model.handleBookmarkMsg, Model.bookmarkMenuMsg, Model.syncMsg, Model.edgeMsgs,
+		Model.handleExternalMsg, Model.handleReadMsg, Model.handleHistoryMsg,
 	} {
-		if next, cmd, handled := handle(msg); handled {
+		if next, cmd, handled := handle(m, msg); handled {
 			return next, cmd
 		}
 	}
