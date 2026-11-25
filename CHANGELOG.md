@@ -1,3 +1,9 @@
+## v0.28.2 (2026-11-25)
+
+### Fix
+
+- **launch**: start through aragonite tui/launch, and ctrl+c leaves during the wait
+
 ## v0.28.1 (2026-11-25)
 
 ### Fix
