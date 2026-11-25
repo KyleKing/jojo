@@ -191,3 +191,73 @@ func TestVerbOf(t *testing.T) {
 		}
 	}
 }
+
+// A squash brings another change's content in, and jj's inter_diff compares against every predecessor
+// merged, the squashed change's included, so the new line cancels out and the round used to read
+// "rebased, no content change"; sized against the change's own previous version it is the line.
+func TestVersions_ASquashIsARoundWithTheContentItBroughtIn(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+
+	writeFile(t, dir, "base.txt", "base\n")
+	runJJ(t, dir, "commit", "-m", "base")
+	writeFile(t, dir, "feature.txt", "feature\n")
+	runJJ(t, dir, "commit", "-m", "feature")
+	writeFile(t, dir, "README", "one line more\n")
+	runJJ(t, dir, "squash", "--into", "subject(exact:feature)")
+
+	versions, err := client.Versions(t.Context(), "subject(exact:feature)")
+	if err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+
+	list := rounds.Group(versions)
+	last := list[len(list)-1]
+
+	if last.Moved || last.Verb != "squash" || last.Files != 1 || last.Added != 1 {
+		t.Fatalf("newest round = %+v (%s), want a squash adding README's one line", last, last.Label())
+	}
+
+	text, err := client.Interdiff(t.Context(), last.From, last.To)
+	if err != nil {
+		t.Fatalf("Interdiff: %v", err)
+	}
+
+	if !strings.Contains(text, "+one line more") {
+		t.Errorf("the squash's interdiff does not show what it brought in:\n%s", text)
+	}
+}
+
+// A rebase that leaves a conflict changes the change even though its own patch has nothing new to
+// show, so it is a round of its own that says so rather than folding into "rebased".
+func TestVersions_ARebaseIntoAConflictIsARoundThatSaysSo(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+
+	writeFile(t, dir, "shared.txt", "base\n")
+	runJJ(t, dir, "commit", "-m", "base")
+	writeFile(t, dir, "shared.txt", "ours\n")
+	runJJ(t, dir, "commit", "-m", "ours")
+	runJJ(t, dir, "new", "subject(exact:base)")
+	writeFile(t, dir, "shared.txt", "theirs\n")
+	runJJ(t, dir, "commit", "-m", "theirs")
+	runJJ(t, dir, "rebase", "-r", "subject(exact:ours)", "-o", "subject(exact:theirs)")
+
+	versions, err := client.Versions(t.Context(), "subject(exact:ours)")
+	if err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+
+	list := rounds.Group(versions)
+	last := list[len(list)-1]
+
+	if last.Moved || !last.Conflicted || last.Label() != "rebase, became conflicted" {
+		t.Fatalf("newest round = %+v (%s), want a rebase that became conflicted", last, last.Label())
+	}
+
+	if !strings.Contains(last.Prose(), "conflict") {
+		t.Errorf("prose %q does not say the round left a conflict", last.Prose())
+	}
+}

@@ -21,13 +21,15 @@ type Version struct {
 	// Predecessors are the commits this version was made from, as change id and commit id. A squash
 	// names a commit of another change here as well as the change's own previous version.
 	Predecessors []Predecessor
-	// Files, Added, and Removed size the interdiff from the predecessors: jj rebases them onto this
-	// version's parents first, so a pure rebase reads as zero.
+	// Files, Added, and Removed size the interdiff from Previous, the one commit the round is drawn
+	// against: jj rebases it onto this version's parents first, so a pure rebase reads as zero.
 	Files   int
 	Added   int
 	Removed int
 	// Snapshot marks a version the working copy's snapshot made rather than a command.
 	Snapshot bool
+	// Conflict marks a version that holds an unresolved conflict.
+	Conflict bool
 }
 
 // Predecessor is one commit a version was made from.
@@ -43,7 +45,7 @@ const versionsTemplate = `commit.change_id() ++ "` + fieldSep + `" ++ ` +
 	`self.predecessors().map(|c| c.change_id() ++ ":" ++ c.commit_id()).join(",") ++ "` + fieldSep + `" ++ ` +
 	`operation.description().first_line() ++ "` + fieldSep + `" ++ ` +
 	`operation.time().end().ago() ++ "` + fieldSep + `" ++ ` +
-	`if(operation.snapshot(), "S", "") ++ "` + fieldSep + `" ++ ` +
+	`if(operation.snapshot(), "S", "") ++ if(commit.conflict(), "C", "") ++ "` + fieldSep + `" ++ ` +
 	`self.inter_diff().files().len() ++ "` + fieldSep + `" ++ ` +
 	`self.inter_diff().stat().total_added() ++ "` + fieldSep + `" ++ ` +
 	`self.inter_diff().stat().total_removed() ++ "` + fieldSep + `" ++ ` +
@@ -61,7 +63,53 @@ func (c *Client) Versions(ctx context.Context, rev string) ([]Version, error) {
 		return nil, err
 	}
 
-	return ownVersions(parseVersions(out)), nil
+	versions := ownVersions(parseVersions(out))
+	if err := c.pairwiseStats(ctx, versions); err != nil {
+		return nil, err
+	}
+
+	return versions, nil
+}
+
+// pairwiseStats sizes each version made from more than one commit against Previous alone, because
+// jj's inter_diff compares a version with all its predecessors merged, so what a squash brought in from
+// another change is in both sides and cancels out, and the squash read as a rebase with no content
+// change. A version with one predecessor already has the pairwise size.
+func (c *Client) pairwiseStats(ctx context.Context, versions []Version) error {
+	for i := range versions {
+		v := &versions[i]
+		if len(v.Predecessors) < 2 || v.Previous() == "" {
+			continue
+		}
+
+		text, err := c.Interdiff(ctx, v.Previous(), v.CommitID)
+		if err != nil {
+			return err
+		}
+
+		v.Files, v.Added, v.Removed = diffSize(text)
+	}
+
+	return nil
+}
+
+// diffSize counts a git diff's files and its added and removed lines.
+func diffSize(text string) (int, int, int) {
+	files, added, removed := 0, 0, 0
+
+	for line := range strings.SplitSeq(text, "\n") {
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			files++
+		case strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "--- "):
+		case strings.HasPrefix(line, "+"):
+			added++
+		case strings.HasPrefix(line, "-"):
+			removed++
+		}
+	}
+
+	return files, added, removed
 }
 
 func parseVersions(out string) []Version {
@@ -84,7 +132,8 @@ func parseVersions(out string) []Version {
 			Predecessors: parsePredecessors(fields[2]),
 			Operation:    fields[3],
 			Age:          fields[4],
-			Snapshot:     fields[5] == "S",
+			Snapshot:     strings.Contains(fields[5], "S"),
+			Conflict:     strings.Contains(fields[5], "C"),
 			Files:        atoiOrZero(fields[6]),
 			Added:        atoiOrZero(fields[7]),
 			Removed:      atoiOrZero(fields[8]),

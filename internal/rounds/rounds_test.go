@@ -83,3 +83,36 @@ func TestVersion_PreviousPrefersTheChangesOwnPredecessor(t *testing.T) {
 		t.Errorf("Previous() of a split = %q, want the commit it was cut from", got)
 	}
 }
+
+// A rebase into a conflict and the edit that resolves it each stand as a round, never folded into the
+// moves around them, since each changed what the change is.
+func TestGroup_ConflictingAndResolvingAreRounds(t *testing.T) {
+	t.Parallel()
+
+	conflicted := version("v3", "v2", "rebase commit b", "feat", 0)
+	conflicted.Conflict = true
+	resolved := version("v4", "v3", "resolve conflicts", "feat", 1)
+
+	got := rounds.Group([]jj.Version{
+		version("v1", "", "new empty commit", "feat", 1),
+		version("v2", "v1", "rebase commit a", "feat", 0),
+		conflicted,
+		resolved,
+	})
+
+	labels := make([]string, len(got))
+	for i, r := range got {
+		labels[i] = r.Label()
+	}
+
+	want := []string{"new, the first version", rounds.Moved, "rebase, became conflicted", "resolve, conflict resolved"}
+	if len(labels) != len(want) {
+		t.Fatalf("rounds = %q, want %q", labels, want)
+	}
+
+	for i := range want {
+		if labels[i] != want[i] {
+			t.Errorf("round %d = %q, want %q", i+1, labels[i], want[i])
+		}
+	}
+}

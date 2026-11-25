@@ -35,6 +35,11 @@ type Round struct {
 	Removed int
 	// Moved marks a run of versions that changed neither the patch nor the description.
 	Moved bool
+	// Conflicted and Resolved mark a round whose last version holds a conflict the one before it did
+	// not, and the reverse: a rebase that conflicted changed what the change is even with no patch
+	// of its own to show.
+	Conflicted bool
+	Resolved   bool
 }
 
 // Group folds versions, oldest first, into rounds. Consecutive versions that moved the change
@@ -45,12 +50,13 @@ func Group(versions []jj.Version) []Round {
 
 	for i := range versions {
 		v := &versions[i]
-		before := ""
+		before, wasConflicted := "", false
 		if i > 0 {
-			before = versions[i-1].Description
+			before, wasConflicted = versions[i-1].Description, versions[i-1].Conflict
 		}
 
-		moved := i > 0 && v.Files == 0 && v.Description == before
+		conflicted, resolved := v.Conflict && !wasConflicted, !v.Conflict && wasConflicted
+		moved := i > 0 && v.Files == 0 && v.Description == before && !conflicted && !resolved
 
 		if moved && len(out) > 0 && out[len(out)-1].Moved {
 			last := &out[len(out)-1]
@@ -60,18 +66,20 @@ func Group(versions []jj.Version) []Round {
 		}
 
 		out = append(out, Round{
-			From:    v.Previous(),
-			To:      v.CommitID,
-			Verb:    jj.VerbOf(v.Operation),
-			Age:     v.Age,
-			Before:  before,
-			After:   v.Description,
-			First:   i + 1,
-			Last:    i + 1,
-			Files:   v.Files,
-			Added:   v.Added,
-			Removed: v.Removed,
-			Moved:   moved,
+			From:       v.Previous(),
+			To:         v.CommitID,
+			Verb:       jj.VerbOf(v.Operation),
+			Age:        v.Age,
+			Before:     before,
+			After:      v.Description,
+			First:      i + 1,
+			Last:       i + 1,
+			Files:      v.Files,
+			Added:      v.Added,
+			Removed:    v.Removed,
+			Moved:      moved,
+			Conflicted: conflicted,
+			Resolved:   resolved,
 		})
 	}
 
@@ -83,6 +91,10 @@ func (r Round) Label() string {
 	switch {
 	case r.Moved:
 		return Moved
+	case r.Conflicted:
+		return r.Verb + ", became conflicted"
+	case r.Resolved:
+		return r.Verb + ", conflict resolved"
 	case r.From == "":
 		return r.Verb + ", the first version"
 	case r.Files == 0 && r.Before != r.After:
@@ -126,8 +138,13 @@ func (r Round) Prose() string {
 		out += "description was: " + firstLine(r.Before) + "\n" + "description now: " + firstLine(r.After) + "\n"
 	}
 
-	if r.Moved {
+	switch {
+	case r.Moved:
 		out += "(" + Moved + ")\n"
+	case r.Conflicted:
+		out += "(this version holds a conflict the one before it did not)\n"
+	case r.Resolved:
+		out += "(this version resolved the conflict the one before it held)\n"
 	}
 
 	return out
