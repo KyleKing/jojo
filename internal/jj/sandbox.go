@@ -278,6 +278,7 @@ func gitObjects(store string) (string, error) {
 	}
 
 	objects := filepath.Join(dir, "objects")
+	//nolint:gosec // G703: the objects directory git's own commondir and .git pointer name.
 	if info, err := os.Stat(objects); err != nil || !info.IsDir() {
 		return "", fmt.Errorf("preview sandbox: %w: no objects at %s", errNotGitDir, objects)
 	}
@@ -286,7 +287,7 @@ func gitObjects(store string) (string, error) {
 }
 
 func followGitFile(dir string) (string, error) {
-	info, err := os.Stat(dir)
+	info, err := os.Stat(dir) //nolint:gosec // G703: jj's git_target, the store's own pointer.
 	if err != nil {
 		return "", fmt.Errorf("preview sandbox: %w", err)
 	}
