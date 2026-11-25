@@ -546,7 +546,7 @@ func (m Model) submitChips() string {
 	}
 
 	for _, pinned := range []struct{ action, what string }{
-		{help.ActionSubmitRun, "submit"}, {keys.ActionBack, "cancel"},
+		{help.ActionSubmitRun, "submit"}, {keys.ActionBack, wordCancel},
 	} {
 		if h, ok := m.keys.Hint(pinned.action); ok {
 			h.What, h.Pin = pinned.what, true

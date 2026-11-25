@@ -442,8 +442,8 @@ func assertDescription(t *testing.T, row string, whole bool) {
 }
 
 // d describes the outline's chapter, since the submit's refusal names d for an undescribed change,
-// and what is typed before the prompt has read the description goes into it rather than running as
-// commands: o, c, s, and : here would otherwise open panels and the palette.
+// and what is typed before the prompt has read the description goes into it, at the end where the
+// cursor starts, rather than running as commands: o, c, s, and : here would otherwise open panels.
 func TestOutline_DescribeTakesTypeaheadAsText(t *testing.T) {
 	t.Parallel()
 
@@ -457,7 +457,7 @@ func TestOutline_DescribeTakesTypeaheadAsText(t *testing.T) {
 	keys := make([]string, 0, 8)
 	keys = append(keys, "d")
 
-	for _, r := range "docs: " {
+	for _, r := range " docs" {
 		keys = append(keys, string(r))
 	}
 
@@ -468,8 +468,8 @@ func TestOutline_DescribeTakesTypeaheadAsText(t *testing.T) {
 	}
 
 	got := strings.TrimSpace(jjRun(t, dir, "log", "--no-graph", "--ignore-working-copy", "-r",
-		"description(substring:'docs:')", "-T", "description"))
-	if got != "docs: top" {
-		t.Errorf("the chapter's description is %q, want the text typed after d before the old one", got)
+		"description(substring:'docs')", "-T", "description"))
+	if got != "top docs" {
+		t.Errorf("the chapter's description is %q, want the text typed after d added at the end", got)
 	}
 }

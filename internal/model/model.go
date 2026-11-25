@@ -227,6 +227,8 @@ type Model struct {
 	dockSeq int
 	// bandShown is how many rows the band took when the layout was last sized.
 	bandShown int
+	// promptShown is how many rows the docked prompt took when the layout was last sized.
+	promptShown int
 	// logBox is the log's width and height as last sized, which an empty log's card fills.
 	logBox [2]int
 	docked bool
@@ -467,8 +469,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Focusing or leaving the revset box, or a log read under another revset, adds or drops the
 	// revset row, which every pane under it is sized around; the coach's band grows and shrinks with
-	// what it has to say.
-	if after.revsetShown != after.revsetRow() || after.bandShown != len(after.bandLines()) {
+	// what it has to say, and the docked prompt with the lines typed into it.
+	if after.revsetShown != after.revsetRow() || after.bandShown != len(after.bandLines()) ||
+		after.promptShown != after.prompt.Rows(after.height) {
 		after.resize()
 	}
 
@@ -699,6 +702,7 @@ func (m *Model) resize() {
 	m.forge.SetSize(m.width, forgeHeight)
 	m.revsetShown = m.revsetRow()
 	m.bandShown = len(m.bandLines())
+	m.promptShown = m.prompt.Rows(m.height)
 	// The outline's columns depend on whether it shares the width, and the dock's share on them.
 
 	width, height := m.width, m.logHeight()
@@ -735,7 +739,8 @@ func (m Model) logHeight() int {
 		findHeight = findRows
 	}
 
-	return max(0, m.height-footerRows-m.revsetHeight()-forgeHeight-findHeight-m.inspectorRows()-m.bandShown)
+	return max(0, m.height-footerRows-m.revsetHeight()-forgeHeight-findHeight-m.inspectorRows()-m.bandShown-
+		m.promptShown)
 }
 
 // revsetRow reports whether the revset box gets its row: while it is being edited, and once the log
@@ -795,7 +800,6 @@ func (m Model) overlay() func(width, height int) string {
 		{m.detail.View, m.detail.IsOpen()},
 		{m.diffFrame, m.diff.IsOpen()},
 		{m.files.View, m.files.IsOpen()},
-		{m.prompt.View, m.prompt.IsOpen()},
 		{m.destPicker.View, m.destPicker.IsOpen()},
 		{m.opLogFrame, m.opLog.IsOpen()},
 		{m.spaces.View, m.spaces.IsOpen()},
@@ -823,14 +827,14 @@ func (m Model) screenFrame() string {
 		// An overlay takes the frame, footer included, so a failure raised while one is open keeps a
 		// row under it rather than happening out of sight.
 		if m.message == "" || m.height <= footerRows {
-			return m.discovered(view(m.width, m.height), 0)
+			return m.discovered(m.withPrompt(view(m.width, m.height)), 0)
 		}
 
-		return m.discovered(view(m.width, m.height-footerRows)+"\n"+m.overlayFooter(), footerRows)
+		return m.discovered(m.withPrompt(view(m.width, m.height-footerRows)+"\n"+m.overlayFooter()), footerRows)
 	}
 
 	if m.submit.active {
-		return m.discovered(m.whichKey(m.submitFrame()), pickRows)
+		return m.discovered(m.whichKey(m.withPrompt(m.submitFrame())), pickRows)
 	}
 
 	if m.pick.active || m.travel.active {
@@ -839,7 +843,7 @@ func (m Model) screenFrame() string {
 			keep = pickRows
 		}
 
-		return m.discovered(m.whichKey(m.modeFrame()), keep)
+		return m.discovered(m.whichKey(m.withPrompt(m.modeFrame())), keep)
 	}
 
 	panes := append(m.revsetPane(), m.logPane())
@@ -853,6 +857,13 @@ func (m Model) screenFrame() string {
 
 	panes = append(panes, m.inspector(m.dockTarget(), m.overflow())...)
 	panes = append(panes, m.bandLines()...)
+
+	// The prompt docks over the footer, the log shortened for it, so what it describes stays in view.
+	if m.prompt.IsOpen() {
+		panes = append(panes, m.prompt.Docked(m.width, m.height), m.promptFooter())
+
+		return m.discovered(strings.Join(panes, "\n"), footerRows)
+	}
 
 	return m.discovered(m.whichKey(strings.Join(append(panes, m.footer()), "\n")), footerRows)
 }

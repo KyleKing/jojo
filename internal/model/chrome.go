@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/ui"
 )
 
 type headOpMsg struct {
@@ -123,6 +124,29 @@ func (m Model) overlayFooter() string {
 	}
 
 	return m.status.View(m.width, statusbar.Context{Message: m.message, Hints: hints})
+}
+
+// promptFooter is the footer under the docked prompt: its keys, after any message.
+func (m Model) promptFooter() string {
+	if m.message == "" {
+		return padLine(ui.FitHints(m.skin.FooterHintStyles(), m.prompt.Hints(), m.width), m.width)
+	}
+
+	return m.status.View(m.width, statusbar.Context{Message: m.message, Hints: m.prompt.Hints()})
+}
+
+// withPrompt docks an open prompt over the bottom of a frame that did not make room for it (a
+// picker, an overlay), replacing those rows with it and the footer that names its keys. The log's
+// own frame docks it itself.
+func (m Model) withPrompt(frame string) string {
+	if !m.prompt.IsOpen() {
+		return frame
+	}
+
+	lines := strings.Split(frame, "\n")
+	keep := max(0, len(lines)-m.prompt.Rows(m.height)-footerRows)
+
+	return strings.Join(append(lines[:keep], m.prompt.Docked(m.width, m.height), m.promptFooter()), "\n")
 }
 
 // fail puts err in the footer; the trail keeps all of what jj said for gm.

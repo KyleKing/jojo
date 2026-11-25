@@ -118,7 +118,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `*` | a file's history, on a file in the file list or the file the cursor is in in the docked or full-screen diff (`git log --follow -- <path>`): the log narrows to the changes that touched it, back through every rename jj detects (it follows them name by name, since `jj log` has no `--follow`), and the dock follows the cursor showing that file alone. The scope is the ancestors of `@` and of the revision you pressed it on, plus whatever the log showed. `Esc` returns to the log, row and dock as they were |
 | `n` / `N` | new on the revision (two or more checked: a merge), or new placed with the picker below |
 | `e` / `E` | edit the revision, or edit its content in the diff editor (`jj diffedit`) |
-| `d` / `D` | describe in a prompt that holds the whole description (`alt+enter` breaks a line, `alt+e` moves to `$EDITOR`), or straight in `$EDITOR` |
+| `d` / `D` | describe in a prompt docked under the log, so the change stays in view, holding the whole description with the cursor at its end (`enter` submits, `ctrl+j` or `alt+enter` breaks a line, `alt+e` moves to `$EDITOR`, `esc` cancels: every prompt keeps that contract), or straight in `$EDITOR` |
 | `c` | commit `@`: describe it and start a new change (`jj commit`) |
 | `s` / `r` / `y` / `R` | squash, rebase, duplicate, or restore, each in the picker below |
 | `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit |

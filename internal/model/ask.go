@@ -33,6 +33,12 @@ type ask struct {
 // keyYes is the one key that answers an ask.
 const keyYes = "y"
 
+// The words the footers give the keys that keep things and back out of them.
+const (
+	wordKeep   = "keep"
+	wordCancel = "cancel"
+)
+
 // openAsk puts a question in the footer, which takes the next key.
 func (m *Model) openAsk(a ask) {
 	m.asking = &a
@@ -55,7 +61,7 @@ func (m Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // askFooter is the footer while an ask is open: the question, cut to leave room for its keys, then
 // the keys themselves, which are never dropped.
 func (m Model) askFooter() string {
-	hints := []keyhint.Hint{{Key: keyYes, What: m.asking.verb}, {Key: "n", What: "keep"}}
+	hints := []keyhint.Hint{{Key: keyYes, What: m.asking.verb}, {Key: "n", What: wordKeep}}
 	if m.asking.undoable {
 		hints = append(hints, keyhint.Hint{Key: "u", What: "undoes it"})
 	}

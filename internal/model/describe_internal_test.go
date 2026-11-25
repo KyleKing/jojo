@@ -1,7 +1,10 @@
 package model
 
 import (
+	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/jj"
@@ -72,5 +75,40 @@ func TestDescribe_AltEHandsTheTypedTextToTheEditor(t *testing.T) {
 
 	if model := asModel(t, done); model.onEditor != nil || model.onSubmit != nil || model.prompt.IsOpen() {
 		t.Error("the describe survived the hand-off, so a later prompt would run it")
+	}
+}
+
+// Describe docks its prompt under the log rather than blanking the screen for a centered box, so the
+// change being described stays in view, and the footer says the prompt's keys.
+func TestDescribe_KeepsTheLogInView(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []struct{ width, height int }{{80, 24}, {120, 35}} {
+		dir := liveRepo(t)
+		m := liveModel(t, dir, "middle")
+		m = asModel(t, update(m, tea.WindowSizeMsg{Width: size.width, Height: size.height}))
+		m = press(t, m, "d")
+
+		if !m.prompt.IsOpen() {
+			t.Fatalf("%dx%d: d did not open the prompt", size.width, size.height)
+		}
+
+		frame := tuitest.StripANSI(m.render())
+		lines := strings.Split(frame, "\n")
+
+		if len(lines) != size.height {
+			t.Errorf("%dx%d: the frame is %d rows", size.width, size.height, len(lines))
+		}
+
+		wants := []string{"bottom", "middle", "top", "─ describe ", "enter submit", "ctrl+j new line", "esc cancel"}
+		for _, want := range wants {
+			if !strings.Contains(frame, want) {
+				t.Errorf("%dx%d: the frame lacks %q:\n%s", size.width, size.height, want, frame)
+			}
+		}
+
+		if footer := lines[len(lines)-1]; !strings.Contains(footer, "esc cancel") {
+			t.Errorf("%dx%d: the last row is %q, want the prompt's keys", size.width, size.height, footer)
+		}
 	}
 }

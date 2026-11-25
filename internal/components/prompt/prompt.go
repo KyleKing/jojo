@@ -1,5 +1,6 @@
-// Package prompt is a single-line text prompt modal over the log, used for
-// jj describe and anything else that needs one string from the user.
+// Package prompt is the text prompt docked under the log, used for jj describe and anything else
+// that needs a string from the user. Every prompt keeps one contract: enter submits, ctrl+j (or
+// alt+enter) breaks the line where the value can hold one, esc cancels, and the footer says so.
 package prompt
 
 import (
@@ -8,8 +9,9 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jojo/internal/ui"
 )
@@ -78,14 +80,15 @@ func (m *Model) Open(title, initial string) tea.Cmd {
 }
 
 // OpenText shows a multi-line field seeded with initial, whose line breaks survive the edit: Enter
-// submits, alt+enter or ctrl+j breaks the line, and alt+e asks for $EDITOR. It is the prompt for a
-// description, whose body and trailers a single line would drop.
+// submits, ctrl+j or alt+enter breaks the line, and alt+e asks for $EDITOR. It is the prompt for a
+// description, whose body and trailers a single line would drop. The cursor starts at the end, so
+// what is typed adds to the text rather than landing in front of it.
 func (m *Model) OpenText(title, initial string) tea.Cmd {
 	m.title = title
 	m.open, m.multiline, m.editor = true, true, true
 	m.editText().SetHeight(maxTextRows)
 	m.editText().SetValue(initial)
-	m.editText().MoveToBegin()
+	m.editText().MoveToEnd()
 
 	return m.editText().Focus()
 }
@@ -162,8 +165,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 // usable input rather than clipping it to nothing.
 const minFieldWidth = 1
 
-// chromeRows is what the title and the hint line take from a multi-line field.
-const chromeRows = 2
+// ruleRows is the row the docked prompt's rule and title take above the field.
+const ruleRows = 1
 
 // minTextRows keeps room to see a line break land in a one-line description.
 const minTextRows = 3
@@ -171,25 +174,52 @@ const minTextRows = 3
 // maxTextRows bounds the multi-line field, since a description is read a screen at a time anyway.
 const maxTextRows = 12
 
-func (m Model) field(width, height int) string {
+// shareOfScreen is the most of the screen the docked prompt takes, a part in this many, so the log
+// it describes stays in view above it.
+const shareOfScreen = 2
+
+// Rows is how many rows the docked prompt takes in a screen height tall: its rule, and the field,
+// which grows with the lines typed into it up to its cap and half the screen. Closed, it takes none.
+func (m Model) Rows(height int) int {
+	if !m.open {
+		return 0
+	}
+
+	return ruleRows + m.fieldRows(height)
+}
+
+func (m Model) fieldRows(height int) int {
+	if !m.multiline {
+		return 1
+	}
+
+	rows := min(maxTextRows, max(minTextRows, m.text.LineCount()+1))
+
+	return max(1, min(rows, height/shareOfScreen-ruleRows))
+}
+
+func (m Model) field(width, rows int) string {
 	if !m.multiline {
 		input := *m.input
-		input.SetWidth(max(width-len([]rune(input.Prompt))-cursorCellWidth, minFieldWidth))
+		input.SetWidth(max(width-lipgloss.Width(input.Prompt)-cursorCellWidth, minFieldWidth))
+		// SetCursor scrolls the field to the new width, so a long value shows the end the cursor is at.
+		input.SetCursor(input.Position())
 
-		return input.View()
+		return table.Truncate(input.View(), width)
 	}
 
 	text := *m.text
 	text.SetWidth(max(width, minFieldWidth))
-	text.SetHeight(max(1, min(height-chromeRows, maxTextRows, max(minTextRows, text.LineCount()+1))))
+	text.SetHeight(rows)
 
 	return text.View()
 }
 
-func (m Model) hints() []keyhint.Hint {
+// Hints are the prompt's keys, for the footer under it: the contract every prompt keeps.
+func (m Model) Hints() []keyhint.Hint {
 	hints := []keyhint.Hint{{Key: "enter", What: "submit"}}
 	if m.multiline {
-		hints = append(hints, keyhint.Hint{Key: "alt+enter", What: "new line"})
+		hints = append(hints, keyhint.Hint{Key: "ctrl+j", What: "new line"})
 	}
 
 	if m.editor {
@@ -204,26 +234,67 @@ func (m Model) hints() []keyhint.Hint {
 // does not otherwise account for.
 const cursorCellWidth = 1
 
-// View renders the title, the field, and a key hint line, centered in a
-// width by height frame.
-func (m Model) View(width, height int) string {
-	styles := m.skin.OverlayStyles()
-	contentWidth := overlay.ContentWidth(width, styles)
-	contentHeight := overlay.ContentHeight(height, styles)
+// fieldIndent sets the field in from the edge, under the rule's title.
+const fieldIndent = " "
 
-	if contentWidth < 1 || contentHeight < 1 {
+// Docked renders the prompt as a panel width wide, Rows(height) tall, for the bottom of a screen
+// height tall: a rule naming what it is for, then the field. The log stays in view above it, so what
+// is being described is on screen while it is written.
+func (m Model) Docked(width, height int) string {
+	if width < 1 || !m.open {
+		return ""
+	}
+
+	rows := m.fieldRows(height)
+	title := table.Truncate(m.title, max(0, width-len("─  ─")))
+	rule := m.skin.Muted.Render("─ ") + m.skin.Title.Render(title) + " "
+	rule += m.skin.Muted.Render(strings.Repeat("─", max(0, width-lipgloss.Width(rule))))
+
+	lines := []string{rule}
+
+	for _, line := range strings.Split(m.field(max(1, width-len(fieldIndent)), rows), "\n") {
+		lines = append(lines, pad(fieldIndent+line, width))
+	}
+
+	for len(lines) < ruleRows+rows {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+
+	return strings.Join(lines[:ruleRows+rows], "\n")
+}
+
+// View renders the docked prompt at the bottom of a width by height frame, its keys on the row under
+// it, for a caller that has no footer of its own to put them in.
+func (m Model) View(width, height int) string {
+	if width < minViewWidth || height < m.Rows(height)+1 {
 		return ui.TooSmall(width, height)
 	}
 
-	hint := ui.FitHints(m.skin.KeyHintStyles(), m.hints(), contentWidth)
+	panel := m.Docked(width, height)
+	hint := pad(ui.FitHints(m.skin.FooterHintStyles(), m.Hints(), width), width)
+	used := m.Rows(height) + 1
 
-	body := strings.Join([]string{
-		m.skin.Title.Render(m.title),
-		m.field(contentWidth, contentHeight),
-		hint,
-	}, "\n")
+	lines := make([]string, 0, height)
+	for range max(0, height-used) {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
 
-	return overlay.Center(body, width, height, styles)
+	lines = append(lines, strings.Split(panel, "\n")...)
+	lines = append(lines, hint)
+
+	return strings.Join(lines[max(0, len(lines)-height):], "\n")
+}
+
+// minViewWidth is the narrowest frame View draws a prompt in: the rule's corner and a cell of field.
+const minViewWidth = 4
+
+// pad fills line to width cells, never cutting a styled string.
+func pad(line string, width int) string {
+	if gap := width - lipgloss.Width(line); gap > 0 {
+		return line + strings.Repeat(" ", gap)
+	}
+
+	return line
 }
 
 // editInput replaces the single-line field with a copy of its own and returns it to edit.

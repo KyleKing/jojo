@@ -21,4 +21,4 @@
 
  parse: read the new header format                                              
 -m parse: the header                                                            
--t into  -o new onto  -A new after  p show before  enter squash  esc cancel     
+enter keep  esc cancel                                                          

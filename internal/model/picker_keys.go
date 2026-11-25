@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/ui"
 )
 
 // pickRows is the picker's footer: the command line and its flags, one row more than the log's.
@@ -168,8 +169,15 @@ func stepPast(msg tea.KeyPressMsg) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: 'j', Text: "j"}
 }
 
-// pickFooter is the command being built, then the flags that change it.
+// pickFooter is the command being built, then the flags that change it. While -m is being typed the
+// second line is the prompt's keys instead, the contract every prompt keeps.
 func (m Model) pickFooter() string {
+	if m.typingMessage() {
+		hints := []keyhint.Hint{{Key: keyEnter, What: wordKeep}, {Key: keyEsc, What: wordCancel}}
+
+		return m.pickStatus() + "\n" + padLine(ui.FitHints(m.skin.FooterHintStyles(), hints, m.width), m.width)
+	}
+
 	return m.pickStatus() + "\n" + m.pickChips()
 }
 
@@ -310,7 +318,7 @@ func (m Model) pickChips() string {
 	}
 
 	for _, pinned := range []struct{ action, what string }{
-		{help.ActionPickApply, pickVerbNames[p.verb]}, {keys.ActionBack, "cancel"},
+		{help.ActionPickApply, pickVerbNames[p.verb]}, {keys.ActionBack, wordCancel},
 	} {
 		if h, ok := m.keys.Hint(pinned.action); ok {
 			h.What, h.Pin = pinned.what, true

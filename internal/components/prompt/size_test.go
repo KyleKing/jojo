@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
 
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/tuitest"
@@ -38,14 +37,11 @@ func TestViewDegradesHintsRatherThanSplittingOne(t *testing.T) {
 	m := prompt.New(skin)
 	m.Open(worstCaseTitle, worstCaseInitial)
 
-	styles := skin.OverlayStyles()
 	for _, size := range tuitest.HintSizes() {
-		contentWidth := overlay.ContentWidth(size.Width, styles)
-
-		want := tuitest.StripANSI(ui.FitHints(skin.KeyHintStyles(), []keyhint.Hint{
+		want := tuitest.StripANSI(ui.FitHints(skin.FooterHintStyles(), []keyhint.Hint{
 			{Key: "enter", What: "submit"},
 			{Key: "esc", What: "cancel"},
-		}, contentWidth))
+		}, size.Width))
 
 		got := tuitest.StripANSI(m.View(size.Width, size.Height))
 		if !strings.Contains(got, want) {
