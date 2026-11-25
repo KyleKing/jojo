@@ -1,12 +1,15 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jojo/internal/components/oplogview"
 	"github.com/kyleking/jojo/internal/jj"
+	"github.com/kyleking/jojo/internal/tuitest"
 )
 
 func operations() []jj.Operation {
@@ -67,5 +70,30 @@ func TestOpLogShow_ReadsTheDiffIntoThePane(t *testing.T) {
 
 	if msg, ok := cmd().(diffLoadedMsg); !ok || msg.title != "operation aaa111" {
 		t.Errorf("showing an operation produced %#v, want a diff read for the pane", msg)
+	}
+}
+
+// Opened over the log as it stood, the op log showed six operations of two hundred on a 35-row
+// terminal. It takes half the frame, so a reader sees enough of the list to choose by.
+func TestOpLogFrame_ListsEnoughOperations(t *testing.T) {
+	t.Parallel()
+
+	ops := make([]jj.Operation, 200)
+	for i := range ops {
+		ops[i] = jj.Operation{ID: fmt.Sprintf("op%04d", i), Description: "describe commit", Age: "1h"}
+	}
+
+	ops[0].Current = true
+
+	for _, size := range []struct{ height, want int }{{35, 10}, {24, 5}} {
+		m := testModel(t, twoRows())
+		m, _ = deliver(m, ops, nil, showOpLog)
+		m.travel.active = true
+
+		frame := tuitest.StripANSI(m.opLogFrame(120, size.height))
+		if got := strings.Count(frame, "describe commit"); got < size.want {
+			t.Errorf("at %d rows the op log lists %d operations, want at least %d:\n%s", size.height, got,
+				size.want, frame)
+		}
 	}
 }

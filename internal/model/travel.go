@@ -356,12 +356,14 @@ func (m Model) opLogFrame(width, height int) string {
 
 // Below minTravelSplit rows the op log keeps the frame to itself, since a list and a log split any
 // smaller would each show too little to choose by.
-// The op log takes opListShare of every opListOf rows, the rest going to the log it explains.
+// The op log takes opListShare of every opListOf rows, the rest going to the log it explains: half,
+// since its frame spends seven rows on its border, title, and keys, and at two fifths a 35-row
+// terminal showed six operations of two hundred.
 const (
 	minTravelSplit = 16
 	minOpList      = 7
-	opListShare    = 2
-	opListOf       = 5
+	opListShare    = 1
+	opListOf       = 2
 )
 
 // minOps is the fewest operations a trip needs: the present and one before it.
