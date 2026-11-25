@@ -1,3 +1,10 @@
+## v0.27.2 (2026-11-25)
+
+### Fix
+
+- **jjdiff**: read jj-diff v0.15.2's outcome line, and require that release
+- **picker**: say in the picker's own status line why enter did nothing
+
 ## v0.27.1 (2026-11-25)
 
 ### Fix
