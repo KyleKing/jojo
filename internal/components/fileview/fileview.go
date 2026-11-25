@@ -1,7 +1,7 @@
 // Package fileview is the panel listing the files one revision touches, with the diff, the restore,
-// and the conflict resolution that only make sense per file. The file list of the working copy also
-// speaks git: it lists the parent's files as staged, and stages, unstages, and commits with the
-// parent standing in for the index. The parent passes the files it already read and performs the jj
+// and the conflict resolution that only make sense per file. Space checks files and never writes;
+// squash, split, and (in the working copy) commit act on the checked files, or on the file under the
+// cursor when none is checked. The parent passes the files it already read and performs the jj
 // calls; this package never calls jj.
 package fileview
 
@@ -30,10 +30,18 @@ type RestoreMsg struct {
 	Path     string
 }
 
-// MoveMsg asks to move one file into another revision, leaving the rest of this one alone.
+// MoveMsg asks to move files into another revision, leaving the rest of this one alone.
 type MoveMsg struct {
 	Revision string
-	Path     string
+	Paths    []string
+}
+
+// SplitMsg asks to split files out of the revision into a commit of their own.
+type SplitMsg struct {
+	Revision string
+	// Message is the revision's description, which the split-out commit offers to start from.
+	Message string
+	Paths   []string
 }
 
 // ResolveMsg asks to run the merge tool over one conflicted file.
@@ -42,74 +50,53 @@ type ResolveMsg struct {
 	Path     string
 }
 
-// StageMsg asks to move one file from the working copy into its parent, git's `add`.
-type StageMsg struct {
-	Revision string
-	Path     string
-}
-
-// UnstageMsg asks to move one file from the working copy's parent back into it, git's
-// `restore --staged`.
-type UnstageMsg struct {
-	Revision string
-	Path     string
-}
-
-// CommitMsg asks to describe the index and start a fresh one, git's `commit`.
+// CommitMsg asks to commit files of the working copy, `jj commit <paths>`: they keep @ and its
+// description, and the rest moves to a fresh change on top.
 type CommitMsg struct {
 	Revision string
-	// Message is the index's description, offered as the commit message.
+	// Message is the working copy's description, offered as the commit message.
 	Message string
+	Paths   []string
 }
 
 // CancelledMsg is sent when the panel is dismissed without an action.
 type CancelledMsg struct{}
 
-// Staging is what the file list of @ adds when it speaks git: the parent standing in for the index
-// and the files staged in it, or why the parent cannot stand in for one.
-type Staging struct {
-	// Index is the change id of @-, empty when Refused says why there is none.
-	Index string
-	// Refused is shown in place of acting when a staging key is pressed, so the vocabulary never
-	// rewrites a revision past the working copy.
-	Refused string
-	// Message is the index's description, which a commit offers to keep.
-	Message string
-	Files   []jj.FileChange
-}
-
-// entry is one row: a file and the revision it belongs to, which in the file list of @ is either the
-// working copy or the index below it.
+// entry is one row: a file and the revision it belongs to.
 type entry struct {
 	revision string
 	jj.FileChange
-	staged bool
 }
 
-// Model is the panel's state: the files it lists and the revision they belong to.
+// Model is the panel's state: the files it lists, the revision they belong to, and which are checked.
 type Model struct {
 	skin     ui.Skin
 	revision string
-	staging  *Staging
-	list     listview.Model[entry]
-	hints    Hints
+	// message is the revision's description, which a commit or a split offers to start from.
+	message string
+	checked map[string]bool
+	list    listview.Model[entry]
+	hints   Hints
+	// workingCopy offers c, which jj only runs on @.
+	workingCopy bool
 }
 
 // Hints are the footer's keys by role, which the caller builds from its keymap so a rebind reaches
 // the footer. A role left empty keeps the default key.
 type Hints struct {
-	Diff, Restore, Squash, Resolve, Stage, Commit, Close keyhint.Hint
+	Diff, Check, Squash, Split, Commit, Restore, Resolve, Close keyhint.Hint
 }
 
 // DefaultHints are the keys the panel answers, which jojo's keymap binds by default.
 func DefaultHints() Hints {
 	return Hints{
 		Diff:    keyhint.Hint{Key: "enter", What: "diff"},
+		Check:   keyhint.Hint{Key: "space", What: "check"},
+		Squash:  keyhint.Hint{Key: "s", What: "squash…"},
+		Split:   keyhint.Hint{Key: "S", What: "split…"},
+		Commit:  keyhint.Hint{Key: "c", What: "commit checked"},
 		Restore: keyhint.Hint{Key: "R", What: "restore"},
-		Squash:  keyhint.Hint{Key: "s", What: "squash"},
 		Resolve: keyhint.Hint{Key: "x", What: "resolve"},
-		Stage:   keyhint.Hint{Key: "space", What: "stage"},
-		Commit:  keyhint.Hint{Key: "c", What: "commit"},
 		Close:   keyhint.Hint{Key: "esc", What: "close"},
 	}
 }
@@ -119,53 +106,41 @@ func (m *Model) SetHints(h Hints) { m.hints = h }
 
 // New returns a closed panel drawn in skin.
 func New(skin ui.Skin) Model {
-	return Model{skin: skin, list: listview.New[entry](skin), hints: DefaultHints()}
+	return Model{skin: skin, list: listview.New[entry](skin), hints: DefaultHints(), checked: map[string]bool{}}
 }
 
 // Open shows the files of revision, with the cursor on the first conflict when there is one, since
-// a conflict is the only entry here that blocks the rest of the work.
+// a conflict is the only entry here that blocks the rest of the work. The message is the
+// revision's description, which a split offers to start from.
 //
 //nolint:unparam // matches the other panels' Open signature; nothing here needs a command yet.
-func (m *Model) Open(revision string, files []jj.FileChange) tea.Cmd {
-	m.revision, m.staging = revision, nil
-	entries := entriesOf(revision, files, false)
+func (m *Model) Open(revision, message string, files []jj.FileChange) tea.Cmd {
+	m.show(revision, message, files, false)
+
+	return nil
+}
+
+// OpenWorkingCopy is Open for the working copy, where c commits the checked files as well.
+//
+//nolint:unparam // matches the other panels' Open signature; nothing here needs a command yet.
+func (m *Model) OpenWorkingCopy(revision, message string, files []jj.FileChange) tea.Cmd {
+	m.show(revision, message, files, true)
+
+	return nil
+}
+
+func (m *Model) show(revision, message string, files []jj.FileChange, workingCopy bool) {
+	m.revision, m.message, m.workingCopy = revision, message, workingCopy
+	clear(m.checked)
+
+	entries := entriesOf(revision, files)
 	m.list.Open("files in "+revision, entries, firstConflict(entries))
-
-	return nil
 }
 
-// OpenWorkingCopy shows the files of the working copy revision as unstaged, followed by the files of
-// its parent as staged. Reopening the list it already shows keeps the cursor where it was, so staging
-// file after file does not send it back to the top each time.
-//
-//nolint:unparam // matches the other panels' Open signature; nothing here needs a command yet.
-func (m *Model) OpenWorkingCopy(revision string, files []jj.FileChange, staging Staging) tea.Cmd {
-	cursor := -1
-	if m.list.IsOpen() && m.staging != nil && m.revision == revision {
-		cursor = m.list.Cursor()
-	}
-
-	m.revision, m.staging = revision, &staging
-	entries := append(entriesOf(revision, files, false), entriesOf(staging.Index, staging.Files, true)...)
-
-	title := "files in " + revision
-	if staging.Index != "" {
-		title += ", staged in " + staging.Index
-	}
-
-	if cursor < 0 {
-		cursor = firstConflict(entries)
-	}
-
-	m.list.Open(title, entries, cursor)
-
-	return nil
-}
-
-func entriesOf(revision string, files []jj.FileChange, staged bool) []entry {
+func entriesOf(revision string, files []jj.FileChange) []entry {
 	entries := make([]entry, 0, len(files))
 	for _, f := range files {
-		entries = append(entries, entry{revision: revision, FileChange: f, staged: staged})
+		entries = append(entries, entry{revision: revision, FileChange: f})
 	}
 
 	return entries
@@ -205,11 +180,21 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	case "R":
 		return m.send(func(revision, path string) tea.Msg { return RestoreMsg{Revision: revision, Path: path} })
 	case "s":
-		return m.send(func(revision, path string) tea.Msg { return MoveMsg{Revision: revision, Path: path} })
+		return m.sendPaths(func(revision string, paths []string) tea.Msg {
+			return MoveMsg{Revision: revision, Paths: paths}
+		})
+	case "S":
+		message := m.message
+
+		return m.sendPaths(func(revision string, paths []string) tea.Msg {
+			return SplitMsg{Revision: revision, Paths: paths, Message: message}
+		})
 	case "x":
 		return m.resolve()
 	case "space":
-		return m.toggleStaged()
+		m.toggleChecked()
+
+		return nil
 	case "c":
 		return m.commit()
 	case "esc", "q", "h":
@@ -254,55 +239,72 @@ func (m Model) Selected() (string, string, bool) {
 	return file.revision, file.Path, ok
 }
 
-// stagingRefusal is why a staging key does nothing here, "" when it can act.
-func (m *Model) stagingRefusal() string {
-	switch {
-	case m.staging == nil:
-		return "staging works in the files of the working copy, @"
-	case m.staging.Refused != "":
-		return m.staging.Refused
-	}
-
-	return ""
-}
-
-// toggleStaged stages a working-copy file and unstages a staged one, as space does in lazygit.
-func (m *Model) toggleStaged() tea.Cmd {
-	if why := m.stagingRefusal(); why != "" {
-		m.list.Warn(why)
-
-		return nil
-	}
-
+// toggleChecked checks the file under the cursor, or unchecks a checked one. It never writes: the
+// verbs that follow act on what is checked.
+func (m *Model) toggleChecked() {
 	file, ok := m.list.Selected()
 	if !ok {
+		return
+	}
+
+	if m.checked[file.Path] {
+		delete(m.checked, file.Path)
+
+		return
+	}
+
+	m.checked[file.Path] = true
+}
+
+// Checked is the paths checked, in list order.
+func (m Model) Checked() []string {
+	var out []string
+
+	for _, file := range m.list.Items() {
+		if m.checked[file.Path] {
+			out = append(out, file.Path)
+		}
+	}
+
+	return out
+}
+
+// targets is what a verb acts on: the checked files, else the file under the cursor.
+func (m Model) targets() []string {
+	if checked := m.Checked(); len(checked) > 0 {
+		return checked
+	}
+
+	if file, ok := m.list.Selected(); ok {
+		return []string{file.Path}
+	}
+
+	return nil
+}
+
+func (m *Model) sendPaths(build func(revision string, paths []string) tea.Msg) tea.Cmd {
+	paths := m.targets()
+	if len(paths) == 0 {
 		return nil
 	}
 
-	revision, path := m.revision, file.Path
-	if file.staged {
-		return func() tea.Msg { return UnstageMsg{Revision: revision, Path: path} }
-	}
+	revision := m.revision
 
-	return func() tea.Msg { return StageMsg{Revision: revision, Path: path} }
+	return func() tea.Msg { return build(revision, paths) }
 }
 
 func (m *Model) commit() tea.Cmd {
-	if why := m.stagingRefusal(); why != "" {
-		m.list.Warn(why)
+	if !m.workingCopy {
+		m.list.Warn("commit works in the files of the working copy, @; S splits files out here")
 
 		return nil
 	}
 
-	if len(m.staging.Files) == 0 {
-		m.list.Warn("nothing staged: space stages the file under the cursor")
+	message := m.message
 
-		return nil
-	}
-
-	revision, message := m.revision, m.staging.Message
-
-	return func() tea.Msg { return CommitMsg{Revision: revision, Message: message} }
+	return m.sendPaths(func(revision string, paths []string) tea.Msg {
+		return CommitMsg{Revision: revision, Paths: paths, Message: message}
+	})
 }
 
 func (m *Model) resolve() tea.Cmd {
@@ -322,28 +324,18 @@ func (m *Model) resolve() tea.Cmd {
 	return func() tea.Msg { return ResolveMsg{Revision: revision, Path: path} }
 }
 
-// View renders one row per file, centered in a width by height frame. The file list of @ leads with
-// git's words, since that is who the staging keys are for.
+// View renders one row per file, centered in a width by height frame.
 func (m Model) View(width, height int) string {
 	h := m.hints
-	hints := []keyhint.Hint{h.Diff, h.Restore, h.Squash, h.Resolve, h.Close}
+	hints := []keyhint.Hint{h.Diff, h.Check, h.Squash}
 
-	if m.staging != nil {
-		stage := h.Stage
-		stage.What = m.spaceWord()
-		hints = append([]keyhint.Hint{stage, h.Commit}, hints...)
+	if m.workingCopy {
+		hints = append(hints, h.Commit)
 	}
+
+	hints = append(hints, h.Split, h.Restore, h.Resolve, h.Close)
 
 	return m.list.View(width, height, m.row, hints)
-}
-
-// spaceWord names what space does to the row under the cursor.
-func (m Model) spaceWord() string {
-	if file, ok := m.list.Selected(); ok && file.staged {
-		return "unstage"
-	}
-
-	return "stage"
 }
 
 // statusWidth keeps the paths in a column past jj's one-letter status.
@@ -353,11 +345,11 @@ const statusWidth = 2
 // names, which is every conflict in a merge.
 const conflictMark = "!"
 
-// stagedTag marks a row of the index in the file list of @, and stagedWidth keeps the working
-// copy's paths in the same column beside it.
+// checkMark leads a checked row, the same mark the log's checked revisions carry, and checkWidth
+// keeps every path in one column beside it.
 const (
-	stagedTag   = "staged"
-	stagedWidth = len(stagedTag) + 1
+	checkMark  = "●"
+	checkWidth = 2
 )
 
 func (m Model) row(file entry, selected bool) listview.Row {
@@ -376,36 +368,28 @@ func (m Model) row(file entry, selected bool) listview.Row {
 		style = m.skin.Selected
 	}
 
-	text := table.Pad(status, statusWidth, table.AlignLeft) + " "
-
-	tag := ""
-	if m.staging != nil {
-		if file.staged {
-			tag = stagedTag
-		}
-
-		text += table.Pad(tag, stagedWidth, table.AlignLeft)
+	mark := ""
+	if m.checked[file.Path] {
+		mark = checkMark
 	}
+
+	text := table.Pad(mark, checkWidth, table.AlignLeft) + table.Pad(status, statusWidth, table.AlignLeft) + " "
 
 	out := listview.Row{Text: text + file.Path, Style: style}
 	if !selected {
-		out.Drawn = m.drawn(file, status, style, tag)
+		out.Drawn = m.drawn(file, status, style, mark)
 	}
 
 	return out
 }
 
-// drawn is a file's row in pieces: its status in the status's color, the
-// index's tag a step back, the file type's icon, and the path with its
-// directory muted so the eye lands on the name.
-func (m Model) drawn(file entry, status string, style lipgloss.Style, tag string) string {
+// drawn is a file's row in pieces: the check mark in the accent, its status in the status's color,
+// the file type's icon, and the path with its directory muted so the eye lands on the name.
+func (m Model) drawn(file entry, status string, style lipgloss.Style, mark string) string {
 	var b strings.Builder
 
+	b.WriteString(m.skin.Accent.Render(table.Pad(mark, checkWidth, table.AlignLeft)))
 	b.WriteString(style.Render(table.Pad(status, statusWidth, table.AlignLeft)) + " ")
-
-	if m.staging != nil {
-		b.WriteString(m.skin.Muted.Render(table.Pad(tag, stagedWidth, table.AlignLeft)))
-	}
 
 	if g := m.skin.Icons.File(file.Path); g.Text != "" {
 		b.WriteString(lipgloss.NewStyle().Foreground(g.Color).Render(g.Prefix()))

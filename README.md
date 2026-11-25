@@ -106,7 +106,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | --- | --- |
 | `j` / `k`, `gg` / `G`, `Ctrl+d` / `Ctrl+u` | move a revision (skipping graph connectors), top / bottom, half a page |
 | `@` | jump to the working copy |
-| `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `y` `r` `s` `P` run over all of them instead of the cursor; a write that goes through clears them |
+| `space` / `Esc` | check a revision, or clear the checks. While any are checked the footer counts them and `a` `n` `y` `r` `s` `P` run over all of them instead of the cursor; a write that goes through clears them. In the file list `space` checks files for `s`, `S`, and `c` (below). A check never writes |
 | `/` | search the log, stepping matches with `Ctrl+n` and `Ctrl+p` |
 | `:` | the command palette: search every action by its words, its jj command, or git's (`amend` finds squash, `stash` and `checkout` find new, `branch` finds bookmarks), and `Enter` runs it; `squash -i` opens squash's picker with `-i` on. After a run the footer names the key that would have done it. `:next` and `:tips off` are here too |
 | `L` | edit the revset, which re-filters the log as you type; `Tab` completes, `Enter` returns to the log |
@@ -173,16 +173,16 @@ makes all of them reversible. The footer keeps naming the operation `u` would re
 the way back is never a guess. `u` and `Ctrl+r` are jj's own `jj undo` and `jj redo`, so
 they step through the operation log the way an editor's undo stack does.
 
-### Staging, for people coming from git
+### Checking files, for people coming from git
 
-The file list of the working copy (`l` on `@`) also speaks git, without changing anything else
-about jj. `@-` stands in for the index: it lists the working copy's own files as unstaged and
-`@-`'s files beneath them as staged. `space` stages the file under the cursor
-(`jj squash --from @ --into @- <path>`) or unstages a staged one (the same squash in the other
-direction), and `c` commits: it describes `@-` and inserts a fresh empty change between it and `@`
-to be the next index. None of the three changes a file in the working copy, only which revision
-records it. When `@-` is immutable, has another child, or `@` is a merge, the keys refuse and say
-why rather than rewrite past the working copy.
+The file list (`l`) has no index to stage into, because jj does not need one. `space` checks
+files there, the same tick that checks revisions in the log, and like every tick it never writes.
+The verbs then act on the checked files, or on the file under the cursor when none is checked:
+`s` squashes them into a change you pick (`jj squash --from <rev> --into <dest> <paths>`), `S`
+splits them out of the revision into a commit of their own (`jj split -r <rev> <paths>`), and in the
+working copy `c` commits them (`jj commit <paths>`): they keep `@` and its description, and the
+rest moves to a fresh change on top. That is `git add` and `git commit` in one step, and each is
+one operation `u` takes back.
 
 Two things ask first, because `jj undo` cannot take them back: a push, which has left the
 machine, and an edit to a revision jj marks immutable. The second is not a wall. jj

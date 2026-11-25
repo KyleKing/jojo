@@ -70,7 +70,7 @@ func TestFileList_LabelJumpAndJumpList(t *testing.T) {
 	t.Parallel()
 
 	m := verbFrame(t, [2]int{100, 30}, "rnzxmskv")
-	m.files.Open("rnzxmskv", []jj.FileChange{
+	m.files.Open("rnzxmskv", "", []jj.FileChange{
 		{Status: "M", Path: "a.go"}, {Status: "M", Path: "b.go"}, {Status: "A", Path: "c.go"},
 	})
 	_ = m.render()
@@ -116,7 +116,7 @@ func TestFileList_LabelFrames(t *testing.T) {
 			t.Parallel()
 
 			m := verbFrame(t, size, "rnzxmskv")
-			m.files.Open("rnzxmskv", []jj.FileChange{
+			m.files.Open("rnzxmskv", "", []jj.FileChange{
 				{Status: "M", Path: "parse/header.go"},
 				{Status: "M", Path: "parse/reader.go"},
 				{Status: "A", Path: "parse/reader_test.go"},

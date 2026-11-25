@@ -1,10 +1,10 @@
 ╭──────────────────────────────────────╮
 │                                      │
-│  ── files in wcwcwcwc, staged in id  │
-│  M         unstaged.go               │
-│  A         new.go                    │
-│  M  staged staged.go                 │
-│  [space] stage  …  [esc] close       │
+│  ── files in wcwcwcwc ─────────────  │
+│  ● M  one.go                         │
+│    A  two.go                         │
+│  ● D  three.go                       │
+│  [enter] diff  …  [esc] close        │
 │                                      │
 ╰──────────────────────────────────────╯
                                         

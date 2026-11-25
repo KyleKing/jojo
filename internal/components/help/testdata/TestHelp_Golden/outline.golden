@@ -15,8 +15,9 @@ ctrl+d   half a page down
 ctrl+u   half a page up                                             
 ── Find
 /        search                                                     
-── Read
+── Mark
 space    mark the hunk read                                         
+── Read
 U        only what is unread                                        
 H        choose the round to compare against                        jj evolog -r <rev>
 I        outline                                                    jj log -r 'trunk()..<rev> | <rev>:: ~ ::trunk()'

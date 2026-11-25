@@ -54,13 +54,12 @@ E        edit the revision's content in the diff editor             jj diffedit 
 d        describe                                                   jj describe -r <rev> -m <message>
 D        describe in $EDITOR                                        jj describe -r <rev>
 c        commit @: describe it and start a new one                  jj commit -m <message>
-S        split into commits, one column each, in jj-diff            jj-diff --split -r <rev>
+S        split into commits (files: the checked ones out)           jj-diff --split -r <rev>
 a        abandon                                                    jj abandon <revs>
 A        absorb into the revisions that last touched each line      jj absorb -r <rev>
 x        resolve the conflict, side by side in jj-diff              jj-diff --resolve -r <rev>
 X        converge divergent changes                                 jj converge [-r change_id(<rev>)]
 |        parallelize the checked revisions                          jj parallelize <revs>
-space    check for a batch action                                   
 B        bisect between the two checked revisions                   jj bisect run --range <a>::<b>
 ── Pick where it goes
 N        new, choosing where it goes                                jj new -o/-A/-B <dest>
@@ -68,6 +67,8 @@ s        squash, choosing where into                                jj squash --
 y        duplicate, choosing where (enter: in place)                jj duplicate <rev> [-o/-A/-B <dest>]
 r        rebase, choosing where                                     jj rebase -r <rev> -o <dest>
 R        restore content from another revision (the parent: discard) jj restore --from <src> --into <rev>
+── Mark
+space    check for a batch verb (never writes)                      
 ── Repository
 o        op log, with the log as it stood at each operation         jj op log
 [o       the log one operation back, read-only                      jj log --at-op <op> --ignore-working-copy

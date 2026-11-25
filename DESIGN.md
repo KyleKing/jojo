@@ -170,18 +170,18 @@ Enter restores to the operation after a confirmation that shows what it was, and
 now. `u` and `Ctrl+r` stay jj's own undo and redo.
 
 **Moving part of a revision is three commands, not a mode.** A whole revision moves with
-`s`, one file with `m` in the file list (`jj squash --from --into <path>`, no editor at
-all), and hunks or lines with `I`, which picks the destination here and hands the terminal
+`s`, the checked files with `s` in the file list (`jj squash --from --into <paths>`, no editor
+at all), and hunks or lines with `I`, which picks the destination here and hands the terminal
 to whichever diff editor the repository configures. jojo never reimplements hunk selection,
 and the file case never pays for an editor it does not need.
 
-**Staging is a reading of jj, not a mode.** The file list of `@` treats `@-` as git's index:
-stage and unstage are `jj squash --keep-emptied` between the two, and commit is `jj describe @-`
-followed by `jj new --insert-after @- --insert-before @`. Each step moves content between `@` and
-`@-` or moves a parent pointer, so none can cost what the working copy holds, and `internal/jj`
-refuses all three when `@-` is immutable, shared with another child, or one of several parents,
-since rewriting it then reaches past the working copy. There is no setting: someone who does not
-think in git never presses the keys.
+**A check is a tick, never a write.** The file list once read `@-` as git's index and staged on
+`space`, which made the one key the family reserves for a tick write to the repository. Staging is
+retired: `space` checks files as it checks revisions in the log, and the verbs that follow act on
+the checked files, else the file under the cursor. `s` is `jj squash --from <rev> --into <dest>
+<paths>`, `S` is `jj split -r <rev> <paths> -m`, and `c` on `@` is `jj commit <paths> -m`, each one
+operation and none needing an editor. A `[keys]` rebind of the old `file-stage` lands on `check`
+with a footer warning saying so.
 
 **The docked diff follows the log, debounced.** `p` draws the diff beside the log (under it
 below 100 columns) and the log keeps the keys. Every cursor move bumps a sequence number and waits

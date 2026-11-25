@@ -2,6 +2,7 @@ package fileview_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,22 +15,26 @@ import (
 	"github.com/kyleking/jojo/internal/ui"
 )
 
-func workingCopy(staging fileview.Staging) fileview.Model {
+func threeFiles() []jj.FileChange {
+	return []jj.FileChange{
+		{Status: "M", Path: "one.go"},
+		{Status: "A", Path: "two.go"},
+		{Status: "D", Path: "three.go"},
+	}
+}
+
+func workingCopy() fileview.Model {
 	m := fileview.New(ui.New(theme.Macchiato()))
-	m.OpenWorkingCopy("wcwcwcwc", []jj.FileChange{
-		{Status: "M", Path: "unstaged.go"},
-		{Status: "A", Path: "new.go"},
-	}, staging)
+	m.OpenWorkingCopy("wcwcwcwc", "wip: parser", threeFiles())
 
 	return m
 }
 
-func indexed() fileview.Staging {
-	return fileview.Staging{
-		Index:   "idxidxid",
-		Message: "wip: parser",
-		Files:   []jj.FileChange{{Status: "M", Path: "staged.go"}},
-	}
+func other() fileview.Model {
+	m := fileview.New(ui.New(theme.Macchiato()))
+	m.Open("otherrev", "older work", threeFiles())
+
+	return m
 }
 
 //nolint:ireturn // a key's outcome is whichever message the list sends.
@@ -48,129 +53,128 @@ func press(t *testing.T, m *fileview.Model, keys ...string) tea.Msg {
 	return cmd()
 }
 
-// The file list of @ reads like lazygit's status panel: the working copy's files first, then what the
-// index holds, each tagged so the two cannot be mistaken for one another at any width.
-func TestView_WorkingCopyListsStagedFilesBelowUnstaged(t *testing.T) {
+// A checked row leads with the log's check mark and the footer names the tick, at every width.
+func TestView_CheckedRowsCarryTheMark(t *testing.T) {
 	t.Parallel()
 
-	for _, size := range []struct{ width, height int }{{60, 12}, {40, 10}} {
+	for _, size := range []struct{ width, height int }{{80, 12}, {60, 12}, {40, 10}} {
 		t.Run(fmt.Sprintf("%dx%d", size.width, size.height), func(t *testing.T) {
 			t.Parallel()
 
-			m := workingCopy(indexed())
+			m := workingCopy()
+			press(t, &m, "space", "j", "j", "space")
 			tuitest.AssertGolden(t, m.View(size.width, size.height))
 		})
 	}
 }
 
-func TestSpace_StagesAWorkingCopyFileAndUnstagesAStagedOne(t *testing.T) {
+// Space is a tick: it sends nothing, so nothing can write, and pressing it again unchecks.
+func TestSpace_ChecksWithoutWriting(t *testing.T) {
 	t.Parallel()
 
-	m := workingCopy(indexed())
+	m := workingCopy()
 
-	stage, ok := press(t, &m, "space").(fileview.StageMsg)
-	if !ok || stage.Path != "unstaged.go" || stage.Revision != "wcwcwcwc" {
-		t.Fatalf("space on an unstaged file sent %#v, want a stage of unstaged.go", stage)
+	if msg := press(t, &m, "space"); msg != nil {
+		t.Fatalf("space sent %T, want nothing: a check never writes", msg)
 	}
 
-	unstage, ok := press(t, &m, "j", "j", "space").(fileview.UnstageMsg)
-	if !ok || unstage.Path != "staged.go" {
-		t.Fatalf("space on a staged file sent %#v, want an unstage of staged.go", unstage)
+	press(t, &m, "j", "j", "space")
+
+	if got := m.Checked(); !slices.Equal(got, []string{"one.go", "three.go"}) {
+		t.Errorf("checked %v", got)
+	}
+
+	press(t, &m, "k", "k", "space")
+
+	if got := m.Checked(); !slices.Equal(got, []string{"three.go"}) {
+		t.Errorf("space again did not uncheck: %v", got)
 	}
 }
 
-// A staged row belongs to the index, so the per-file verbs that already existed act on @- for it.
-func TestEnter_DiffsAStagedFileInTheIndex(t *testing.T) {
+// s, S, and c act on every checked file, and on the file under the cursor when none is checked.
+func TestVerbs_ActOnTheCheckedFilesElseTheCursor(t *testing.T) {
 	t.Parallel()
 
-	m := workingCopy(indexed())
+	paths := func(msg tea.Msg) []string {
+		switch msg := msg.(type) {
+		case fileview.MoveMsg:
+			return msg.Paths
+		case fileview.SplitMsg:
+			return msg.Paths
+		case fileview.CommitMsg:
+			return msg.Paths
+		}
 
-	diff, ok := press(t, &m, "G", "enter").(fileview.DiffMsg)
-	if !ok || diff.Revision != "idxidxid" || diff.Path != "staged.go" {
-		t.Fatalf("enter on a staged file sent %#v, want its diff in the index", diff)
-	}
-}
-
-func TestCommit_OffersTheIndexDescription(t *testing.T) {
-	t.Parallel()
-
-	m := workingCopy(indexed())
-
-	commit, ok := press(t, &m, "c").(fileview.CommitMsg)
-	if !ok || commit.Message != "wip: parser" {
-		t.Fatalf("C sent %#v, want a commit offering the index's description", commit)
-	}
-}
-
-// Each refusal stays in the list as a warning and sends nothing, so no key here can rewrite a revision
-// the vocabulary does not own.
-func TestStagingKeys_RefuseWithAReason(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		open func() fileview.Model
-		name string
-		key  string
-		want string
-	}{
-		{
-			name: "space when the parent cannot be the index",
-			open: func() fileview.Model {
-				return workingCopy(fileview.Staging{Refused: "@- cannot act as the index: zzz is immutable"})
-			},
-			key:  "space",
-			want: "is immutable",
-		},
-		{
-			name: "commit with nothing staged",
-			open: func() fileview.Model { return workingCopy(fileview.Staging{Index: "idxidxid"}) },
-			key:  "c",
-			want: "nothing staged",
-		},
-		{
-			name: "space outside the working copy",
-			open: func() fileview.Model {
-				m := fileview.New(ui.New(theme.Macchiato()))
-				m.Open("other", []jj.FileChange{{Status: "M", Path: "a.go"}})
-
-				return m
-			},
-			key:  "space",
-			want: "working copy",
-		},
+		return nil
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, key := range []string{"s", "S", "c"} {
+		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			m := tc.open()
-			if msg := press(t, &m, tc.key); msg != nil {
-				t.Fatalf("%s sent %T, want nothing", tc.key, msg)
+			m := workingCopy()
+			if got := paths(press(t, &m, "j", key)); !slices.Equal(got, []string{"two.go"}) {
+				t.Errorf("%s with nothing checked acted on %v, want the cursor's file", key, got)
 			}
 
-			if view := tuitest.StripANSI(m.View(80, 12)); !strings.Contains(view, tc.want) {
-				t.Errorf("the list does not say %q:\n%s", tc.want, view)
+			press(t, &m, "k", "space", "j", "j", "space")
+
+			if got := paths(press(t, &m, key)); !slices.Equal(got, []string{"one.go", "three.go"}) {
+				t.Errorf("%s acted on %v, want the checked files", key, got)
 			}
 		})
 	}
 }
 
-// Staging file after file reopens the list each time, and sending the cursor back to the top on every
-// press would make a run of stages walk the same row.
-func TestOpenWorkingCopy_KeepsTheCursorWhenRefreshed(t *testing.T) {
+func TestCommit_OffersTheWorkingCopyDescription(t *testing.T) {
 	t.Parallel()
 
-	m := workingCopy(indexed())
-	press(t, &m, "j")
+	m := workingCopy()
 
-	m.OpenWorkingCopy("wcwcwcwc", []jj.FileChange{{Status: "A", Path: "new.go"}}, fileview.Staging{
-		Index: "idxidxid",
-		Files: []jj.FileChange{{Status: "M", Path: "staged.go"}, {Status: "M", Path: "unstaged.go"}},
-	})
+	commit, ok := press(t, &m, "c").(fileview.CommitMsg)
+	if !ok || commit.Message != "wip: parser" || commit.Revision != "wcwcwcwc" {
+		t.Fatalf("c sent %#v, want a commit offering @'s description", commit)
+	}
+}
 
-	unstage, ok := press(t, &m, "space").(fileview.UnstageMsg)
-	if !ok || unstage.Path != "staged.go" {
-		t.Fatalf("space after a refresh sent %#v, want the row now under the kept cursor", unstage)
+func TestSplit_NamesTheRevision(t *testing.T) {
+	t.Parallel()
+
+	m := other()
+
+	split, ok := press(t, &m, "S").(fileview.SplitMsg)
+	if !ok || split.Revision != "otherrev" || split.Message != "older work" {
+		t.Fatalf("S sent %#v, want a split of otherrev", split)
+	}
+}
+
+// jj commit only takes the working copy, so c elsewhere stays in the list as a warning.
+func TestCommit_RefusesOutsideTheWorkingCopy(t *testing.T) {
+	t.Parallel()
+
+	m := other()
+	if msg := press(t, &m, "c"); msg != nil {
+		t.Fatalf("c sent %T, want nothing", msg)
+	}
+
+	if view := tuitest.StripANSI(m.View(100, 12)); !strings.Contains(view, "working copy") {
+		t.Errorf("the list does not say why:\n%s", view)
+	}
+
+	if view := tuitest.StripANSI(m.View(100, 12)); strings.Contains(view, "c commit") {
+		t.Errorf("the footer offers c where it refuses:\n%s", view)
+	}
+}
+
+// Reopening the list, as every write's reload does, starts with nothing checked.
+func TestOpen_ClearsTheChecks(t *testing.T) {
+	t.Parallel()
+
+	m := workingCopy()
+	press(t, &m, "space")
+	m.OpenWorkingCopy("wcwcwcwc", "wip", threeFiles())
+
+	if got := m.Checked(); len(got) != 0 {
+		t.Errorf("checks survived a reopen: %v", got)
 	}
 }

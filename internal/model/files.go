@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -16,144 +15,97 @@ import (
 	"github.com/kyleking/jojo/internal/jjdiff"
 )
 
-func (m Model) loadFiles(revision string) tea.Cmd {
-	client := m.client
+func (m Model) loadFiles(rev jj.Revision) tea.Cmd {
+	client, revision := m.client, rev.ChangeID
 
 	return load(m.ctx,
 		func(ctx context.Context) ([]jj.FileChange, error) { return client.Files(ctx, revision) },
-		showFiles(revision))
+		showFiles(rev))
 }
 
-func showFiles(revision string) func(*Model, []jj.FileChange) tea.Cmd {
+func showFiles(rev jj.Revision) func(*Model, []jj.FileChange) tea.Cmd {
 	return func(m *Model, files []jj.FileChange) tea.Cmd {
 		if len(files) == 0 {
-			m.message = revision + " changes no files"
+			m.message = rev.ChangeID + " changes no files"
 
 			return nil
 		}
 
-		return m.files.Open(revision, files)
-	}
-}
-
-// workingCopyFiles is what the file list of @ shows: its own files as unstaged, and the index below.
-type workingCopyFiles struct {
-	staging fileview.Staging
-	files   []jj.FileChange
-}
-
-// loadWorkingCopyFiles reads the files of @ and of the parent standing in for the index. A parent
-// that cannot be the index is not an error here: the list still opens, and says why when a staging
-// key is pressed. A refresh only redraws a list still open, so a write finishing after the list was
-// closed does not reopen it.
-func (m Model) loadWorkingCopyFiles(revision string, refresh bool) tea.Cmd {
-	client := m.client
-
-	return load(m.ctx,
-		func(ctx context.Context) (workingCopyFiles, error) {
-			return readWorkingCopyFiles(ctx, client, revision)
-		},
-		showWorkingCopyFiles(revision, refresh))
-}
-
-func readWorkingCopyFiles(ctx context.Context, client *jj.Client, revision string) (workingCopyFiles, error) {
-	files, err := client.Files(ctx, revision)
-	if err != nil {
-		return workingCopyFiles{}, fmt.Errorf("listing the files of %s: %w", revision, err)
-	}
-
-	index, err := client.Index(ctx)
-
-	switch {
-	case errors.Is(err, jj.ErrNoIndex):
-		return workingCopyFiles{files: files, staging: fileview.Staging{Refused: err.Error()}}, nil
-	case err != nil:
-		return workingCopyFiles{}, fmt.Errorf("reading the index: %w", err)
-	}
-
-	staged, err := client.Files(ctx, index.ChangeID)
-	if err != nil {
-		return workingCopyFiles{}, fmt.Errorf("listing what is staged in %s: %w", index.ChangeID, err)
-	}
-
-	return workingCopyFiles{
-		files:   files,
-		staging: fileview.Staging{Index: index.ChangeID, Message: index.Description, Files: staged},
-	}, nil
-}
-
-func showWorkingCopyFiles(revision string, refresh bool) func(*Model, workingCopyFiles) tea.Cmd {
-	return func(m *Model, wc workingCopyFiles) tea.Cmd {
-		if refresh && !m.files.IsOpen() {
-			return nil
+		if rev.WorkingCopy {
+			return m.files.OpenWorkingCopy(rev.ChangeID, rev.Description, files)
 		}
 
-		if !refresh && len(wc.files) == 0 && len(wc.staging.Files) == 0 {
-			m.message = revision + " changes no files and nothing is staged"
-
-			return nil
-		}
-
-		return m.files.OpenWorkingCopy(revision, wc.files, wc.staging)
+		return m.files.Open(rev.ChangeID, rev.Description, files)
 	}
 }
 
-// filesKey opens the file list, which for the working copy also lists what is staged beneath it.
+// filesKey opens the file list, where space checks files for s, S, and (on @) c.
 func (m Model) filesKey(rev jj.Revision) tea.Cmd {
-	if rev.WorkingCopy {
-		return m.loadWorkingCopyFiles(rev.ChangeID, false)
-	}
-
-	return m.loadFiles(rev.ChangeID)
+	return m.loadFiles(rev)
 }
 
-// stagingWrite runs one staging verb and redraws the list it was pressed in, which stays open so a
-// run of files can be staged one after another.
-func (m Model) stagingWrite(revision string, write func(context.Context) (string, error)) tea.Cmd {
-	return tea.Sequence(m.run(undoHint, write), m.loadWorkingCopyFiles(revision, true))
-}
-
-// openCommit closes the file list, which would otherwise draw over the prompt, and reopens it once
-// the commit lands so the next round of staging starts where this one left off.
+// openCommit closes the file list, which would otherwise draw over the prompt, and commits the
+// checked files with the message typed (`jj commit <paths> -m`).
 func (m *Model) openCommit(msg fileview.CommitMsg) tea.Cmd {
 	m.files.Close()
 
-	revision := msg.Revision
+	paths := msg.Paths
 	m.onSubmit = func(m Model, message string) (Model, tea.Cmd) {
 		if strings.TrimSpace(message) == "" {
-			return m, tea.Batch(m.say("a commit needs a message"), m.loadWorkingCopyFiles(revision, false))
+			return m, m.say("a commit needs a message")
 		}
 
-		client := m.client
-		cmd := tea.Sequence(
-			m.run(", press u twice to undo", func(ctx context.Context) (string, error) {
-				return client.CommitIndex(ctx, message)
-			}),
-			m.loadWorkingCopyFiles(revision, false),
-		)
+		cmd := m.act(joinPaths(paths), func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.CommitPaths(ctx, message, paths)
+		})
 
 		return m, cmd
 	}
 
-	return m.prompt.Open("commit what is staged", msg.Message)
+	return m.prompt.Open("commit "+countFiles(paths), msg.Message)
+}
+
+// openSplit closes the file list and splits the checked files out of the revision into a commit of
+// their own, before what is left (`jj split -r <rev> <paths> -m`).
+func (m *Model) openSplit(msg fileview.SplitMsg) tea.Cmd {
+	m.files.Close()
+
+	revision, paths := msg.Revision, msg.Paths
+	m.onSubmit = func(m Model, message string) (Model, tea.Cmd) {
+		if strings.TrimSpace(message) == "" {
+			return m, m.say("a split needs a message for the commit it splits out")
+		}
+
+		cmd := m.act(joinPaths(paths), func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.SplitPaths(ctx, revision, message, paths)
+		})
+
+		return m, cmd
+	}
+
+	return m.prompt.Open(fmt.Sprintf("split %s out of %s", countFiles(paths), revision), msg.Message)
+}
+
+// joinPaths names the files a write acts on, for the status line.
+func joinPaths(paths []string) string { return strings.Join(paths, " ") }
+
+// countFiles is "a.txt" for one file and "3 files" for more.
+func countFiles(paths []string) string {
+	if len(paths) == 1 {
+		return paths[0]
+	}
+
+	return fmt.Sprintf("%d files", len(paths))
 }
 
 func (m Model) handleFileMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case fileview.StageMsg:
-		path, client := msg.Path, m.client
-
-		return m, m.stagingWrite(msg.Revision, func(ctx context.Context) (string, error) {
-			return client.Stage(ctx, path)
-		}), true
-	case fileview.UnstageMsg:
-		path, client := msg.Path, m.client
-
-		return m, m.stagingWrite(msg.Revision, func(ctx context.Context) (string, error) {
-			return client.Unstage(ctx, path)
-		}), true
 	case fileview.CommitMsg:
 		cmd := m.openCommit(msg)
+
+		return m, cmd, true
+	case fileview.SplitMsg:
+		cmd := m.openSplit(msg)
 
 		return m, cmd, true
 	case fileview.DiffMsg:
@@ -168,7 +120,7 @@ func (m Model) handleFileMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 
 		return m, cmd, true
 	case fileview.MoveMsg:
-		cmd := m.openMoveFile(msg.Revision, msg.Path)
+		cmd := m.openMoveFile(msg.Revision, msg.Paths)
 
 		return m, cmd, true
 	case fileview.ResolveMsg:
@@ -207,8 +159,9 @@ var fileKeys = map[string]tea.KeyPressMsg{
 	help.ActionFileOpen:    {Code: tea.KeyEnter},
 	help.ActionFileRestore: {Code: 'R', Text: "R"},
 	help.ActionFileSquash:  {Code: 's', Text: "s"},
+	help.ActionSplit:       {Code: 'S', Text: "S"},
 	help.ActionFileResolve: {Code: 'x', Text: "x"},
-	help.ActionFileStage:   {Code: tea.KeySpace, Text: " "},
+	keys.ActionCheck:       {Code: tea.KeySpace, Text: " "},
 	help.ActionFileCommit:  {Code: 'c', Text: "c"},
 	keys.ActionBack:        {Code: tea.KeyEscape},
 	keys.ActionQuit:        {Code: tea.KeyEscape},
@@ -297,8 +250,9 @@ func fileHints(km help.Keymap) fileview.Hints {
 	h := fileview.DefaultHints()
 	for action, hint := range map[string]*keyhint.Hint{
 		help.ActionFileOpen: &h.Diff, help.ActionFileRestore: &h.Restore, help.ActionFileSquash: &h.Squash,
-		help.ActionFileResolve: &h.Resolve, help.ActionFileStage: &h.Stage, help.ActionFileCommit: &h.Commit,
-		keys.ActionBack: &h.Close,
+		help.ActionSplit: &h.Split, help.ActionFileResolve: &h.Resolve, keys.ActionCheck: &h.Check,
+		help.ActionFileCommit: &h.Commit,
+		keys.ActionBack:       &h.Close,
 	} {
 		if bound, ok := km.Hint(action); ok {
 			bound.What = hint.What

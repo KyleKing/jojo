@@ -25,9 +25,12 @@ func TestKeymap_AgreesWithShared(t *testing.T) {
 		t.Errorf("jojo's keys disagree with the shared keymap:\n%s", strings.Join(got, "\n"))
 	}
 
-	if _, err := help.NewKeymap(nil); err != nil {
+	km, err := help.NewKeymap(nil)
+	if err != nil {
 		t.Fatalf("the default keymap does not merge: %v", err)
 	}
+
+	keys.RequireReserved(t, km.Keys())
 }
 
 // screens is every screen jojo reports to the matcher, with the name its golden is filed under.
@@ -259,6 +262,25 @@ func TestDeprecatedActionsResolveWithAWarning(t *testing.T) {
 				t.Errorf("warnings = %q, want one naming %s and %s", w, old, renamed)
 			}
 		})
+	}
+}
+
+// A [keys] rebind of the retired staging key lands on the file list's check, and the warning says what
+// replaced staging, since check never writes where stage did.
+func TestFileStage_RebindsCheckAndSaysStagingIsRetired(t *testing.T) {
+	t.Parallel()
+
+	km, err := help.NewKeymap(map[string]string{"file-stage": "ctrl+t"})
+	if err != nil {
+		t.Fatalf("NewKeymap: %v", err)
+	}
+
+	if got := km.Label(keys.ActionCheck); got != "ctrl+t" {
+		t.Errorf("check is on %q, want the old file-stage key", got)
+	}
+
+	if w := km.Warnings(); len(w) != 1 || !strings.Contains(w[0], "staging is retired") {
+		t.Errorf("warnings = %q, want the staging notice", w)
 	}
 }
 

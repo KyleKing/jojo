@@ -25,8 +25,9 @@ N        repeat the last motion backward
 [u       previous unread                                            
 ]r       next round                                                 jj interdiff --from <a> --to <b>
 [r       previous round                                             jj interdiff --from <a> --to <b>
-── Read
+── Mark
 space    mark the hunk read                                         
+── Read
 U        only what is unread                                        
 H        choose the round to compare against                        jj evolog -r <rev>
 ── View

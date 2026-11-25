@@ -14,7 +14,7 @@ import (
 func openFiles(t *testing.T, files []jj.FileChange) Model {
 	t.Helper()
 
-	model, _ := deliver(testModel(t, twoRows()), files, nil, showFiles("abc"))
+	model, _ := deliver(testModel(t, twoRows()), files, nil, showFiles(jj.Revision{ChangeID: "abc"}))
 
 	return model
 }
@@ -139,74 +139,34 @@ func TestMoveFileSquashesOnlyThatPath(t *testing.T) {
 	}
 }
 
-func openWorkingCopyFiles(t *testing.T, refresh bool, wc workingCopyFiles) Model {
+func openWorkingCopyFiles(t *testing.T, files []jj.FileChange) Model {
 	t.Helper()
 
-	model, _ := deliver(testModel(t, twoRows()), wc, nil, showWorkingCopyFiles("aaaa", refresh))
+	rev := jj.Revision{ChangeID: "aaaa", Description: "wip", WorkingCopy: true}
+	model, _ := deliver(testModel(t, twoRows()), files, nil, showFiles(rev))
 
 	return model
 }
 
-func stagedFiles() workingCopyFiles {
-	return workingCopyFiles{
-		files: []jj.FileChange{{Status: "M", Path: "unstaged.txt"}},
-		staging: fileview.Staging{
-			Index: "bbbb", Message: "wip", Files: []jj.FileChange{{Status: "A", Path: "staged.txt"}},
-		},
-	}
-}
-
-// l on the working copy opens the staging list, which lists what the index holds as well.
-func TestFilesKey_OnTheWorkingCopyListsWhatIsStaged(t *testing.T) {
+// l on the working copy opens the same list as anywhere else, with c added, and nothing staged.
+func TestFilesKey_OnTheWorkingCopyOffersCommit(t *testing.T) {
 	t.Parallel()
 
-	model := openWorkingCopyFiles(t, false, stagedFiles())
+	model := openWorkingCopyFiles(t, []jj.FileChange{{Status: "M", Path: "a.txt"}})
 
 	if !model.files.IsOpen() {
 		t.Fatal("the working copy's file list did not open")
 	}
 
-	view := tuitest.StripANSI(model.files.View(80, 12))
-	for _, want := range []string{"unstaged.txt", "stage"} {
+	view := tuitest.StripANSI(model.files.View(100, 12))
+	for _, want := range []string{"a.txt", "check", "[c]"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the list is missing %q:\n%s", want, view)
 		}
 	}
 
-	// The staged row carries the tag ahead of its name, with the file's icon between.
-	staged := false
-
-	for line := range strings.SplitSeq(view, "\n") {
-		tag := strings.Index(line, " staged ")
-		staged = staged || (tag >= 0 && strings.Index(line, "staged.txt") > tag)
-	}
-
-	if !staged {
-		t.Errorf("the list does not tag staged.txt as staged:\n%s", view)
-	}
-}
-
-// A stage finishing after the list was closed must not pull it back over whatever came next.
-func TestStage_RefreshDoesNotReopenAClosedList(t *testing.T) {
-	t.Parallel()
-
-	if openWorkingCopyFiles(t, true, stagedFiles()).files.IsOpen() {
-		t.Error("a refresh reopened a list the user had closed")
-	}
-}
-
-// With everything committed and nothing left in @, there is nothing to open, and the status says so.
-func TestFilesKey_SaysSoWhenNothingIsChangedOrStaged(t *testing.T) {
-	t.Parallel()
-
-	model := openWorkingCopyFiles(t, false, workingCopyFiles{staging: fileview.Staging{Index: "bbbb"}})
-
-	if model.files.IsOpen() {
-		t.Error("the list opened with nothing in it")
-	}
-
-	if !strings.Contains(model.message, "nothing is staged") {
-		t.Errorf("the status reads %q, want it to say nothing is staged", model.message)
+	if strings.Contains(view, "stage") {
+		t.Errorf("the list still speaks of staging:\n%s", view)
 	}
 }
 
@@ -215,16 +175,16 @@ func TestFilesKey_SaysSoWhenNothingIsChangedOrStaged(t *testing.T) {
 func TestCommit_ClosesTheListAndAsksForTheMessage(t *testing.T) {
 	t.Parallel()
 
-	model := openWorkingCopyFiles(t, false, stagedFiles())
+	model := openWorkingCopyFiles(t, []jj.FileChange{{Status: "M", Path: "a.txt"}})
 
 	next, cmd := model.Update(tuitest.Key("c"))
 	if cmd == nil {
-		t.Fatal("C produced no command")
+		t.Fatal("c produced no command")
 	}
 
 	commit, ok := cmd().(fileview.CommitMsg)
 	if !ok {
-		t.Fatalf("C produced %T, want a commit", cmd())
+		t.Fatalf("c produced %T, want a commit", cmd())
 	}
 
 	asking := asModel(t, update(asModel(t, next), commit))

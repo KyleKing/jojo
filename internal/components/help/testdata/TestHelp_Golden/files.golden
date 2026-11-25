@@ -13,11 +13,14 @@ j/down   down a line
 k/up     up a line                                                  
 ctrl+d   half a page down                                           
 ctrl+u   half a page up                                             
+── Rewrite
+S        split into commits (files: the checked ones out)           jj-diff --split -r <rev>
+── Mark
+space    check for a batch verb (never writes)                      
 ── Files
 enter    diff the file                                              
 R        restore (discard) the file                                 
-s        squash the file into…                                      
+s        squash the checked files (none: this one) into…            
 x        resolve the file's conflict                                
-space    stage or unstage the file (in @)                           
-c        commit what is staged (in @)                               
+c        commit the checked files (none: this one), in @            
 *        history: the changes that touched the file                 jj log -r 'files(<file>) & (::(@ | <rev>) | <revset>)'

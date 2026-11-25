@@ -1,14 +1,14 @@
   wkwyyxvq          (no description set)     ╭─ keys · 81 of 81 ───────────────────────────────────╮
   rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
-  koopqtrk          refactor: split the reade│   D       describe in $EDITOR                       │
-  twnsvwmr  parse*  test: cover the fallbacks│   c       commit @: describe it and start a new one │
-  nptwozlo          release 0.13.0           │   S       split into commits, one column each, in … │
+  koopqtrk          refactor: split the reade│   d       describe                                  │
+  twnsvwmr  parse*  test: cover the fallbacks│   D       describe in $EDITOR                       │
+  nptwozlo          release 0.13.0           │   c       commit @: describe it and start a new one │
+                                             │   S       split into commits (files: the checked o… │
                                              │   a       abandon                                   │
                                              │   A       absorb into the revisions that last touc… │
                                              │   x       resolve the conflict, side by side in jj… │
                                              │   X       converge divergent changes · nothing in … │
                                              │   |       parallelize the checked revisions · need… │
-                                             │   space   check for a batch action                  │
                                              │   B       bisect between the two checked revisions… │
                                              │ ── Pick where it goes ───────────────────────────── │
                                              │   N       new, choosing where it goes               │

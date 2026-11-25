@@ -2,11 +2,11 @@
   rnzxmskv          parse: read the new header fo…      6f +0 -0                
   koopqtrk          refactor: split the reader                                  
 ── keys 81 of 81 ───────────────────────────────────────────────────────────────
+  a       abandon                       jj abandon <revs>                       
   A       absorb into the revisions t…  jj absorb -r <rev>                      
   x       resolve the conflict, side …  jj-diff --resolve -r <rev>              
   X       converge divergent changes …  jj converge [-r change_id(<rev>)]       
   |       parallelize the checked rev…  jj parallelize <revs>                   
-  space   check for a batch action                                              
   B       bisect between the two chec…  jj bisect run --range <a>::<b>          
 ── Pick where it goes ──────────────────────────────────────────────────────────
   N       new, choosing where it goes   jj new -o/-A/-B <dest>                  

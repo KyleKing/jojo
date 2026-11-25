@@ -104,12 +104,13 @@ const (
 	// action so it reads like every other picker's.
 	ActionBookmarkBackwards = "bookmark-flag-B"
 	ActionRevset            = "revset"
-	ActionCheck             = "check"
-	ActionParallelize       = "parallelize"
-	ActionBisect            = "bisect"
-	ActionWorkingCopy       = "working-copy"
-	ActionForge             = "forge"
-	ActionWorkspaces        = "workspaces"
+	// ActionCheck is the tick in the log and the file list, aragonite's check.
+	ActionCheck       = keys.ActionCheck
+	ActionParallelize = "parallelize"
+	ActionBisect      = "bisect"
+	ActionWorkingCopy = "working-copy"
+	ActionForge       = "forge"
+	ActionWorkspaces  = "workspaces"
 
 	ActionPickApply   = "pick-apply"
 	ActionPickClear   = "pick-clear"
@@ -131,7 +132,6 @@ const (
 	ActionFileRestore = "file-restore"
 	ActionFileSquash  = "file-squash"
 	ActionFileResolve = "file-resolve"
-	ActionFileStage   = "file-stage"
 	ActionFileCommit  = "file-commit"
 
 	// ActionHistory narrows the log to the changes that touched the file under the cursor.
@@ -367,7 +367,10 @@ func logBindings() []keys.Binding {
 		b(keys.ActionDescribeEditor, GroupWrite, "describe in $EDITOR", "", "D"),
 		b(ActionCommit, GroupWrite, "commit @: describe it and start a new one", "commit", "c"),
 		b(ActionSquash, GroupPlace, "squash, choosing where into", "squash", "s"),
-		b(ActionSplit, GroupWrite, "split into commits, one column each, in jj-diff", "split", "S"),
+		// In the file list S splits the checked files out instead, which needs no editor.
+		withContexts(b(ActionSplit, GroupWrite,
+			"split into commits (files: the checked ones out)", "split", "S"),
+			keys.Log|keys.List),
 		b(ActionDuplicate, GroupPlace, "duplicate, choosing where (enter: in place)", "duplicate", "y"),
 		b(ActionRebase, GroupPlace, "rebase, choosing where", "rebase", "r"),
 		b(ActionRebaseSubtree, GroupPlace, "rebase with descendants, choosing where", "", []string{}...),
@@ -378,7 +381,7 @@ func logBindings() []keys.Binding {
 		b(ActionConverge, GroupWrite, "converge divergent changes", "converge", "X"),
 		b(ActionArrange, GroupWrite, "arrange the graph", "", []string{}...),
 		b(ActionParallelize, GroupWrite, "parallelize the checked revisions", "", "|"),
-		b(ActionCheck, GroupWrite, "check for a batch action", "check", "space"),
+		checkTick(),
 		b(ActionBisect, GroupWrite, "bisect between the two checked revisions", "", "B"),
 		withContexts(b(ActionOpLog, GroupRepo, "op log, with the log as it stood at each operation", "ops", "o"),
 			keys.Log|Travel),
@@ -411,6 +414,15 @@ func logBindings() []keys.Binding {
 		b(ActionWorkspaces, GroupRepo, "workspaces", "", "g w"),
 		b(ActionSubmitStack, GroupRepo, "submit the stack at the cursor as stacked pull requests", "", []string{}...),
 	}
+}
+
+// checkTick is aragonite's check tick on the log and the file list: it marks the revision or file for
+// the verb that follows and never writes.
+func checkTick() keys.Binding {
+	tick := keys.Tick(keys.TickCheck)
+	tick.What = "check for a batch verb (never writes)"
+
+	return tick
 }
 
 func withContexts(b keys.Binding, ctx keys.Context) keys.Binding {
@@ -473,10 +485,9 @@ func fileBindings() []keys.Binding {
 	return []keys.Binding{
 		f(ActionFileOpen, "diff the file", "diff", keyEnter),
 		f(ActionFileRestore, "restore (discard) the file", "restore", "R"),
-		f(ActionFileSquash, "squash the file into…", "squash", "s"),
+		f(ActionFileSquash, "squash the checked files (none: this one) into…", "squash", "s"),
 		f(ActionFileResolve, "resolve the file's conflict", "resolve", "x"),
-		f(ActionFileStage, "stage or unstage the file (in @)", "stage", "space"),
-		f(ActionFileCommit, "commit what is staged (in @)", "commit", "c"),
+		f(ActionFileCommit, "commit the checked files (none: this one), in @", "commit", "c"),
 		{
 			Action: ActionHistory, Keys: []string{"*"}, What: "history: the changes that touched the file",
 			Short: "history", Group: GroupFiles, Contexts: keys.List | keys.View | keys.Log,

@@ -87,18 +87,18 @@ func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, 
 
 // openMoveFile asks for the destination and moves one path, which needs no editor at all. It is the
 // shortest path from "this file belongs in that commit" to it being there.
-func (m *Model) openMoveFile(from, path string) tea.Cmd {
+func (m *Model) openMoveFile(from string, paths []string) tea.Cmd {
 	m.files.Close()
 	m.onPick = func(m Model, dest destpicker.PickedMsg) (Model, tea.Cmd) {
 		into := dest.Revision.ChangeID
-		cmd := m.act(path, func(ctx context.Context, c *jj.Client) (string, error) {
-			return c.Squash(ctx, from, into, path)
+		cmd := m.act(joinPaths(paths), func(ctx context.Context, c *jj.Client) (string, error) {
+			return c.Squash(ctx, from, into, paths...)
 		})
 
 		return m, cmd
 	}
 
-	return m.destPicker.Open("move "+path+" into", m.rows, from)
+	return m.destPicker.Open("move "+countFiles(paths)+" into", m.rows, from)
 }
 
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {

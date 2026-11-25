@@ -42,6 +42,16 @@ var Deprecated = map[string]string{
 	"pick-cancel":         keys.ActionBack,
 	"travel-exit":         keys.ActionBack,
 	"pick-here":           ActionPickClear,
+	"file-stage":          ActionCheck,
+}
+
+// movedNotes say what changed beside a rename whose old action did something the new one does not,
+// so the footer's warning carries the new way of doing it.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var movedNotes = map[string]string{
+	"file-stage": "staging is retired: space checks files and never writes, then s squashes, " +
+		"S splits, and c commits the checked ones",
 }
 
 // deprecatedFlags are the picker's old per-letter toggles, which are flags spelled as jj spells them
@@ -110,7 +120,12 @@ func resolveDeprecated(overrides map[string]string) (map[string]string, []string
 			continue
 		}
 
-		warnings = append(warnings, fmt.Sprintf("[keys] %s is %s now; rename it", action, renamed))
+		warning := fmt.Sprintf("[keys] %s is %s now; rename it", action, renamed)
+		if note, ok := movedNotes[action]; ok {
+			warning += " (" + note + ")"
+		}
+
+		warnings = append(warnings, warning)
 		out[renamed] = seq
 	}
 

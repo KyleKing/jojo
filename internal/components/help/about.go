@@ -58,8 +58,8 @@ var abouts = map[string]about{
 	},
 	ActionFiles: {
 		cmd: "jj diff -r <rev> --summary", also: []string{"status", "stat", gitStage, "add"},
-		prose: "Lists the files the revision touches. On @ it stages and commits paths, the way " +
-			"git add and git commit would.",
+		prose: "Lists the files the revision touches. Space checks files, and s squashes, S splits, and " +
+			"(on @) c commits the checked ones: git add and git commit in one step, with no index between.",
 		related: []string{ActionSplit, ActionSquash},
 	},
 	ActionCompare: {
@@ -111,7 +111,8 @@ var abouts = map[string]about{
 	},
 	ActionSplit: {
 		cmd: "jj-diff --split -r <rev>", also: []string{gitStage, "add -p", "commit -p"},
-		prose:   "Splits the revision into commits, one column each, in jj-diff. Nothing is lost; u undoes.",
+		prose: "Splits the revision into commits, one column each, in jj-diff. In the file list it splits " +
+			"the checked files out into a commit of their own (jj split -r <rev> <paths>). Nothing is lost; u undoes.",
 		related: []string{ActionSquash},
 	},
 	ActionDuplicate: {
@@ -166,8 +167,8 @@ var abouts = map[string]about{
 		prose: "Bisects between the two checked revisions.",
 	},
 	ActionCheck: {
-		prose: "Checks the revision for a batch: the verbs that take several revisions act on every " +
-			"checked one. esc clears them.",
+		prose: "Checks the revision, or in the file list the file, for a batch: the verbs that take several " +
+			"act on every checked one. A check never writes. esc clears them in the log.",
 	},
 	ActionOpLog: {
 		cmd: "jj op log", also: []string{gitReflog, gitHistory, "undo history"},
