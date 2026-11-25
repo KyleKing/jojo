@@ -79,6 +79,9 @@ var (
 	// ErrPushRefused marks a push jj declined for a reason the user can fix, such as a revision
 	// with no description, rather than a failure of the command itself.
 	ErrPushRefused = errors.New("push refused")
+	// ErrUndoRefused marks an undo jojo declined, because reversing the operation would delete edits
+	// on disk or could not reach what it changed.
+	ErrUndoRefused = errors.New("undo refused")
 	// ErrNothingChanged marks a jj command that succeeded and moved nothing, so
 	// a caller must not report the edit as done.
 	ErrNothingChanged = errors.New("nothing changed")

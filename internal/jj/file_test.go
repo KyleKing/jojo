@@ -56,6 +56,10 @@ func TestFilesKeepsAPathWithASpaceIntact(t *testing.T) {
 	client, dir := testRepo(t)
 	writeFile(t, dir, "sp ace.txt", "spaced\n")
 
+	if err := client.Snapshot(context.Background()); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+
 	files, err := client.Files(context.Background(), "@")
 	if err != nil {
 		t.Fatalf("Files: %v", err)

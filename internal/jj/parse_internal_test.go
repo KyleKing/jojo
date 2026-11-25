@@ -302,3 +302,78 @@ func TestParseEvolog(t *testing.T) {
 		})
 	}
 }
+
+// An op log row reads as the command a person would type: the flags jojo adds to parse jj's output
+// go, and a template, which can hold spaces inside its quotes, goes whole.
+func TestReadableArgs_DropsJojosPlumbing(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"jj --no-pager '--color=never' diff -r abc --git":                              "jj diff -r abc --git",
+		"jj --no-pager --color=never --ignore-working-copy log -T 'a ++ \"b c\"' -r @": "jj log -r @",
+		"jj squash --into xyz":         "jj squash --into xyz",
+		"jj describe -m 'two words'":   "jj describe -m 'two words'",
+		"jj log '--template=x y' -n 1": "jj log -n 1",
+	}
+
+	for in, want := range cases {
+		t.Run(in, func(t *testing.T) {
+			t.Parallel()
+
+			if got := readableArgs(in); got != want {
+				t.Errorf("readableArgs(%q) = %q, want %q", in, got, want)
+			}
+		})
+	}
+}
+
+func TestUndoTarget_StepsBackPastEachUndo(t *testing.T) {
+	t.Parallel()
+
+	op := func(d string) Operation { return Operation{Description: d} }
+	cases := []struct {
+		name string
+		want string
+		ops  []Operation
+	}{
+		{name: "the newest operation", want: "squash", ops: []Operation{op("squash"), op("describe")}},
+		{
+			name: "one undo steps past what it undid", want: "describe",
+			ops: []Operation{op("undo: restore to operation 1"), op("squash"), op("describe"), op("new")},
+		},
+		{
+			name: "two undos step two back", want: "new",
+			ops: []Operation{
+				op("undo: restore to operation 2"), op("undo: restore to operation 1"), op("squash"),
+				op("describe"), op("new"),
+			},
+		},
+		{name: "nothing left", want: "", ops: []Operation{op("undo: restore to operation 1"), op("squash")}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := UndoTarget(tc.ops)
+			if got.Description != tc.want || ok != (tc.want != "") {
+				t.Errorf("UndoTarget = %q, %v; want %q", got.Description, ok, tc.want)
+			}
+		})
+	}
+}
+
+func TestRefusal_SnapshotAndPush(t *testing.T) {
+	t.Parallel()
+
+	for desc, refused := range map[string]bool{
+		"snapshot working copy":                   true,
+		"push bookmark main to git remote origin": true,
+		"squash commits into 1234":                false,
+		"describe commit 1234":                    false,
+	} {
+		if got := (Operation{Description: desc}).Refusal() != ""; got != refused {
+			t.Errorf("Refusal(%q) refused = %v, want %v", desc, got, refused)
+		}
+	}
+}

@@ -582,7 +582,7 @@ func (s *Sandbox) log(ctx context.Context, op, revset string, limit int) ([]LogR
 // would otherwise prompt for a passphrase on every cursor move.
 func (s *Sandbox) run(ctx context.Context, args ...string) (string, string, error) {
 	full := append([]string{
-		"--no-pager", "--color=never", "--ignore-working-copy",
+		noPager, colorNever, ignoreWorkingCopy,
 		"--config-file", s.config, "--config", "signing.behavior=drop",
 	}, args...)
 

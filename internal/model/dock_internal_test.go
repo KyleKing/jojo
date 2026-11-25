@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jojo/internal/components/diffpane"
+	"github.com/kyleking/jojo/internal/jj"
 	"github.com/kyleking/jojo/internal/tuitest"
 )
 
@@ -303,5 +304,47 @@ func TestDock_ColorsArriveWithTheReadOrRightAfterIt(t *testing.T) {
 
 	if got := strings.Join(m.dock.Lines(), "\n"); got == plain || ansi.Strip(got) != ansi.Strip(plain) {
 		t.Error("the colors that landed did not replace the plain rows line for line")
+	}
+}
+
+// A revision the dock has read at this commit draws again at once, without the debounce or a jj call.
+func TestDock_RevisitedCommitDrawsFromTheCache(t *testing.T) {
+	t.Parallel()
+
+	rows := []jj.LogRow{
+		{Revision: &jj.Revision{ChangeID: "aaaa", CommitID: "c1", Description: "source"}},
+		{Revision: &jj.Revision{ChangeID: "bbbb", CommitID: "c2", Description: "destination"}},
+	}
+	m := asModel(t, update(testModel(t, rows), tea.WindowSizeMsg{Width: 120, Height: 20}))
+	m = asModel(t, update(m, tuitest.Key("p")))
+	m = asModel(t, update(m, dockLoadedMsg{revision: "aaaa", commit: "c1", text: dockFirstDiff, seq: m.dockSeq}))
+
+	m, _ = moveLog(t, m, "j")
+	m = asModel(t, update(m, dockLoadedMsg{revision: "bbbb", commit: "c2", text: dockSecondDiff, seq: m.dockSeq}))
+
+	m, cmd := moveLog(t, m, "k")
+	if cmd == nil {
+		t.Fatal("moving back asked nothing of the dock")
+	}
+
+	var loaded dockLoadedMsg
+
+	for _, msg := range flatten(cmd) {
+		if l, ok := msg.(dockLoadedMsg); ok {
+			loaded = l
+		}
+
+		if _, ok := msg.(dockTickMsg); ok {
+			t.Fatal("a cached commit waited out the debounce")
+		}
+	}
+
+	if loaded.commit != "c1" || loaded.text != dockFirstDiff {
+		t.Fatalf("moving back to aaaa drew %+v, want the cached diff of c1", loaded)
+	}
+
+	m = asModel(t, update(m, loaded))
+	if got := dockTitle(m); !strings.Contains(got, "aaaa") {
+		t.Errorf("dock title = %q, want aaaa's diff", got)
 	}
 }

@@ -3,6 +3,7 @@ package jj
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 // RebaseScope picks which revisions a rebase moves, mirroring jj's -r/-s/-b flags. There is no
@@ -292,8 +293,20 @@ func (c *Client) Parallelize(ctx context.Context, revs []string) (string, error)
 	return c.mutate(ctx, args...)
 }
 
-// Undo reverts the last jj operation in the repository.
+// Undo reverts the last jj operation in the repository. It refuses with ErrUndoRefused where that
+// would delete edits on disk, since the operation is a snapshot of them, or cannot reach what it
+// changed, as with a push. Since jj undo snapshots before it reverses, the check snapshots first
+// too: an edit made since the last log read would otherwise be the operation undone.
 func (c *Client) Undo(ctx context.Context) (string, error) {
+	target, ok, err := c.UndoTargetNow(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if why := target.Refusal(); ok && why != "" {
+		return "", fmt.Errorf("%w: %s", ErrUndoRefused, why)
+	}
+
 	return c.mutate(ctx, "undo")
 }
 

@@ -5,7 +5,9 @@ package model
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -161,6 +163,9 @@ type Model struct {
 	// names its content.
 	versions   map[string][]jj.Version
 	interdiffs map[string]string
+	// dockCache is every whole diff the dock has read, keyed by commit id, so a revisited revision
+	// draws without asking jj again. A map, so the copies Update makes share it.
+	dockCache map[string]dockLoadedMsg
 	// strips is the read strip of each change whose whole diff the dock has read, and reads the seam
 	// that says which hunks were read.
 	strips map[string]readmark.Strip
@@ -298,7 +303,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 
 	probe := opts.JJDiff
 	if probe == nil {
-		probe = func(ctx context.Context) jjdiff.Tool { return jjdiff.Probe(ctx, exec.LookPath, jjdiff.Exec) }
+		probe = cachedJJDiffProbe()
 	}
 
 	// The forge pane's polls run through the same gh as a submit, so gm lists them beside it.
@@ -327,6 +332,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		rounds:     roundsState{at: -1},
 		versions:   map[string][]jj.Version{},
 		interdiffs: map[string]string{},
+		dockCache:  map[string]dockLoadedMsg{},
 		strips:     map[string]readmark.Strip{},
 		reads:      reads,
 		scopes:     newScopeBook(reads),
@@ -371,6 +377,19 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 	return m
 }
 
+// cachedJJDiffProbe is the jj-diff probe remembered under the user's cache directory, which asks
+// the binary only when it changed since the last launch.
+func cachedJJDiffProbe() func(context.Context) jjdiff.Tool {
+	cache, err := os.UserCacheDir()
+	if err == nil {
+		cache = filepath.Join(cache, "jojo")
+	}
+
+	return func(ctx context.Context) jjdiff.Tool {
+		return jjdiff.ProbeCached(ctx, exec.LookPath, jjdiff.Exec, cache)
+	}
+}
+
 // Init loads the log, so the first frame is an empty log rather than a blocked terminal. A [keys]
 // table written in names the keymap no longer uses still works, and says so once in the footer.
 func (m Model) Init() tea.Cmd {
@@ -379,8 +398,8 @@ func (m Model) Init() tea.Cmd {
 		warn = m.say(strings.Join(w, "; "))
 	}
 
-	return tea.Batch(m.loadLog(m.revset), m.loadHeadOp(), m.forge.Init(), m.loadDiffTool(), m.probeJJDiff("", ""),
-		warn)
+	// The op the footer names is read once the log lands (applyLog), not here as well.
+	return tea.Batch(m.loadLog(m.revset), m.forge.Init(), m.loadDiffTool(), m.probeJJDiff("", ""), warn)
 }
 
 func (m Model) loadLog(revset string) tea.Cmd {

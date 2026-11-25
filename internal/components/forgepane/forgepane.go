@@ -59,34 +59,51 @@ type Model struct {
 	// routes the pane's calls through (forge/github.WithRunner).
 	ctx       context.Context //nolint:containedctx // the pane's polls outlive no call of their own.
 	styles    *Styles
-	detection forge.Detection
 	poller    *forge.Poller
+	detection forge.Detection
+	repoPath  string
 	bookmark  string
-	fetching  bool
+	opts      []forge.Option
 	width     int
 	height    int
+	fetching  bool
 }
 
-// New detects repoPath's forge and returns a pane watching bookmark on it.
-// No network call happens until Init's command runs.
+// New returns a pane watching bookmark on repoPath's forge. Finding the forge reads the remote, which
+// costs a jj call, so it waits for Init's command rather than holding up the first frame; no network
+// call happens until a bookmark and a supported forge are both known.
 func New(ctx context.Context, styles Styles, repoPath, bookmark string, opts ...forge.Option) Model {
-	detection := forge.Detect(ctx, repoPath)
+	return Model{ctx: ctx, styles: &styles, repoPath: repoPath, opts: opts, bookmark: bookmark}
+}
 
-	m := Model{ctx: ctx, styles: &styles, detection: detection, bookmark: bookmark}
+// detectedMsg carries what reading the remote found.
+type detectedMsg struct {
+	detection forge.Detection
+}
 
-	if detection.Supported() {
-		allOpts := append([]forge.Option{forge.WithDiskCache(forge.UserDiskCache())}, opts...)
-		m.poller = forge.NewPoller(detection.Provider, repoPath, detection.RemoteID, bookmark, allOpts...)
+// Init reads the remote off the update loop; the first fetch follows once the forge is known.
+func (m *Model) Init() tea.Cmd {
+	ctx, repoPath := m.ctx, m.repoPath
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	return m
+	return func() tea.Msg { return detectedMsg{detection: forge.Detect(ctx, repoPath)} }
 }
 
-// Init kicks off the pane's first fetch immediately, whatever the initial
-// focus state, once it has a bookmark to ask about.
-func (m *Model) Init() tea.Cmd {
+// detected builds the poller for the forge the remote named, and fetches whatever bookmark the log
+// has pointed the pane at meanwhile.
+func (m *Model) detected(detection forge.Detection) tea.Cmd {
+	m.detection = detection
+	if !detection.Supported() || m.poller != nil {
+		return nil
+	}
+
+	allOpts := append([]forge.Option{forge.WithDiskCache(forge.UserDiskCache())}, m.opts...)
+	m.poller = forge.NewPoller(detection.Provider, m.repoPath, detection.RemoteID, m.bookmark, allOpts...)
+
 	// With no bookmark yet there is nothing to ask; SetBookmark fetches once the log names one.
-	if m.poller == nil || m.bookmark == "" {
+	if m.bookmark == "" {
 		return nil
 	}
 
@@ -97,6 +114,8 @@ func (m *Model) Init() tea.Cmd {
 // parent routes every other key elsewhere.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case detectedMsg:
+		return m.detected(msg.detection)
 	case tickMsg:
 		if m.poller == nil || m.fetching {
 			return nil
@@ -174,11 +193,15 @@ func (m *Model) SetFocused(focused bool) tea.Cmd {
 // SetBookmark points the pane at a different bookmark, showing whatever is
 // cached for it immediately and fetching a fresh value in the background.
 func (m *Model) SetBookmark(bookmark string) tea.Cmd {
-	if m.poller == nil || bookmark == m.bookmark || bookmark == "" {
+	if bookmark == m.bookmark || bookmark == "" {
 		return nil
 	}
 
 	m.bookmark = bookmark
+	if m.poller == nil {
+		return nil
+	}
+
 	m.poller.SetBookmark(bookmark)
 
 	if m.fetching {

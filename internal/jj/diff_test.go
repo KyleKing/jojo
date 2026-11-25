@@ -135,6 +135,11 @@ func baseRepo(t *testing.T) (*jj.Client, string) {
 func workingCopyDiff(t *testing.T, client *jj.Client) string {
 	t.Helper()
 
+	// Reads see the working copy as the last log read left it, so take the snapshot one would.
+	if err := client.Snapshot(context.Background()); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+
 	text, err := client.GitDiff(context.Background(), jj.DiffTarget{Revision: "@"})
 	if err != nil {
 		t.Fatalf("GitDiff: %v", err)

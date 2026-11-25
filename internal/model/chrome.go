@@ -20,17 +20,19 @@ type headOpMsg struct {
 	description string
 }
 
-// loadHeadOp names the operation u would reverse, refreshed after every write.
+// loadHeadOp names the operation u would reverse, refreshed after every write: "" when u would
+// refuse it (a snapshot of edits on disk, a push), so the footer never offers what u will not do.
+// After an undo it is the operation the next undo steps back to, not the undo itself.
 func (m Model) loadHeadOp() tea.Cmd {
 	client, ctx := m.client, m.ctx
 
 	return func() tea.Msg {
-		ops, err := client.OpLog(ctx, 1)
-		if err != nil || len(ops) == 0 {
+		op, ok, err := client.HeadUndo(ctx)
+		if err != nil || !ok {
 			return headOpMsg{}
 		}
 
-		return headOpMsg{description: ops[0].Description}
+		return headOpMsg{description: op.Description}
 	}
 }
 

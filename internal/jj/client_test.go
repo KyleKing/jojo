@@ -3,6 +3,9 @@ package jj_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -443,14 +446,19 @@ func TestClient_SerializesBehindTheQueueLock(t *testing.T) {
 	go func() {
 		defer close(done)
 
-		if _, err := client.Root(context.Background()); err != nil {
-			t.Errorf("Root: %v", err)
+		if _, err := client.Log(context.Background(), "@", 1); err != nil {
+			t.Errorf("Log: %v", err)
 		}
 	}()
 
+	// A read that ignores the working copy writes nothing, so it does not wait for the queue.
+	if _, err := client.Root(context.Background()); err != nil {
+		t.Fatalf("Root while the queue was held: %v", err)
+	}
+
 	select {
 	case <-done:
-		t.Fatal("jj ran while the queue was held; an interactive verb must block every other call")
+		t.Fatal("the snapshotting log read ran while the queue was held; an interactive verb must block it")
 	case <-time.After(100 * time.Millisecond):
 	}
 
@@ -473,5 +481,68 @@ func TestDiffEditorConfigured_SeesARepoLevelSetting(t *testing.T) {
 	set, err := client.DiffEditorConfigured(context.Background())
 	if err != nil || !set {
 		t.Errorf("DiffEditorConfigured = %v, %v, want true", set, err)
+	}
+}
+
+// Only the log read snapshots the working copy. Every other read sees @ as the last log read left it
+// and writes no operation, so moving the cursor or the dock cannot fill the op log with snapshots.
+func TestReads_DoNotSnapshotTheWorkingCopy(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	if _, err := client.Log(ctx, "@", 1); err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	before := len(jjOut(t, dir, "op", "log", "--ignore-working-copy", "--no-graph", "-T", `id ++ "\n"`))
+
+	writeFile(t, dir, "edited.txt", "edited\n")
+
+	if text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: "@"}); err != nil || text != "" {
+		t.Fatalf("GitDiff(@) before a log read = %q, %v; want the empty diff the last log read saw", text, err)
+	}
+
+	if _, err := client.OpLog(ctx, 5); err != nil {
+		t.Fatalf("OpLog: %v", err)
+	}
+
+	after := len(jjOut(t, dir, "op", "log", "--ignore-working-copy", "--no-graph", "-T", `id ++ "\n"`))
+	if after != before {
+		t.Fatalf("reads wrote operations: the op log went from %d to %d bytes", before, after)
+	}
+
+	if _, err := client.Log(ctx, "@", 1); err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	text, err := client.GitDiff(ctx, jj.DiffTarget{Revision: "@"})
+	if err != nil || !strings.Contains(text, "edited.txt") {
+		t.Fatalf("GitDiff(@) after a log read = %q, %v; want edited.txt", text, err)
+	}
+}
+
+// jj undo snapshots before it reverses, so pressing u with an edit on disk would reverse the snapshot
+// of that edit and delete it from disk. Undo refuses that, and leaves the file where it was.
+func TestUndo_RefusesToDeleteAnEditOnDisk(t *testing.T) {
+	t.Parallel()
+
+	client, dir := testRepo(t)
+	ctx := context.Background()
+
+	runJJ(t, dir, "describe", "-m", "described")
+	writeFile(t, dir, "edited.txt", "edited\n")
+
+	if _, err := client.Undo(ctx); !errors.Is(err, jj.ErrUndoRefused) {
+		t.Fatalf("Undo with an edit on disk = %v, want ErrUndoRefused", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "edited.txt")); err != nil {
+		t.Fatalf("the edit is gone after a refused undo: %v", err)
+	}
+
+	if _, ok, err := client.HeadUndo(ctx); err != nil || ok {
+		t.Fatalf("HeadUndo = %v, %v; want nothing offered over a snapshot", ok, err)
 	}
 }

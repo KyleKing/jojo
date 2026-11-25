@@ -86,8 +86,11 @@ const logFieldCount = 10
 // Log runs `jj log` over revset and returns each rendered line as a Revision or a graph-only
 // connector. An empty revset lets jj apply its own configured default instead of an explicit one.
 // A non-positive limit means no limit.
+//
+// Log is the one read that snapshots the working copy, so what it shows of @ is what is on disk;
+// every other read runs against the operation it left.
 func (c *Client) Log(ctx context.Context, revset string, limit int) ([]LogRow, error) {
-	out, err := c.executeJJ(ctx, logArgs(revset, limit)...)
+	out, err := c.runSnapshot(ctx, logArgs(revset, limit)...)
 	if err != nil {
 		return nil, err
 	}

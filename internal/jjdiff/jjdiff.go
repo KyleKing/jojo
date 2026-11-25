@@ -31,10 +31,10 @@ const (
 // Tool is what the probe found: where jj-diff is, the version it reports, and whether it has the
 // modes. Why says what is missing when it has not, in words the footer can show.
 type Tool struct {
-	Path    string
-	Version string
-	Why     string
-	Modes   bool
+	Path    string `json:"path"`
+	Version string `json:"version"`
+	Why     string `json:"why"`
+	Modes   bool   `json:"modes"`
 }
 
 // Runner runs a binary and returns what it printed, so a test can stand in for jj-diff.

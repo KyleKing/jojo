@@ -32,6 +32,11 @@ func stagingRepo(t *testing.T) (*jj.Client, string) {
 func filesIn(t *testing.T, client *jj.Client, rev string) []string {
 	t.Helper()
 
+	// Reads see the working copy as the last log read left it, so take the snapshot one would.
+	if err := client.Snapshot(context.Background()); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+
 	files, err := client.Files(context.Background(), rev)
 	if err != nil {
 		t.Fatalf("Files(%s): %v", rev, err)

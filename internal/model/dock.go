@@ -15,8 +15,13 @@ import (
 )
 
 // dockDebounce is how long the cursor has to rest on a revision before the docked diff reads it. A
-// diff is one jj call in the shared queue, so holding j would otherwise queue one per row passed.
-const dockDebounce = 120 * time.Millisecond
+// diff is one jj call in the shared queue, so holding j would otherwise queue one per row passed; a
+// held key repeats about every 33 ms, so this is just long enough to let a held key pass.
+const dockDebounce = 40 * time.Millisecond
+
+// dockCacheSize bounds the diffs the dock keeps by commit id. A commit id names its content, so an
+// entry never goes stale, only old; past the bound the cache starts over.
+const dockCacheSize = 256
 
 // outlineMaxShare is the most of a wide terminal the outline takes beside the dock, which gets the
 // rest: the outline's rows are short, so past its own width a share would only be blank. It may
@@ -36,6 +41,7 @@ const dockMinSideBySide = 100
 // overtaken does nothing.
 type dockTickMsg struct {
 	revision string
+	commit   string
 	seq      int
 }
 
@@ -92,6 +98,12 @@ func (m *Model) loadDock(rev *jj.Revision) tea.Cmd {
 	client, ctx, seq, id, commit := m.client, m.ctx, m.dockSeq, rev.ChangeID, rev.CommitID
 	paths := m.historyPaths()
 
+	if cached, ok := m.cachedDock(rev); ok {
+		cached.seq = seq
+
+		return func() tea.Msg { return cached }
+	}
+
 	path := ""
 	if len(paths) > 0 {
 		path = m.history.file.Names[0]
@@ -117,10 +129,43 @@ func (m *Model) followDock(rev *jj.Revision) tea.Cmd {
 		return nil
 	}
 
+	// A diff already read draws at once: the debounce only spares jj a read.
+	if _, ok := m.cachedDock(rev); ok {
+		return m.loadDock(rev)
+	}
+
 	m.dockSeq++
-	tick := dockTickMsg{revision: rev.ChangeID, seq: m.dockSeq}
+	tick := dockTickMsg{revision: rev.ChangeID, commit: rev.CommitID, seq: m.dockSeq}
 
 	return m.after(dockDebounce, func(time.Time) tea.Msg { return tick })
+}
+
+// cachedDock is rev's whole diff as the dock last read it at this commit, when it has.
+func (m *Model) cachedDock(rev *jj.Revision) (dockLoadedMsg, bool) {
+	if rev.CommitID == "" || len(m.historyPaths()) > 0 {
+		return dockLoadedMsg{}, false
+	}
+
+	cached, ok := m.dockCache[rev.CommitID]
+	if ok {
+		// The change id is the row's, which can grow a character once another change shares it.
+		cached.revision = rev.ChangeID
+	}
+
+	return cached, ok
+}
+
+// keepDock files a whole diff read at a known commit, which the update loop alone writes.
+func (m *Model) keepDock(msg dockLoadedMsg) {
+	if msg.commit == "" || msg.path != "" || msg.cacheKey != "" || msg.err != nil {
+		return
+	}
+
+	if len(m.dockCache) >= dockCacheSize {
+		clear(m.dockCache)
+	}
+
+	m.dockCache[msg.commit] = msg
 }
 
 func (m Model) handleDockMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
@@ -130,7 +175,7 @@ func (m Model) handleDockMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 
-		cmd := m.loadDock(&jj.Revision{ChangeID: msg.revision})
+		cmd := m.loadDock(&jj.Revision{ChangeID: msg.revision, CommitID: msg.commit})
 
 		return m, cmd, true
 	case dockLoadedMsg:
@@ -174,6 +219,7 @@ func (m Model) showDock(msg dockLoadedMsg) Model {
 		return m
 	}
 
+	m.keepDock(msg)
 	m.noteRead(msg.revision, msg.commit, msg.hunks)
 	m.showChange(m.dockReads(), msg.revision, "diff "+msg.revision, msg.text, m.dock.CurrentPath())
 

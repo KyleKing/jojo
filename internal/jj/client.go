@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,9 +22,11 @@ const defaultRevsetFallback = "builtin_log()"
 // Client runs jj in one repository. Every call shells out and blocks, so callers wrap them in a
 // tea.Cmd.
 type Client struct {
-	// queue serializes every jj invocation, including the reads, because a snapshot taken while a
-	// write is still running diverges the op heads and strands the checkout. A channel rather than
-	// a mutex, so the copy IgnoringImmutable returns shares the one queue with its source.
+	// queue serializes every jj invocation that can write, the snapshotting log read included,
+	// because a snapshot taken while a write is still running diverges the op heads and strands the
+	// checkout. A read that ignores the working copy writes nothing, so it runs beside them. A
+	// channel rather than a mutex, so the copy IgnoringImmutable returns shares the one queue with
+	// its source.
 	queue chan struct{}
 	// linksUnsafe is set once a preview sandbox has seen a file it hard-linked change, after which
 	// this client's sandboxes copy instead. A pointer, so IgnoringImmutable's copy shares it.
@@ -148,10 +151,40 @@ func (c *Client) AcquireQueue() { c.queue <- struct{}{} }
 // ReleaseQueue releases the queue AcquireQueue took.
 func (c *Client) ReleaseQueue() { <-c.queue }
 
-// execute returns jj's stdout and, on success, the notices it writes to stderr,
-// which is where jj says what it did.
+// The flags jojo adds to a jj call: no pager, no color in output it parses, and for a read, no
+// snapshot of the working copy.
+const (
+	noPager           = "--no-pager"
+	colorNever        = "--color=never"
+	ignoreWorkingCopy = "--ignore-working-copy"
+)
+
+// execute returns jj's stdout and, on success, the notices it writes to stderr, which is where jj
+// says what it did. A read never snapshots the working copy: the log read (Log) is the one place a
+// read does, so every other read sees the repository as the log last showed it, takes no
+// working-copy lock, and writes no "snapshot working copy" operation for u to offer back.
 func (c *Client) execute(ctx context.Context, args ...string) (string, string, error) {
-	return c.run(ctx, reads, args...)
+	if !slices.Contains(args, ignoreWorkingCopy) {
+		args = append([]string{ignoreWorkingCopy}, args...)
+	}
+
+	// Without a snapshot the read cannot diverge the op heads, so it need not wait its turn.
+	return c.runLocked(ctx, reads, args...)
+}
+
+// Snapshot records what is on disk into the working-copy commit, which a read of @ otherwise does
+// not see until the next log read.
+func (c *Client) Snapshot(ctx context.Context) error {
+	_, err := c.runSnapshot(ctx, "log", "--no-graph", "-r", "@", "-T", "''")
+
+	return err
+}
+
+// runSnapshot is execute for the one read that snapshots the working copy first.
+func (c *Client) runSnapshot(ctx context.Context, args ...string) (string, error) {
+	out, _, err := c.run(ctx, reads, args...)
+
+	return out, err
 }
 
 // run is execute for a call the trail files as a read or a write.
@@ -172,7 +205,7 @@ func (c *Client) executeLocked(ctx context.Context, args ...string) (string, str
 // which change only how jj prints.
 func (c *Client) runLocked(ctx context.Context, write writing, args ...string) (string, string, error) {
 	// Captured output is parsed, so a user's ui.color = "always" or a pager must not reach it.
-	cmd := c.jjCommand(ctx, append([]string{"--no-pager", "--color=never"}, args...)...)
+	cmd := c.jjCommand(ctx, append([]string{noPager, colorNever}, args...)...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

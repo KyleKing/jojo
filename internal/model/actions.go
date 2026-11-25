@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -258,7 +260,13 @@ func (m Model) execThen(cmd *exec.Cmd, outcome func(err error, wrote bool) tea.M
 		func() tea.Msg {
 			*before = headOp(m.ctx, client)
 			client.AcquireQueue()
-			running = log.Start(cmd.Args, cmd.Dir, true)
+			// The trail names the program as a reader would type it, not the path PATH resolved.
+			argv := slices.Clone(cmd.Args)
+			if len(argv) > 0 {
+				argv[0] = filepath.Base(argv[0])
+			}
+
+			running = log.Start(argv, cmd.Dir, true)
 
 			return nil
 		},

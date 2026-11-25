@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/ghcassette"
 	"github.com/kyleking/aragonite/tui/region"
 
@@ -64,10 +65,16 @@ func newModel(t *testing.T, remoteURL, bookmark string) forgepane.Model {
 	return m
 }
 
+// start runs what Init asks, reading the remote, and returns the fetch that follows it.
+func start(m *forgepane.Model) tea.Cmd {
+	return m.Update(m.Init()())
+}
+
 func TestView_UnsupportedHostRendersPlainly(t *testing.T) {
 	t.Parallel()
 
 	m := newModel(t, "https://gitlab.com/kyleking/jojo.git", "feature")
+	start(&m)
 
 	view := m.View()
 	if strings.Contains(view, "error") || strings.Contains(view, "Error") {
@@ -85,9 +92,9 @@ func TestView_NoPullRequestRendersPlainly(t *testing.T) {
 
 	m := newModel(t, "https://github.com/kyleking/jojo.git", "no-pr-branch")
 
-	cmd := m.Init()
+	cmd := start(&m)
 	if cmd == nil {
-		t.Fatal("Init() = nil, want a fetch command")
+		t.Fatal("start() = nil, want a fetch command")
 	}
 
 	m.Update(cmd())
@@ -113,7 +120,7 @@ func TestView_ThreeStatesAreDistinguishable(t *testing.T) {
 		t.Errorf("stale view = %q, should not claim to be live before any fetch completes", stale)
 	}
 
-	fetchCmd := m.Init()
+	fetchCmd := start(&m)
 	fetching := m.View()
 
 	if fetching == stale {
@@ -138,7 +145,7 @@ func TestView_RateLimitSurfacesAsState(t *testing.T) {
 
 	m := newModel(t, "https://github.com/kyleking/jojo.git", "feature")
 
-	cmd := m.Init()
+	cmd := start(&m)
 	m.Update(cmd())
 
 	view := m.View()
@@ -153,7 +160,7 @@ func TestPoll_BacksOffWhenUnfocused(t *testing.T) {
 
 	m := newModel(t, "https://github.com/kyleking/jojo.git", "no-pr-branch")
 
-	cmd := m.Init()
+	cmd := start(&m)
 	if got := m.Update(cmd()); got != nil {
 		t.Error("Update(FetchedMsg) scheduled another tick while unfocused, want polling paused")
 	}
@@ -169,7 +176,7 @@ func TestRenderGoldenStates(t *testing.T) {
 
 	m := newModel(t, "https://github.com/kyleking/jojo.git", "feature")
 
-	cmd := m.Init()
+	cmd := start(&m)
 	m.Update(cmd())
 
 	tuitest.AssertGolden(t, m.View())
