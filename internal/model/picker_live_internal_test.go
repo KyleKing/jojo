@@ -477,3 +477,61 @@ func TestTravelLive_RestoreAfterConfirming(t *testing.T) {
 		t.Error("restoring the earlier operation did not bring back the abandoned revision")
 	}
 }
+
+// A split that wrote asks for a description of each commit it made with none, one prompt at a time,
+// so no undescribed commit is left for a push to refuse later.
+func TestSplit_AsksToDescribeTheCommitsItMade(t *testing.T) {
+	t.Parallel()
+
+	dir := liveRepo(t)
+	m := liveModel(t, dir, "top")
+	known := m.knownChanges()
+
+	// What jj-diff's split leaves: a new commit before the source, with no description.
+	jjRun(t, dir, "new", "--no-edit", "-B", "description(exact:'top\n')")
+
+	next, cmd := m.Update(splitWroteMsg{known: known, done: messageMsg{text: "jj-diff wrote", wrote: true}})
+	m = pump(t, asModel(t, next), tea.Batch(cmd, m.loadLog("all()")))
+
+	if !m.prompt.IsOpen() {
+		t.Fatalf("no describe prompt after the split; footer %q", m.message)
+	}
+
+	m = press(t, m, "n", "a", "m", "e", "d", "enter")
+
+	if m.prompt.IsOpen() {
+		t.Fatal("the prompt asked again after the only new commit was described")
+	}
+
+	got := strings.TrimSpace(jjRun(t, dir, "log", "--no-graph", "--ignore-working-copy", "-r",
+		"parents(description(exact:'top\n'))", "-T", "description"))
+	if got != "named" {
+		t.Errorf("the split's new commit is described %q, want named", got)
+	}
+}
+
+// r starts on the parent, where -r would lift the revision out of its stack and hang its children on
+// the parent: Enter there by reflex writes nothing and says to pick a destination first.
+func TestPicker_RebaseEnterOnTheStartingParentWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	dir := liveRepo(t)
+	m := liveModel(t, dir, "middle")
+	ops := opCount(t, dir)
+
+	m = press(t, m, "r", "enter")
+
+	if got := opCount(t, dir); got != ops {
+		t.Fatalf("enter on the starting destination wrote %d operations", got-ops)
+	}
+
+	if !m.pick.active || !strings.Contains(m.message, "still the parent") {
+		t.Errorf("picker open %v, footer %q; want it open and saying why", m.pick.active, m.message)
+	}
+
+	press(t, m, "j", "enter")
+
+	if opCount(t, dir) == ops {
+		t.Error("enter after moving the destination wrote nothing")
+	}
+}

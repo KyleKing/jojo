@@ -468,3 +468,37 @@ func TestView_SelectedRowKeepsBoldAndUnderlineIn16Colors(t *testing.T) {
 		}
 	}
 }
+
+// Immutable history is not under review, so a trunk row never reads as unread even when a dock read
+// counted its hunks.
+func TestUnreadCount_NeverOnAnImmutableRow(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{60, 100, 160} {
+		rows := []jj.LogRow{{Revision: &jj.Revision{ChangeID: "trunkzzz", Description: "release", Immutable: true}}}
+		m := newModel(rows, width, 2)
+		m.SetUnread("trunkzzz", "◌2")
+
+		if view := tuitest.StripANSI(m.View()); strings.Contains(view, "◌") {
+			t.Errorf("at %d an immutable row draws an unread count:\n%s", width, view)
+		}
+	}
+}
+
+// Beside the dock the log is narrow; it gives up the author, the age, and the size before it cuts a
+// bookmark name, since "ttl-k…" names nothing.
+func TestBookmarks_KeptWholeInANarrowLog(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{56, 70, 90} {
+		rows := []jj.LogRow{{Revision: &jj.Revision{
+			ChangeID: "qrnkttwl", Description: "fix(diff): tighten squeeze", Bookmarks: []string{"push-qrnkttwlvulq"},
+			AuthorEmail: "dev@example.com", Age: "2 hours ago", Files: 2, Added: 10, Removed: 3,
+		}}}
+		m := newModel(rows, width, 1)
+
+		if view := tuitest.StripANSI(m.View()); !strings.Contains(view, "push-qrnkttwlvulq") {
+			t.Errorf("at %d the bookmark is cut:\n%s", width, view)
+		}
+	}
+}

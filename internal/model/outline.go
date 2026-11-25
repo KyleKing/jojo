@@ -220,8 +220,9 @@ func (m Model) dockTarget() *jj.Revision {
 	return m.log.Selected()
 }
 
-// dispatchOutline owns the keys while the outline has the focus. It reads, so a write verb pressed
-// by habit says where the writes are rather than acting on a chapter it cannot redraw.
+// dispatchOutline owns the keys while the outline has the focus. It reads, describing aside, so a
+// write verb pressed by habit says where the writes are rather than acting on a chapter it cannot
+// redraw.
 func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
 	if key, ok := navKey(action); ok {
 		moved, changed := m.outline.view.MoveKey(key.String())
@@ -265,8 +266,8 @@ func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
 		cmd := m.toggleOnlyUnread()
 
 		return m, cmd
-	case help.ActionSubmit:
-		cmd := m.startSubmit()
+	case help.ActionSubmit, keys.ActionDescribe:
+		cmd := m.outlineWrite(action)
 
 		return m, cmd
 	case keys.ActionBack, keys.ActionOutline:
@@ -280,6 +281,22 @@ func (m Model) dispatchOutline(action string) (tea.Model, tea.Cmd) {
 	}
 
 	return m, m.say("the outline reads; esc returns to the log, where the verbs are")
+}
+
+// outlineWrite is what the outline writes: the stack's submit, and a describe of the chapter, since a
+// submit refuses a change with no description and says d describes it, so d has to, here. The
+// outline reads its stack again once the write lands.
+func (m *Model) outlineWrite(action string) tea.Cmd {
+	if action == help.ActionSubmit {
+		return m.startSubmit()
+	}
+
+	rev := m.outline.view.Selected()
+	if rev == nil {
+		return nil
+	}
+
+	return m.loadDescribe(*rev)
 }
 
 // stepChapter moves the outline's cursor one chapter, the docked diff following once it rests.

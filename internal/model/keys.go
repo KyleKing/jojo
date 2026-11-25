@@ -1,6 +1,7 @@
 package model
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -62,6 +63,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if !m.welcomeKey(msg.String(), now) {
 		return m, m.coach.WakeAt(now)
+	}
+
+	// A prompt is on its way: what is typed now is its text, never a command.
+	if m.opening && !m.prompt.IsOpen() {
+		m.typeahead = append(slices.Clip(m.typeahead), msg)
+
+		return m, nil
 	}
 
 	next, cmd := m.routeKey(msg)

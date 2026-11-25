@@ -22,6 +22,9 @@ type loaded[T any] struct {
 }
 
 func (l loaded[T]) open(m *Model) tea.Cmd {
+	held := m.typeahead
+	m.opening, m.typeahead = false, nil
+
 	if l.err != nil {
 		if errors.Is(l.err, jj.ErrStaleWorkingCopy) {
 			return m.openStale(l.err)
@@ -32,7 +35,23 @@ func (l loaded[T]) open(m *Model) tea.Cmd {
 		return nil
 	}
 
-	return l.show(m, l.value)
+	cmd := l.show(m, l.value)
+
+	return tea.Batch(cmd, m.replayTypeahead(held))
+}
+
+// replayTypeahead gives the prompt that just opened the keys typed while it was being read.
+func (m *Model) replayTypeahead(held []tea.KeyPressMsg) tea.Cmd {
+	if !m.prompt.IsOpen() {
+		return nil
+	}
+
+	cmds := make([]tea.Cmd, 0, len(held))
+	for _, key := range held {
+		cmds = append(cmds, m.prompt.Update(key))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func load[T any](ctx context.Context, read func(context.Context) (T, error), show func(*Model, T) tea.Cmd) tea.Cmd {

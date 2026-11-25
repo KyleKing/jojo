@@ -360,7 +360,7 @@ func (m Model) revisionsGate(revs []*jj.Revision) keys.Availability {
 	readable := 0
 
 	for _, rev := range revs {
-		if rev.Empty {
+		if rev.Empty || rev.Immutable {
 			continue
 		}
 
@@ -761,7 +761,7 @@ func (m Model) stepUnreadRev(screen keys.Context, dir int) (Model, tea.Cmd) {
 
 	for i := at + dir; i >= 0 && i < len(revs); i += dir {
 		strip := m.strips[revs[i].ChangeID]
-		if revs[i].Empty {
+		if revs[i].Empty || revs[i].Immutable {
 			continue
 		}
 

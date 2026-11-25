@@ -150,6 +150,11 @@ type Model struct {
 	// diffPreference is config.toml's diff_tool, and diffTool what it resolved to.
 	diffPreference string
 	diffTool       string
+	// splitKnown is every change the log held before a split that wrote, until the commits it made
+	// have each been asked for a description; nil otherwise.
+	splitKnown map[string]bool
+	// typeahead holds the keys typed while a prompt is being read (opening), which it is then given.
+	typeahead []tea.KeyPressMsg
 	// converging is the divergent change the converge dialog is standing over, "" for all of them.
 	converging string
 	lastOp     string
@@ -226,6 +231,8 @@ type Model struct {
 	revsetLoaded bool
 	logFull      bool
 	quitting     bool
+	// opening says a prompt is being read and will open: keys go to typeahead until it does.
+	opening bool
 	// revsetShown is whether the layout last gave the revset row its line.
 	revsetShown bool
 }
@@ -470,7 +477,7 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	for _, handle := range []func(Model, tea.Msg) (tea.Model, tea.Cmd, bool){
 		Model.handleModeMsg, Model.handleSubmitMsg, Model.handleOverlayMsg, Model.handleFindMsg, Model.discoverMsg,
 		Model.trailMsg, Model.handleBookmarkMsg, Model.bookmarkMenuMsg, Model.syncMsg, Model.edgeMsgs,
-		Model.handleExternalMsg, Model.handleReadMsg, Model.handleHistoryMsg,
+		Model.handleExternalMsg, Model.handleReadMsg, Model.handleHistoryMsg, Model.flowMsg,
 	} {
 		if next, cmd, handled := handle(m, msg); handled {
 			return next, cmd
@@ -512,6 +519,39 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.routeToPanes(msg)
+}
+
+// flowMsg is what follows the verbs that hand off or leave work undone: the terminal coming back into
+// focus, a push jj refused, and a split that made commits to describe.
+func (m Model) flowMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.FocusMsg:
+		return m, m.refreshOnFocus(), true
+	case pushRefusedMsg:
+		m.message, m.failing = m.landOnRefusal(msg.err), true
+
+		return m, tea.Batch(m.after(messageLife, func(time.Time) tea.Msg { return clearMessageMsg{} }),
+			m.followDock(m.dockTarget())), true
+	case splitWroteMsg:
+		m.splitKnown = msg.known
+		next, cmd := m.showMessage(msg.done)
+
+		return next, cmd, true
+	}
+
+	return m, nil, false
+}
+
+// refreshOnFocus reads the log again when the terminal comes back into focus, which is the log read
+// that snapshots the working copy: an edit saved in another window while jojo sat behind it shows
+// at once. A screen mid-question (a prompt, the picker, the past) is left as it is, since a new log
+// would move what it is asking about.
+func (m Model) refreshOnFocus() tea.Cmd {
+	if m.openModal() != "" || m.pick.active || m.travel.active || m.opening {
+		return nil
+	}
+
+	return m.loadLog(m.revset)
 }
 
 // noteState files what a background read learned about the repository or the machine.
@@ -602,7 +642,7 @@ func (m Model) applyLog(msg logLoadedMsg) (Model, tea.Cmd) {
 	}
 
 	cmd := tea.Batch(m.forge.SetBookmark(bookmarkNearWorkingCopy(msg.rows)), m.loadHeadOp(),
-		m.loadDock(m.dockTarget()), m.loadStats(), outline)
+		m.loadDock(m.dockTarget()), m.loadStats(), outline, m.describeSplit())
 
 	return m, cmd
 }
@@ -715,6 +755,9 @@ func (m Model) revsetPane() []string {
 func (m Model) View() tea.View {
 	view := tea.NewView(m.render())
 	view.AltScreen = true
+	// Coming back to the terminal reads the log again (refreshOnFocus), so an edit made in another
+	// window shows without ctrl+l.
+	view.ReportFocus = true
 
 	return view
 }

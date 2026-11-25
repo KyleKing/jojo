@@ -362,7 +362,8 @@ func logBindings() []keys.Binding {
 		b(ActionNewPlaced, GroupPlace, "new, choosing where it goes", "new…", "N"),
 		b(ActionEdit, GroupWrite, "edit", "edit", "e"),
 		b(ActionDiffedit, GroupWrite, "edit the revision's content in the diff editor", "diffedit", "E"),
-		b(keys.ActionDescribe, GroupWrite, "describe", "describe", "d"),
+		// The outline takes describe, the one write its submit refusal can ask for.
+		withContexts(b(keys.ActionDescribe, GroupWrite, "describe", "describe", "d"), keys.Log|Outline),
 		b(keys.ActionDescribeEditor, GroupWrite, "describe in $EDITOR", "", "D"),
 		b(ActionCommit, GroupWrite, "commit @: describe it and start a new one", "commit", "c"),
 		b(ActionSquash, GroupPlace, "squash, choosing where into", "squash", "s"),

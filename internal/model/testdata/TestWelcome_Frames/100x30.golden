@@ -7,17 +7,17 @@
 
 
                   ╭─ Welcome to jojo ────────────────────────────────────────────╮
-                  │ Your jj log: read changes, mark what you have read, and      │
-                  │ submit the stack for review.                                 │
+                  │ Your jj log, a key per verb: the cursor's revision is what   │
+                  │ each one acts on.                                            │
                   │                                                              │
-                  │ n      new on the revision (two or more checked: a merge)    │
-                  │ space  mark the hunk read                                    │
-                  │ ]u     next unread                                           │
-                  │ I      outline                                               │
-                  │ P      submit the stack as stacked pull requests (a plan fi… │
+                  │ d     describe                                               │
+                  │ n     new on the revision (two or more checked: a merge)     │
+                  │ s     squash, choosing where into                            │
+                  │ r     rebase, choosing where                                 │
+                  │ u     undo                                                   │
                   │                                                              │
-                  │ ?      every key, and why one is off here                    │
-                  │ :      find and run any command by name                      │
+                  │ ?     every key, and why one is off here                     │
+                  │ :     find and run any command by name                       │
                   ╰─ any key closes ─────────────────────────────────────────────╯
 
 

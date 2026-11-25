@@ -115,7 +115,9 @@ func (m Model) viewAction(action string, rev jj.Revision) (tea.Cmd, bool) {
 func (m Model) openAction(action string, rev jj.Revision) (tea.Model, tea.Cmd) {
 	switch action {
 	case keys.ActionDescribe:
-		return m, m.loadDescribe(rev)
+		cmd := m.loadDescribe(rev)
+
+		return m, cmd
 	case keys.ActionDescribeEditor:
 		return m, m.describeInEditor(rev.ChangeID, "")
 	case help.ActionCommit:

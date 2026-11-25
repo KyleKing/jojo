@@ -45,7 +45,7 @@ func TestWelcome_Frames(t *testing.T) {
 			m := firstRun(t, size, filepath.Join(t.TempDir(), "coach.json"))
 			frame := m.render()
 
-			for _, want := range []string{"Welcome to jojo", "n", "]u", "I", "P"} {
+			for _, want := range []string{"Welcome to jojo", "d ", "n ", "s ", "r ", "u ", "? ", ": "} {
 				if !strings.Contains(tuitest.StripANSI(frame), want) {
 					t.Errorf("the card has no %q:\n%s", want, tuitest.StripANSI(frame))
 				}

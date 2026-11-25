@@ -259,8 +259,18 @@ func bookmarkGate(action string, rev *jj.Revision) (keys.Availability, bool) {
 
 // pickGate is the picker's part of the gate: a bookmark move jj would refuse says so on enter rather
 // than failing after it, and names the flag that allows it.
+//
+// A rebase of -r revisions starts on their parent, which is no destination at all: run there, jj
+// lifts the revisions out and hangs their children on the parent, reshaping the stack the reader
+// only meant to look at. Enter there says to pick a destination first.
 func (m *Model) pickGate(action string) keys.Availability {
 	p := &m.pick
+	if action == help.ActionPickApply && p.verb == pickRebase && p.scope() == jj.RebaseScopeRevisions &&
+		p.dest == p.initial && !p.unchanged {
+		return keys.Refuse("the destination is still the parent, where -r would pull " + joinIDs(p.sources) +
+			" out of its stack; move to where it goes, then enter")
+	}
+
 	if action != help.ActionPickApply || p.verb != pickBookmark || p.shownFor != p.command() {
 		return keys.Allow()
 	}

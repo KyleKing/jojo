@@ -440,3 +440,36 @@ func assertDescription(t *testing.T, row string, whole bool) {
 		t.Errorf("the size holds while the description is cut: %q", row)
 	}
 }
+
+// d describes the outline's chapter, since the submit's refusal names d for an undescribed change,
+// and what is typed before the prompt has read the description goes into it rather than running as
+// commands: o, c, s, and : here would otherwise open panels and the palette.
+func TestOutline_DescribeTakesTypeaheadAsText(t *testing.T) {
+	t.Parallel()
+
+	dir := liveRepo(t)
+	m := press(t, liveModel(t, dir, "top"), "I")
+
+	if !m.outline.active {
+		t.Fatal("I did not open the outline")
+	}
+
+	keys := make([]string, 0, 8)
+	keys = append(keys, "d")
+
+	for _, r := range "docs: " {
+		keys = append(keys, string(r))
+	}
+
+	m = pressFast(t, m, append(keys, "enter")...)
+
+	if m.pal.IsOpen() || m.prompt.IsOpen() {
+		t.Fatalf("typed text leaked: palette open %v, prompt open %v", m.pal.IsOpen(), m.prompt.IsOpen())
+	}
+
+	got := strings.TrimSpace(jjRun(t, dir, "log", "--no-graph", "--ignore-working-copy", "-r",
+		"description(substring:'docs:')", "-T", "description"))
+	if got != "docs: top" {
+		t.Errorf("the chapter's description is %q, want the text typed after d before the old one", got)
+	}
+}

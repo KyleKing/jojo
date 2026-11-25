@@ -93,7 +93,7 @@ func TestPushProblemNamesTheFix(t *testing.T) {
 			name: "no description",
 			err: fmt.Errorf("%w: Won't push commit b189 since it has no description (Rejected commit: x)",
 				jj.ErrPushRefused),
-			want: "Won't push commit b189 since it has no description. Press d to describe it",
+			want: "Won't push commit b189 since it has no description: d describes it",
 		},
 		{
 			name: "unclassified failures are passed through",
@@ -186,5 +186,30 @@ func TestPush_RevisionWithoutABookmarkOffersAGeneratedOne(t *testing.T) {
 	_, cmd, _ := testModel(t, twoRows()).offerPush(preview)
 	if cmd == nil {
 		t.Fatal("a revision with no bookmark was not offered jj git push -c")
+	}
+}
+
+// jj names the refused commit by commit id; the line names it by change id and the cursor lands on
+// it, so the d it offers describes that revision and not whatever the cursor was on.
+func TestPushRefusal_LandsOnTheCommitItNames(t *testing.T) {
+	t.Parallel()
+
+	rows := []jj.LogRow{
+		{Revision: &jj.Revision{ChangeID: "qrnkttwl", CommitID: "6a492b1a70ff", Description: "fix"}},
+		{Revision: &jj.Revision{ChangeID: "mytstwqm", CommitID: "071738586b65"}},
+	}
+	m := testModel(t, rows)
+	err := fmt.Errorf("%w: Won't push commit 071738586b65 since it has no description (Rejected commit: x)",
+		jj.ErrPushRefused)
+
+	next, _ := m.Update(pushRefusedMsg{err: err})
+	m = asModel(t, next)
+
+	if got := m.log.Selected().ChangeID; got != "mytstwqm" {
+		t.Errorf("the cursor is on %s after the refusal, want mytstwqm", got)
+	}
+
+	if want := "Won't push mytstwqm since it has no description: d describes it"; !strings.HasPrefix(m.message, want) {
+		t.Errorf("the refusal reads %q, want it to start %q", m.message, want)
 	}
 }

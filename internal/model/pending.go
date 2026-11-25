@@ -23,8 +23,12 @@ type (
 
 // loadDescribe reads the whole description before the prompt opens, because the log row carries only
 // its first line and seeding the prompt with that dropped the body and trailers on Enter.
-func (m Model) loadDescribe(rev jj.Revision) tea.Cmd {
+//
+// The prompt opens a jj call later, so the keys typed meanwhile are held for it (opening) rather than
+// run as commands: a reader types a description the moment they press d.
+func (m *Model) loadDescribe(rev jj.Revision) tea.Cmd {
 	client, id := m.client, rev.ChangeID
+	m.opening, m.typeahead = true, nil
 
 	return load(m.ctx,
 		func(ctx context.Context) (jj.Detail, error) { return client.RevisionDetail(ctx, id) },
@@ -183,6 +187,8 @@ func (m Model) cancelModals() Model {
 	m.diff.Close()
 	leaveChange(m.fullReads())
 	m.onSubmit, m.onPick, m.onEditor = nil, nil, nil
+	// Esc on the describe a split asked for skips the rest of them too.
+	m.splitKnown = nil
 
 	return m
 }

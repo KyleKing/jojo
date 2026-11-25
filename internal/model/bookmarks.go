@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -189,7 +190,7 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 
-		m.message, m.failing = pushProblem(msg.err), true
+		m.message, m.failing = m.landOnRefusal(msg.err), true
 
 		return m, nil, true
 	}
@@ -221,6 +222,44 @@ func (m Model) offerPush(msg pushPreviewMsg) (tea.Model, tea.Cmd, bool) {
 	return m, cmd, true
 }
 
+// pushRefusedMsg is a push that failed, which the update loop explains and, when jj named a commit
+// the log shows, puts the cursor on.
+type pushRefusedMsg struct {
+	err error
+}
+
+// refusedCommit matches the commit id jj names in a push refusal ("Won't push commit 0717385…").
+var refusedCommit = regexp.MustCompile(`commit ([0-9a-f]{6,})`)
+
+// landOnRefusal is pushProblem with the cursor moved to the commit jj refused, named by its change id,
+// so the d or x the line offers acts on that revision rather than on wherever the cursor was.
+func (m *Model) landOnRefusal(err error) string {
+	text := pushProblem(err)
+	if !errors.Is(err, jj.ErrPushRefused) {
+		return text
+	}
+
+	found := refusedCommit.FindStringSubmatch(err.Error())
+	if found == nil {
+		return text
+	}
+
+	for _, row := range m.rows {
+		rev := row.Revision
+		if rev == nil || rev.CommitID == "" {
+			continue
+		}
+
+		if strings.HasPrefix(found[1], rev.CommitID) || strings.HasPrefix(rev.CommitID, found[1]) {
+			m.log.Focus(rev.ChangeID)
+
+			return strings.Replace(text, "commit "+found[1], rev.ChangeID, 1) + " (the cursor is on it)"
+		}
+	}
+
+	return text
+}
+
 // pushProblem turns jj's refusal into the line that gets the user out of it.
 func pushProblem(err error) string {
 	text := strings.TrimPrefix(err.Error(), jj.ErrPushRefused.Error()+": ")
@@ -234,11 +273,11 @@ func pushProblem(err error) string {
 
 	switch {
 	case strings.Contains(headline, "no description"):
-		return headline + ". Press d to describe it"
+		return headline + ": d describes it"
 	case strings.Contains(headline, "empty"):
 		return headline + ". An empty revision has nothing to push"
 	case strings.Contains(headline, "conflict"):
-		return headline + ". Resolve the conflict first"
+		return headline + ": x resolves it"
 	}
 
 	return text
@@ -250,7 +289,7 @@ func (m Model) push(p pendingPush) tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			if _, err := client.Push(ctx, p.opts); err != nil {
-				return messageMsg{text: pushProblem(err), output: jj.FullOutput(err)}
+				return pushRefusedMsg{err: err}
 			}
 
 			return messageMsg{text: "pushed " + p.what}

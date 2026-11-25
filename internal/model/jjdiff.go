@@ -2,6 +2,7 @@ package model
 
 import (
 	"os/exec"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -54,9 +55,62 @@ func (m Model) openJJDiff(mode jjdiff.Mode, rev string) tea.Cmd {
 	cmd := exec.CommandContext(m.ctx, m.jjDiff.Path, jjdiff.Args(mode, rev)...)
 	cmd.Dir = m.repoPath
 
+	known := m.knownChanges()
+
 	return m.execThen(cmd, func(err error, wrote bool) tea.Msg {
-		return messageMsg{text: jjdiff.Outcome(mode, rev, err, wrote), wrote: wrote && err == nil}
+		done := messageMsg{text: jjdiff.Outcome(mode, rev, err, wrote), wrote: wrote && err == nil}
+		if mode != jjdiff.Split || !done.wrote {
+			return done
+		}
+
+		return splitWroteMsg{done: done, known: known}
 	})
+}
+
+// splitWroteMsg is a split that wrote, with every change the log held before it, so the commits the
+// split made can be told apart and asked for a description.
+type splitWroteMsg struct {
+	known map[string]bool
+	done  messageMsg
+}
+
+// knownChanges is every change id the log holds.
+func (m Model) knownChanges() map[string]bool {
+	known := make(map[string]bool, len(m.rows))
+	for _, row := range m.rows {
+		if row.Revision != nil {
+			known[row.Revision.ChangeID] = true
+		}
+	}
+
+	return known
+}
+
+// describeSplit asks for a description of the next commit a split made that has none, once the log
+// read after the split lands: a push refuses an undescribed commit, and the split's new column is
+// one nobody has named yet. Each describe reads the log again and lands here for the next; esc on
+// the prompt skips the rest.
+func (m *Model) describeSplit() tea.Cmd {
+	if m.splitKnown == nil || m.openModal() != "" {
+		return nil
+	}
+
+	for _, row := range m.rows {
+		rev := row.Revision
+		if rev == nil || m.splitKnown[rev.ChangeID] || rev.Immutable || strings.TrimSpace(rev.Description) != "" {
+			continue
+		}
+
+		// Asked once: a description left empty on purpose is not asked for again.
+		m.splitKnown[rev.ChangeID] = true
+		m.log.Focus(rev.ChangeID)
+
+		return tea.Batch(m.loadDescribe(*rev), m.say("the split made "+rev.ChangeID+": describe it (esc skips)"))
+	}
+
+	m.splitKnown = nil
+
+	return nil
 }
 
 // withoutJJDiff is the verb through jj alone, its footer line naming what jj-diff lacked.

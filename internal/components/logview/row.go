@@ -59,10 +59,17 @@ const (
 
 // Columns orders the row and sets what collapse gives up first. Priority zero
 // never collapses, so the description and the change id survive any width.
-func Columns() []table.Column {
+func Columns() []table.Column { return columnsFor(0) }
+
+// columnsFor is Columns with the bookmark column at least as wide as the widest bookmark text in the
+// log, up to its cap: a narrow log (the dock beside it) gives up the author, the age, and the size
+// before it cuts a bookmark name to "ttl-k…", since a cut name names nothing.
+func columnsFor(bookmarks int) []table.Column {
+	least := min(max(bookmarks, bookmarksMin), bookmarksMax)
+
 	return []table.Column{
 		{Key: ColChange, Title: "change", Min: changeIDWidth, Max: changeIDWidth},
-		{Key: ColBookmarks, Title: "bookmarks", Min: bookmarksMin, Max: bookmarksMax, Priority: prioBookmarks},
+		{Key: ColBookmarks, Title: "bookmarks", Min: least, Max: bookmarksMax, Priority: prioBookmarks},
 		{Key: ColDesc, Title: "description", Min: descMin, Weight: descWeight},
 		{Key: ColSize, Title: "size", Min: sizeMin, Max: sizeMax, Priority: prioSize, Align: table.AlignRight},
 		{Key: ColAuthor, Title: "author", Min: authorMin, Max: authorMax, Priority: prioAuthor, Trim: table.TrimRight},
@@ -150,6 +157,26 @@ func authorHandle(email string) string {
 // itself on every row.
 func Fit(width, graphWidth int) table.Layout {
 	return table.FitCompact(Columns(), width-graphWidth-table.Gutter)
+}
+
+// FitRows is Fit for these rows, the bookmark column kept as wide as their widest bookmark text.
+func FitRows(width, graphWidth int, rows []jj.LogRow) table.Layout {
+	return table.FitCompact(columnsFor(BookmarkWidth(rows)), width-graphWidth-table.Gutter)
+}
+
+// BookmarkWidth is the widest bookmark text among rows, in display cells.
+func BookmarkWidth(rows []jj.LogRow) int {
+	widest := 0
+
+	for _, row := range rows {
+		if row.Revision == nil || len(row.Revision.Bookmarks) == 0 {
+			continue
+		}
+
+		widest = max(widest, lipgloss.Width(strings.Join(row.Revision.Bookmarks, " ")))
+	}
+
+	return widest
 }
 
 // GraphWidth is the widest graph prefix among the revision rows, which every

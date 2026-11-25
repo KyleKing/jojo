@@ -74,7 +74,7 @@ var logFooter = []string{
 	help.ActionDiff, help.ActionPreview, help.ActionNew, keys.ActionDescribe, help.ActionSquash,
 	help.ActionRebase, help.ActionEdit, help.ActionAbandon, keys.ActionUndo, help.ActionFiles,
 	help.ActionSplit, help.ActionDuplicate, help.ActionRestore, help.ActionCommit, help.ActionPush,
-	help.ActionFetch, help.ActionBookmarks, help.ActionOpLog, keys.ActionPalette,
+	help.ActionFetch, help.ActionBookmarks, help.ActionOpLog, keys.ActionReload, keys.ActionPalette,
 }
 
 // viewFooter is the docked diff's, while it has the keys.

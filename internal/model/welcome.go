@@ -10,15 +10,15 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 )
 
-// newWelcome is the first-run card: what jojo is for and the keys a first session starts with,
-// labeled from the keymap so a rebind changes the card. The submit is the outline's P, so the
-// outline's key stands before it: P in the log pushes.
+// newWelcome is the first-run card: what jojo is for and the core jj loop a first session starts
+// with, every one a key on the log the card is drawn over, labeled from the keymap so a rebind changes
+// the card. Reading and submitting come later, from the help and the coach, once the loop is in hand.
 func newWelcome(km help.Keymap) *coach.Welcome {
 	w := &coach.Welcome{
 		Title: "Welcome to jojo",
-		Lead:  "Your jj log: read changes, mark what you have read, and submit the stack for review.",
-		Starters: coach.StartersFrom(km.Keys(), help.ActionNew, keys.ActionRead, keys.NextAction(keys.ObjUnread),
-			keys.ActionOutline, help.ActionSubmit),
+		Lead:  "Your jj log, a key per verb: the cursor's revision is what each one acts on.",
+		Starters: coach.StartersFrom(km.Keys(), keys.ActionDescribe, help.ActionNew, help.ActionSquash,
+			help.ActionRebase, keys.ActionUndo),
 	}
 	w.HelpKeysFrom(km.Keys())
 

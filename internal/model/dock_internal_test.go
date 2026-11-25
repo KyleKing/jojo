@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -347,4 +349,36 @@ func TestDock_RevisitedCommitDrawsFromTheCache(t *testing.T) {
 	if got := dockTitle(m); !strings.Contains(got, "aaaa") {
 		t.Errorf("dock title = %q, want aaaa's diff", got)
 	}
+}
+
+// Coming back to the terminal reads the log again, which snapshots: a file saved in another window
+// shows in @ without ctrl+l.
+func TestFocus_ReadsAnEditMadeElsewhere(t *testing.T) {
+	t.Parallel()
+
+	dir := liveRepo(t)
+	m := liveModel(t, dir, "top")
+	before := workingCopyCommit(m)
+
+	saved := []byte("saved in another window\n")
+	if err := os.WriteFile(filepath.Join(dir, "elsewhere.txt"), saved, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	next, cmd := m.Update(tea.FocusMsg{})
+	m = pump(t, asModel(t, next), cmd)
+
+	if after := workingCopyCommit(m); after == before || after == "" {
+		t.Errorf("@ is still commit %q after the terminal regained focus, want the snapshot's new commit", after)
+	}
+}
+
+func workingCopyCommit(m Model) string {
+	for _, row := range m.rows {
+		if row.Revision != nil && row.Revision.WorkingCopy {
+			return row.Revision.CommitID
+		}
+	}
+
+	return ""
 }

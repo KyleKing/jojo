@@ -458,7 +458,7 @@ func (m Model) View() string {
 	}
 
 	graphWidth := GraphWidth(m.rows)
-	layout := Fit(m.width, graphWidth)
+	layout := FitRows(m.width, graphWidth, m.rows)
 	lines := make([]string, 0, m.height)
 
 	for i := m.top; i < len(m.rows) && len(lines) < m.height; i++ {
@@ -545,7 +545,8 @@ func (m Model) cells(rev jj.Revision, layout table.Layout, on face) string {
 			continue
 		}
 
-		if label := m.unread[rev.ChangeID]; label != "" && col.Key == ColDesc {
+		// Immutable history is not under review, so trunk rows never read as unread.
+		if label := m.unread[rev.ChangeID]; label != "" && col.Key == ColDesc && !rev.Immutable {
 			rendered = append(rendered, m.unreadCell(label, text[col.Key], width, m.style(rev, col.Key), on))
 
 			continue
@@ -654,7 +655,7 @@ func (m Model) Overflow() []string {
 		return nil
 	}
 
-	layout := Fit(m.width, GraphWidth(m.rows))
+	layout := FitRows(m.width, GraphWidth(m.rows), m.rows)
 	text := Cells(*rev)
 	whole := map[string]string{
 		ColDesc:      rev.Description,

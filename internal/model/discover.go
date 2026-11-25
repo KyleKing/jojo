@@ -76,7 +76,7 @@ func (m *Model) state() logState {
 			s.wc = row.Revision
 		}
 
-		if row.Revision != nil && m.strips[row.Revision.ChangeID].Unread() > 0 {
+		if row.Revision != nil && !row.Revision.Immutable && m.strips[row.Revision.ChangeID].Unread() > 0 {
 			s.unread++
 		}
 	}
