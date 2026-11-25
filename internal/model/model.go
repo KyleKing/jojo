@@ -17,6 +17,7 @@ import (
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/launch"
@@ -110,6 +111,8 @@ type Model struct {
 	// the copies Update makes of the model share them.
 	pal   *palette.Model
 	coach *coach.Coach[logState]
+	// icons is Options.Icons: the icon set and why, said under the legend while it is open.
+	icons *icons.Resolution
 	// welcome is the first-run card, a pointer so the copies Update makes share whether it is up.
 	welcome    *coach.Welcome
 	trail      *trail.Trail
@@ -261,6 +264,9 @@ type Options struct {
 	Seen *keyusage.Usage
 	// Usage records this session's keys, nil when recording is off.
 	Usage *keyusage.Recorder
+	// Icons is which icon set the file list draws and why, for the legend's last row to say; nil
+	// leaves the row as the footer.
+	Icons *icons.Resolution
 	// Reads answers which hunks have been read, nil for none: the seam aragonite/seen plugs into.
 	Reads ReadState
 	// DiffTool is config.toml's diff_tool: "" or "auto", "none", or a tool name.
@@ -364,6 +370,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		trail:           log,
 		about:           help.About(km),
 		band:            opts.CoachLayout == coach.Band,
+		icons:           opts.Icons,
 		status:          statusbar.New(skin),
 		keys:            km,
 		matcher:         keys.NewMatcher(km.Keys()),
@@ -849,16 +856,29 @@ func (m Model) screenFrame() string {
 }
 
 // discovered draws the open palette over the frame's rows above its last keep, which stay in view: the
-// footer says where the reader is and how to get out.
+// footer says where the reader is and how to get out. The legend keeps at least the last row and says
+// there which icon set the file list draws, why, and how to change it.
 func (m Model) discovered(frame string, keep int) string {
 	if !m.pal.IsOpen() {
 		return frame
 	}
 
 	lines := strings.Split(frame, "\n")
-	body := max(0, len(lines)-keep)
 
-	return strings.Join(append(m.pal.Over(lines[:body], m.width), lines[body:]...), "\n")
+	// The legend says which icon set is drawn in the frame's last row, which it keeps clear of itself.
+	legend := m.pal.Mode() == palette.Browse && m.icons != nil
+	if legend {
+		keep = max(keep, 1)
+	}
+
+	body := max(0, len(lines)-keep)
+	out := append(m.pal.Over(lines[:body], m.width), lines[body:]...)
+
+	if legend && len(out) > 0 {
+		out[len(out)-1] = m.iconsLine()
+	}
+
+	return strings.Join(out, "\n")
 }
 
 // panelMargin is the columns the which-key panel leaves the log at its widest, so a page of flags is

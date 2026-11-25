@@ -53,8 +53,9 @@ type Faces struct {
 	// Palette is the flavor this skin was built from, for the few callers that need a raw color
 	// rather than a face: a diff needs more of them than a skin has roles for.
 	Palette theme.Palette
-	// Icons draws a file's type beside its name: Nerd Font glyphs unless
-	// ARAGONITE_ICONS asks for plain unicode, shared with the sibling tools.
+	// Icons draws a file's type beside its name, in the set icons.Explain picked from
+	// ARAGONITE_ICONS, config.toml's icons, and the terminal; New draws unicode until
+	// WithIcons gives it that set.
 	Icons icons.Set
 	// Diff is what a changed line is drawn with in the diff pane: its wash, the deeper mark on
 	// the words that changed, and the sign bar, the same faces second-look and jj-diff use.
@@ -72,10 +73,12 @@ func accent(p theme.Palette) color.Color {
 // New builds a skin from a palette, so callers (and tests) can pin a flavor
 // rather than reading the terminal.
 func New(p theme.Palette) Skin {
+	// Icons are unicode rather than icons.Resolve's, which reads the terminal: a skin a test builds
+	// draws the same wherever it runs, and the program sets the resolved set with WithIcons.
 	f := &Faces{
 		Skin:     skin.New(p, accent(p)),
 		Selected: lipgloss.NewStyle().Reverse(true),
-		Icons:    icons.New(icons.Resolve(""), p),
+		Icons:    icons.New(icons.Unicode, p),
 		Diff:     skin.Diff(p, true),
 		Palette:  p,
 		Profile:  colorprofile.TrueColor,

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/table"
@@ -236,4 +237,68 @@ func (m *Model) outlineHints() []keyhint.Hint {
 	return m.keys.HintsAt(m.gate, keys.NextAction(keys.ObjChapter), keys.PrevAction(keys.ObjChapter),
 		help.ActionChapterRead, keys.ActionRead, keys.NextAction(keys.ObjUnread), help.ActionSubmit,
 		keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjRound), keys.ActionRounds, keys.ActionBack)
+}
+
+// iconsLabel heads the legend's last row, as config.toml's key spells it.
+const iconsLabel = "icons"
+
+// iconsLine is the row the legend keeps under itself: which icon set the file list draws, why, and
+// how to change it, in the longest wording of the change that fits the width. Where none fits, the
+// set and its reason keep their place and the change is cut, so the row never wraps.
+func (m Model) iconsLine() string {
+	if m.icons == nil {
+		return ""
+	}
+
+	says := m.icons.String()
+	lead := iconsLabel + "  " + says + " · "
+	ways := iconsHow(*m.icons)
+
+	how := ways[len(ways)-1]
+	for _, way := range ways {
+		if lipgloss.Width(lead+way) <= m.width {
+			how = way
+
+			break
+		}
+	}
+
+	room := m.width - lipgloss.Width(iconsLabel+"  ")
+	says = table.Truncate(says, room)
+	how = table.Truncate(how, room-lipgloss.Width(says+" · "))
+
+	line := m.skin.Key.Render(iconsLabel) + "  " + m.skin.Body.Render(says)
+	if how != "" {
+		line += m.skin.Muted.Render(" · " + how)
+	}
+
+	return line
+}
+
+// iconsHow are the ways to change the icon set a resolution names, longest first: it suggests the
+// other set worth trying (plain where Nerd icons draw, nerd elsewhere), and where ARAGONITE_ICONS
+// decided, that config.toml cannot win until the variable is changed or unset.
+func iconsHow(r icons.Resolution) []string {
+	want := "nerd"
+	if r.Mode == icons.Nerd {
+		want = "plain"
+	}
+
+	env := icons.EnvOverride + "=" + want
+	if r.Source == icons.FromEnv {
+		return []string{
+			"set " + env + ", or unset it for config.toml's icons",
+			"set " + env + " or unset it",
+			env,
+		}
+	}
+
+	set := iconsLabel + ` = "` + want + `"`
+
+	return []string{
+		"set " + set + " in ~/.config/jojo/config.toml or " + env,
+		"set " + set + " or " + env,
+		set + " or " + env,
+		env,
+	}
 }

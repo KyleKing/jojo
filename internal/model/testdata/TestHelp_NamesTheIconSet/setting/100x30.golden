@@ -1,0 +1,30 @@
+  wkwyyxvq          (no description set)     ╭─ keys · 81 of 81 ───────────────────────────────────╮
+  rnzxmskv          parse: read the new heade│ a key explains itself · / filters                   │
+  koopqtrk          refactor: split the reade│ ── General ──────────────────────────────────────── │
+  twnsvwmr  parse*  test: cover the fallbacks│ ▌ ?       help                                      │
+  nptwozlo          release 0.13.0           │   :       command palette                           │
+                                             │   q       close, or quit at the root                │
+                                             │   esc     back out one level                        │
+                                             │   ctrl+c  cancel the running command, else quit     │
+                                             │   u       undo                                      │
+                                             │   ctrl+r  redo                                      │
+                                             │   ctrl+l  reload from the source                    │
+                                             │   tab     next pane                                 │
+                                             │   .       repeat the last change · nothing to repe… │
+                                             │   !       shell in the repository root              │
+                                             │   K       what is this                              │
+                                             │   Y       yank a reference                          │
+                                             │   '       jump to a labeled row                     │
+                                             │   ctrl+o  jump list back · no jump to go back to y… │
+                                             │   ctrl+i  jump list forward · nothing to go forwar… │
+                                             │   gm      messages and the last failure             │
+                                             │ ── Move ─────────────────────────────────────────── │
+                                             │   gg      top                                       │
+                                             │   G       bottom                                    │
+                                             │   j/down  down a line                               │
+                                             │   k/up    up a line                                 │
+                                             │ ── General · ?  help ────────────────────────────── │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+ ▸ next  @ has changes but no description · d╰─────────────────────────────────────────────────────╯
+icons  nerd (setting) · set icons = "plain" in ~/.config/jojo/config.toml or ARAGONITE_ICONS=plain

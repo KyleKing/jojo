@@ -267,9 +267,12 @@ stack_bookmark = "push-{change}"
 # Where the next step and tips are drawn: "inline" (the line over the footer) or "band".
 coach_layout = "inline"
 
-# A file's type beside its name: "unicode" (the default), "nerd" for a Nerd Font, or "none".
-# ARAGONITE_ICONS overrides it, as in jj-diff and second-look.
-icons = "unicode"
+# A file's type beside its name. Omitted or "auto", jojo draws Nerd Font icons in a terminal that
+# bundles them (WezTerm, kitty, Ghostty, and tmux started from one) and plain unicode elsewhere;
+# "nerd", "unicode" (or "plain"), and "none" (or "off") pick a set outright. ARAGONITE_ICONS
+# overrides it, as in jj-diff and second-look. The last row under `?` names the set, why, and how
+# to change it: icons  nerd (auto: WezTerm) · set icons = "plain" or ARAGONITE_ICONS=plain
+icons = "auto"
 
 # Move an action to another key by its action name (the palette shows them), as one key or a
 # sequence; "" unbinds it. Shared actions keep aragonite's names, so hunk-next = "J" moves it in the

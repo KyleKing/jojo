@@ -1,0 +1,24 @@
+  wkwyyxvq          (no description set)               2f +14 -3                
+  rnzxmskv          parse: read the new header fo…      6f +0 -0                
+  koopqtrk          refactor: split the reader                                  
+  twnsvwmr  parse*  test: cover the fallbacks                                   
+  nptwozlo          release 0.13.0                                              
+
+
+
+
+
+
+
+── keys 81 of 81 ───────────────────────────────────────────────────────────────
+── General ─────────────────────────────────────────────────────────────────────
+▌ ?       help                                                                  
+  :       command palette                                                       
+  q       close, or quit at the root                                            
+  esc     back out one level                                                    
+  ctrl+c  cancel the running command,…                                          
+  u       undo                          jj undo                                 
+  ctrl+r  redo                          jj redo                                 
+  ctrl+l  reload from the source        jj log                                  
+a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
+icons  nerd (auto: WezTerm) · set icons = "plain" or ARAGONITE_ICONS=plain

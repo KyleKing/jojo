@@ -193,6 +193,9 @@ func run() error {
 		StackBookmark: settings.StackBookmark,
 		Ledger:        ledger, CoachLayout: layout,
 	}
+	// The legend names the icon set and why; configure resolved the same set from the same inputs.
+	why := icons.Explain(settings.Icons)
+	opts.Icons = &why
 	if reads := openReads(root); reads != nil {
 		opts.Reads = reads
 	}
