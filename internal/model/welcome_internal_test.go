@@ -56,9 +56,9 @@ func TestWelcome_Frames(t *testing.T) {
 	}
 }
 
-// Any key takes the card down and still acts, the help key opening the legend; the dismissal is saved at once,
-// so the next launch does not greet again.
-func TestWelcome_AnyKeyDismissesActsAndIsSaved(t *testing.T) {
+// The help key takes the card down and still opens the legend, the one key besides : that acts; the
+// dismissal is saved at once, so the next launch does not greet again.
+func TestWelcome_HelpKeyDismissesActsAndIsSaved(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "coach.json")
@@ -109,5 +109,33 @@ func TestWelcome_SmallTerminalAndNoLedger(t *testing.T) {
 
 	if testModel(t, stackRows()).welcome.Showing() {
 		t.Error("a model with no ledger greeted the reader")
+	}
+}
+
+// A verb pressed with the card up only takes it down: the first keystroke of a session must not
+// abandon (a), split (S), or squash (s) a change the reader never meant to touch.
+func TestWelcome_DismissingKeyDoesNotAct(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{"a", "S", "s", "n", "esc"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			before := firstRun(t, [2]int{100, 30}, filepath.Join(t.TempDir(), "coach.json"))
+			m, msgs := pressOne(t, before, key)
+
+			if m.welcome.Showing() {
+				t.Fatalf("%s left the card up", key)
+			}
+
+			if m.pick.active || m.confirm.IsOpen() || m.prompt.IsOpen() || m.pal.IsOpen() {
+				t.Errorf("%s acted while closing the card: picker %v, confirm %v, prompt %v, palette %v",
+					key, m.pick.active, m.confirm.IsOpen(), m.prompt.IsOpen(), m.pal.IsOpen())
+			}
+
+			if text := said(msgs); text != "" {
+				t.Errorf("%s said %q while closing the card, want nothing", key, text)
+			}
+		})
 	}
 }

@@ -27,7 +27,8 @@ func newWelcome(km help.Keymap) *coach.Welcome {
 
 // welcomeKey answers a key while the card is up: any key takes it down and the dismissal is saved at
 // once, since a short first session never reaches the idle lull the ledger is otherwise written in.
-// It reports whether the key goes on to act, which every key but esc does.
+// It reports whether the key goes on to act, which only the card's own help and palette keys do. Any
+// other key only closes it, so a first keystroke like a or S cannot abandon or split by accident.
 func (m *Model) welcomeKey(key string, now time.Time) bool {
 	if !m.welcome.Showing() {
 		return true

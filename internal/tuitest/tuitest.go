@@ -110,17 +110,11 @@ func AssertGolden(tb testing.TB, frame string) {
 }
 
 // AssertGraphGolden is AssertGolden for a frame that draws jj's graph, whose branch arms meet a node
-// glyph rather than a line, which framecheck's corner rule would read as an arm with nothing to join.
-// Every other rule still holds.
+// glyph rather than a line: framecheck's Graph option reads the node glyphs as joiners, so every rule,
+// the corner rule included, still holds.
 func AssertGraphGolden(tb testing.TB, frame string) {
 	tb.Helper()
-
-	for _, f := range framecheck.Check(StripANSI(frame)) {
-		if f.Rule != framecheck.Corner {
-			tb.Errorf("%s: %s", tb.Name(), f)
-		}
-	}
-
+	framecheck.Require(tb, tb.Name(), StripANSI(frame), framecheck.Graph())
 	golden.RequireEqual(tb, StripANSI(frame))
 }
 
