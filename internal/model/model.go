@@ -140,7 +140,6 @@ type Model struct {
 	// restoring is the operation a restore confirmation is standing over.
 	restoring jj.Operation
 	onSubmit  submitted
-	onEditor  submitted
 	onPick    picked
 	keys      help.Keymap
 	usage     *keyusage.Recorder
@@ -249,6 +248,8 @@ type Model struct {
 	opening bool
 	// revsetShown is whether the layout last gave the revset row its line.
 	revsetShown bool
+	// noVim is config.toml's vim = false, which every text field the model opens is built with.
+	noVim bool
 }
 
 // Ticker schedules fn to run after d, the way tea.Tick does.
@@ -297,6 +298,9 @@ type Options struct {
 	Keys help.Keymap
 	// CoachLayout is config.toml's coach_layout: inline (the default) or a band over the footer.
 	CoachLayout coach.Layout
+	// NoVim is config.toml's vim = false: every text field edits plainly, esc canceling at once,
+	// rather than with the vim layer the fields open with by default.
+	NoVim bool
 }
 
 // New builds the root model against a repository jj already recognizes.
@@ -343,7 +347,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		log:         logview.New(logview.StylesFrom(skin)),
 		revsetBox:   revsetbox.New(revset, revsetbox.WithAliases(aliasSource(client))),
 		forge:       forgepane.New(pollCtx, forgeStyles(skin), repoPath, "", jforge.WithFocused(false)),
-		prompt:      prompt.New(skin),
+		prompt:      prompt.New(skin, prompt.WithVim(!opts.NoVim)),
 		destPicker:  destpicker.New(skin),
 		opLog:       oplogview.New(skin),
 		spaces:      workspaceview.New(skin),
@@ -390,6 +394,7 @@ func New(ctx context.Context, client *jj.Client, skin ui.Skin, repoPath, revset 
 		countAsked:      map[string]bool{},
 
 		diffPreference: opts.DiffTool,
+		noVim:          opts.NoVim,
 	}
 
 	m.coach = newCoach(km, opts.Ledger)
@@ -474,7 +479,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// revset row, which every pane under it is sized around; the coach's band grows and shrinks with
 	// what it has to say, and the docked prompt with the lines typed into it.
 	if after.revsetShown != after.revsetRow() || after.bandShown != len(after.bandLines()) ||
-		after.promptShown != after.prompt.Rows(after.height) {
+		after.promptShown != after.prompt.Rows(after.width, after.height) {
 		after.resize()
 	}
 
@@ -705,7 +710,8 @@ func (m *Model) resize() {
 	m.forge.SetSize(m.width, forgeHeight)
 	m.revsetShown = m.revsetRow()
 	m.bandShown = len(m.bandLines())
-	m.promptShown = m.prompt.Rows(m.height)
+	m.prompt.SetHeight(m.height)
+	m.promptShown = m.prompt.Rows(m.width, m.height)
 	// The outline's columns depend on whether it shares the width, and the dock's share on them.
 
 	width, height := m.width, m.logHeight()

@@ -52,7 +52,6 @@ func openDescribe(m *Model, detail jj.Detail) tea.Cmd {
 
 		return m, cmd
 	}
-	m.onEditor = func(m Model, text string) (Model, tea.Cmd) { return m, m.describeInEditor(id, text) }
 
 	return m.prompt.OpenText("describe "+id, before)
 }
@@ -62,27 +61,10 @@ func sameDescription(a, b string) bool {
 	return strings.TrimRight(a, "\n") == strings.TrimRight(b, "\n")
 }
 
-// describeInEditor hands the terminal to $EDITOR through jj, seeded with text when the prompt had
-// one, which is the way to write a description longer than a prompt is comfortable for.
-func (m Model) describeInEditor(id, text string) tea.Cmd {
-	args := []string{"describe", "-r", id}
-	if text != "" {
-		args = append(args, "--editor", "-m", text)
-	}
-
-	return m.exec("described "+id+undoHint, args...)
-}
-
-func (m Model) handleEditorRequested(msg prompt.EditorRequestedMsg) (tea.Model, tea.Cmd) {
-	run := m.onEditor
-	m.prompt.Close()
-	m.onSubmit, m.onEditor = nil, nil
-
-	if run == nil {
-		return m, nil
-	}
-
-	return run(m, msg.Value)
+// describeInEditor hands the terminal to $EDITOR through jj, which is D, the way to write a
+// description from jj's own template rather than in the prompt.
+func (m Model) describeInEditor(id string) tea.Cmd {
+	return m.exec("described "+id+undoHint, "describe", "-r", id)
 }
 
 // openMoveFile asks for the destination and moves one path, which needs no editor at all. It is the
@@ -104,7 +86,7 @@ func (m *Model) openMoveFile(from string, paths []string) tea.Cmd {
 func (m Model) handleSubmitted(msg prompt.SubmittedMsg) (tea.Model, tea.Cmd) {
 	run := m.onSubmit
 	m.prompt.Close()
-	m.onSubmit, m.onEditor = nil, nil
+	m.onSubmit = nil
 
 	if run == nil {
 		return m, nil
@@ -186,7 +168,7 @@ func (m Model) cancelModals() Model {
 	m.files.Close()
 	m.diff.Close()
 	leaveChange(m.fullReads())
-	m.onSubmit, m.onPick, m.onEditor = nil, nil, nil
+	m.onSubmit, m.onPick = nil, nil
 	// Esc on the describe a split asked for skips the rest of them too.
 	m.splitKnown = nil
 

@@ -2,6 +2,7 @@ package model
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jojo/internal/components/bookmarkview"
 	"github.com/kyleking/jojo/internal/components/confirm"
@@ -23,10 +24,10 @@ func (m Model) handleOverlayMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		next, cmd := m.handleSubmitted(msg)
 
 		return next, cmd, true
-	case prompt.EditorRequestedMsg:
-		next, cmd := m.handleEditorRequested(msg)
-
-		return next, cmd, true
+	case vimtext.EditedMsg:
+		return m, m.prompt.Update(msg), true
+	case tea.PasteMsg:
+		return m.pasteIntoField(msg)
 	case destpicker.PickedMsg:
 		next, cmd := m.handlePicked(msg)
 
@@ -102,4 +103,19 @@ func (m Model) handlePanelMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	}
 
 	return m.handleRoundsMsg(msg)
+}
+
+// pasteIntoField hands a paste to the text field that has the keys, the footer's -m or the docked
+// prompt, and leaves any other paste to the panes (the revset box).
+func (m Model) pasteIntoField(paste tea.PasteMsg) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case m.typingMessage():
+		next, cmd := m.messageKey(paste)
+
+		return next, cmd, true
+	case m.openModal() == ctxPrompt:
+		return m, m.prompt.Update(paste), true
+	}
+
+	return m, nil, false
 }

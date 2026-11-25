@@ -119,7 +119,7 @@ func (m Model) openAction(action string, rev jj.Revision) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case keys.ActionDescribeEditor:
-		return m, m.describeInEditor(rev.ChangeID, "")
+		return m, m.describeInEditor(rev.ChangeID)
 	case help.ActionCommit:
 		return m.openCommitPrompt(rev)
 	case help.ActionDiffedit:
@@ -186,9 +186,6 @@ func (m Model) openCommitPrompt(rev jj.Revision) (tea.Model, tea.Cmd) {
 		cmd := m.act("@", func(ctx context.Context, c *jj.Client) (string, error) { return c.Commit(ctx, text) })
 
 		return m, cmd
-	}
-	m.onEditor = func(m Model, _ string) (Model, tea.Cmd) {
-		return m, m.exec("committed"+undoHint, "commit")
 	}
 
 	return m, m.prompt.OpenText("commit @", rev.Description)

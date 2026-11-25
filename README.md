@@ -118,7 +118,7 @@ can follow it; `Esc` drops it. The ones worth knowing before you start:
 | `*` | a file's history, on a file in the file list or the file the cursor is in in the docked or full-screen diff (`git log --follow -- <path>`): the log narrows to the changes that touched it, back through every rename jj detects (it follows them name by name, since `jj log` has no `--follow`), and the dock follows the cursor showing that file alone. The scope is the ancestors of `@` and of the revision you pressed it on, plus whatever the log showed. `Esc` returns to the log, row and dock as they were |
 | `n` / `N` | new on the revision (two or more checked: a merge), or new placed with the picker below |
 | `e` / `E` | edit the revision, or edit its content in the diff editor (`jj diffedit`) |
-| `d` / `D` | describe in a prompt docked under the log, so the change stays in view, holding the whole description with the cursor at its end (`enter` submits, `ctrl+j` or `alt+enter` breaks a line, `alt+e` moves to `$EDITOR`, `esc` cancels: every prompt keeps that contract), or straight in `$EDITOR` |
+| `d` / `D` | describe in a prompt docked under the log, so the change stays in view, holding the whole description with the cursor at its end (vim keys, below), or straight in `$EDITOR` through jj |
 | `c` | commit `@`: describe it and start a new change (`jj commit`) |
 | `s` / `r` / `y` / `R` | squash, rebase, duplicate, or restore, each in the picker below |
 | `S` | split the revision into commits in jj-diff's columns (`jj-diff --split -r`), one column per commit; `q` there returns without writing |
@@ -146,6 +146,28 @@ footer whether it wrote (judged by jj's operation log, so quitting without a pic
 written"). Without jj-diff on PATH, or with an older one, they run `jj split -i` and `jj resolve`
 instead and the footer says why.
 
+### Prompts
+
+Every place you type text (describe, commit, a bookmark or workspace name, a picker's `-m`) is
+aragonite's vim field, so it edits the way nvim does without leaving the screen it is about. It opens
+in insert mode with the cursor after what it holds, so typing just works, and the footer names the
+mode and its keys:
+
+| Key | Does |
+| --- | --- |
+| `Enter` | save, in any mode. Nothing runs until you save, and a name jj would refuse says why instead |
+| `Ctrl+j` | a new line, in a description (`Alt+Enter` too where the terminal reports it) |
+| `Esc` | from insert mode, normal mode; from normal mode, cancel. It backs out one level at a time, so pressing it twice always leaves |
+| `Ctrl+e` | hand the draft to `$VISUAL` or `$EDITOR` and take back what it wrote, in a description |
+| `Ctrl+c` | quit jojo, as everywhere |
+
+Normal and visual mode have what you reach for in prose: counts, `w` `b` `e` `0` `$` `gg` `G` `f`
+`t` `%` and the rest of the motions, `d` `c` `y` with motions and text objects (`ciw`, `da"`, `yip`),
+`x` `r` `~` `J` `p`, `v` and `V`, `u` and `Ctrl+r`, `.`, and `:w` / `:q`. Inside the field these mean
+what they mean in vim, not jojo's log keys: `u` undoes your typing rather than running `jj undo`, and
+`a` appends rather than abandoning. `vim = false` in the config turns the layer off: the same `Enter`,
+`Ctrl+j`, and `Ctrl+e`, with `Esc` cancelling at once.
+
 ### The picker
 
 `s` `r` `y` `N` `R` turn the log into a destination picker. `j` / `k` move the destination while the
@@ -161,8 +183,8 @@ graph redraws as it will be after the command, and the footer shows the live `jj
 | bookmark `bs` / `bx` | `-B` allow backwards or sideways (`--allow-backwards`) |
 | restore `R` | from the parent by default (which discards the revision's changes); `-i` choose hunks, `-d` keep descendants' content |
 
-`-m` opens a one-line prompt where the command line stands: `Enter` keeps the message, `Esc` leaves
-it as it was, and `-m` again drops it. `p` shows the graph before or after the command, `Enter` runs it as one operation, and `Esc` leaves
+`-m` opens a one-line prompt where the command line stands: `Enter` keeps the message, `Esc` twice
+leaves it as it was (the first goes to normal mode, as in every prompt), and `-m` again drops it. `p` shows the graph before or after the command, `Enter` runs it as one operation, and `Esc` leaves
 nothing behind.
 
 The line over the footer is the inspector: whatever the row under the cursor had no room for at
@@ -273,6 +295,10 @@ coach_layout = "inline"
 # overrides it, as in jj-diff and second-look. The last row under `?` names the set, why, and how
 # to change it: icons  nerd (auto: WezTerm) · set icons = "plain" or ARAGONITE_ICONS=plain
 icons = "auto"
+
+# Whether the text fields (describe, commit, names, -m) edit with vim keys. They open in insert
+# mode either way; false makes esc cancel at once rather than go to normal mode.
+vim = true
 
 # Move an action to another key by its action name (the palette shows them), as one key or a
 # sequence; "" unbinds it. Shared actions keep aragonite's names, so hunk-next = "J" moves it in the

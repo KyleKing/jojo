@@ -15,7 +15,6 @@ import (
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/statusbar"
 	"github.com/kyleking/jojo/internal/jj"
-	"github.com/kyleking/jojo/internal/ui"
 )
 
 type headOpMsg struct {
@@ -129,7 +128,7 @@ func (m Model) overlayFooter() string {
 // promptFooter is the footer under the docked prompt: its keys, after any message.
 func (m Model) promptFooter() string {
 	if m.message == "" {
-		return padLine(ui.FitHints(m.skin.FooterHintStyles(), m.prompt.Hints(), m.width), m.width)
+		return m.prompt.Footer(m.width)
 	}
 
 	return m.status.View(m.width, statusbar.Context{Message: m.message, Hints: m.prompt.Hints()})
@@ -144,7 +143,7 @@ func (m Model) withPrompt(frame string) string {
 	}
 
 	lines := strings.Split(frame, "\n")
-	keep := max(0, len(lines)-m.prompt.Rows(m.height)-footerRows)
+	keep := max(0, len(lines)-m.prompt.Rows(m.width, m.height)-footerRows)
 
 	return strings.Join(append(lines[:keep], m.prompt.Docked(m.width, m.height), m.promptFooter()), "\n")
 }

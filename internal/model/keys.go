@@ -79,6 +79,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return next, tea.Batch(cmd, m.coach.WakeAt(now))
 	}
 
+	// A text field takes every key, vim's included, but never ctrl+c, which quits from anywhere.
+	if msg.String() == keyQuit && m.typingText() {
+		m.quitting = true
+
+		return m, tea.Quit
+	}
+
 	// A prompt is on its way: what is typed now is its text, never a command.
 	if m.opening && !m.prompt.IsOpen() {
 		m.typeahead = append(slices.Clip(m.typeahead), msg)
@@ -89,6 +96,11 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	next, cmd := m.routeKey(msg)
 
 	return next, tea.Batch(cmd, m.coach.WakeAt(now))
+}
+
+// typingText reports whether a text field has the keys: the docked prompt or the picker's -m.
+func (m Model) typingText() bool {
+	return m.typingMessage() || m.openModal() == ctxPrompt
 }
 
 // landLog applies a log read, and on the first to land replays, in order, the keys held for it

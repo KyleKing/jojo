@@ -82,3 +82,30 @@ func TestLoadRefusesAFileItCannotParse(t *testing.T) {
 		t.Fatal("Load() on a broken file = nil, want an error naming the file")
 	}
 }
+
+// The text fields edit with the vim layer unless the file turns it off: no file, and a file that does
+// not mention it, both leave it on.
+//
+//nolint:paralleltest // t.Setenv forbids it.
+func TestVimOn_DefaultsOnAndReadsFalse(t *testing.T) {
+	for _, tc := range []struct {
+		body string
+		want bool
+	}{
+		{"", true},
+		{"theme = \"latte\"\n", true},
+		{"vim = true\n", true},
+		{"vim = false\n", false},
+	} {
+		writeConfig(t, tc.body)
+
+		cfg, err := config.Load()
+		if err != nil {
+			t.Fatalf("Load(%q): %v", tc.body, err)
+		}
+
+		if got := cfg.VimOn(); got != tc.want {
+			t.Errorf("VimOn() with %q = %v, want %v", tc.body, got, tc.want)
+		}
+	}
+}

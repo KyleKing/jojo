@@ -4,11 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/aragonite/tui/keyhint"
+	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/jojo/internal/components/prompt"
 	"github.com/kyleking/jojo/internal/tuitest"
-	"github.com/kyleking/jojo/internal/ui"
 )
 
 // worstCaseTitle and worstCaseInitial are a long title and a long,
@@ -30,22 +29,24 @@ func TestViewFitsAtEverySize(t *testing.T) {
 	tuitest.AssertOverlayInvariants(t, m.View)
 }
 
+// The footer sheds keys as the width runs out and keeps the badge and save, and it is the frame's last
+// row at exactly the frame's width.
 func TestViewDegradesHintsRatherThanSplittingOne(t *testing.T) {
 	t.Parallel()
 
-	skin := testSkin()
-	m := prompt.New(skin)
+	m := prompt.New(testSkin())
 	m.Open(worstCaseTitle, worstCaseInitial)
 
 	for _, size := range tuitest.HintSizes() {
-		want := tuitest.StripANSI(ui.FitHints(skin.FooterHintStyles(), []keyhint.Hint{
-			{Key: "enter", What: "submit"},
-			{Key: "esc", What: "cancel"},
-		}, size.Width))
+		lines := strings.Split(m.View(size.Width, size.Height), "\n")
+		footer := lines[len(lines)-1]
 
-		got := tuitest.StripANSI(m.View(size.Width, size.Height))
-		if !strings.Contains(got, want) {
-			t.Errorf("View(%s) does not contain the degraded hint line %q:\n%s", size, want, got)
+		if w := lipgloss.Width(footer); w != size.Width {
+			t.Errorf("View(%s) footer is %d wide", size, w)
+		}
+
+		if got := tuitest.StripANSI(footer); size.Width >= len("INSERT ⏎ save") && !strings.Contains(got, "save") {
+			t.Errorf("View(%s) footer %q dropped save", size, got)
 		}
 	}
 }

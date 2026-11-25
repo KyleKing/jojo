@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jojo/internal/components/help"
 	"github.com/kyleking/jojo/internal/components/logview"
@@ -68,7 +68,7 @@ type pickState struct {
 	bookmark string
 	// message is -m's text, typed in the footer's prompt, and input that prompt while it is open.
 	message string
-	input   *textinput.Model
+	input   *vimtext.Field
 	dest    string
 	// initial is where the destination started, jj's default; a repeat of a command left there
 	// recomputes it for the revision it repeats on.

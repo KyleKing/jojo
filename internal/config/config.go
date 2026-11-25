@@ -20,7 +20,11 @@ type Config struct {
 	Keys map[string]string `toml:"keys"`
 	// Revsets are the expressions worth keeping, shown in the command palette by name.
 	Revsets map[string]string `toml:"revsets"`
-	Theme   string            `toml:"theme"`
+	// Vim is whether every text field (describe, commit, a bookmark name, -m) edits with a vim
+	// layer: on unless set to false. The field opens in insert mode either way; esc goes to normal
+	// mode and a second esc cancels, where off esc cancels at once.
+	Vim   *bool  `toml:"vim"`
+	Theme string `toml:"theme"`
 	// DiffTool is the diff editor jojo names when it hands hunk work to jj (split, squash -i, move
 	// hunks). Empty or "auto" names jj-diff when it is on PATH and jj's own ui.diff-editor is unset,
 	// "none" never names one so jj's configuration decides, and anything else is passed as --tool.
@@ -42,6 +46,9 @@ type Config struct {
 	// wins, as it does in jj-diff and second-look.
 	Icons string `toml:"icons"`
 }
+
+// VimOn reports whether the text fields edit with the vim layer, which they do unless vim = false.
+func (c Config) VimOn() bool { return c.Vim == nil || *c.Vim }
 
 // Path is where jojo looks: $XDG_CONFIG_HOME/jojo/config.toml, or ~/.config/jojo/config.toml. It
 // deliberately does not use os.UserConfigDir, which on macOS points at Library/Application Support

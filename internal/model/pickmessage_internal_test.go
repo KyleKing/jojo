@@ -20,7 +20,7 @@ func typeText(t *testing.T, m Model, text string) Model {
 }
 
 // -m opens the footer's prompt; Enter keeps the message, which the command line then carries in
-// place of -u, and Esc leaves the flag off. -m again drops it.
+// place of -u, and esc (to normal mode, then out) leaves the flag off. -m again drops it.
 func TestPickMessage_PromptBuildsTheCommand(t *testing.T) {
 	t.Parallel()
 
@@ -57,8 +57,14 @@ func TestPickMessage_PromptBuildsTheCommand(t *testing.T) {
 	m = typeText(t, m, "nope")
 	m, _ = pressOne(t, m, "esc")
 
-	if m.pick.message != "" || !m.pick.active {
-		t.Error("esc on the prompt kept what was typed, or closed the picker")
+	if !m.typingMessage() {
+		t.Fatal("the first esc left the prompt rather than going to normal mode")
+	}
+
+	m, _ = pressOne(t, m, "esc")
+
+	if m.pick.message != "" || !m.pick.active || m.typingMessage() {
+		t.Error("esc in normal mode kept what was typed, left the prompt open, or closed the picker")
 	}
 }
 

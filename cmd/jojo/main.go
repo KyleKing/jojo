@@ -191,7 +191,7 @@ func run() error {
 	opts := model.Options{
 		Keys: keys, Seen: pressed, Usage: rec, DiffTool: settings.DiffTool, OutlineRevset: settings.OutlineRevset,
 		StackBookmark: settings.StackBookmark,
-		Ledger:        ledger, CoachLayout: layout,
+		Ledger:        ledger, CoachLayout: layout, NoVim: !settings.VimOn(),
 	}
 	// The legend names the icon set and why; configure resolved the same set from the same inputs.
 	why := icons.Explain(settings.Icons)

@@ -1,0 +1,24 @@
+  aaaa              source                                                      
+  bbbb              destination                                                 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                
+─ describe aaaa ────────────────────────────────────────────────────────────────
+ fix: side branch                                                               
+                                                                                
+ Long body paragraph explaining why.                                            
+ Signed-off-by: X                                                               
+ NORMAL  ⏎ save · i insert · esc cancel · ctrl+e $EDITOR                        

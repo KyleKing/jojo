@@ -91,7 +91,7 @@ func (m Model) askBookmarkName(title string, then submitted) Model {
 func (m Model) askBookmarkNameFrom(title, initial string, then submitted) Model {
 	m.bookmarks.Close()
 	m.onSubmit = then
-	m.prompt.Open(title, initial)
+	m.prompt.OpenName(title, initial, jj.CheckBookmarkName)
 
 	return m
 }
