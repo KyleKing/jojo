@@ -395,7 +395,7 @@ func logBindings() []keys.Binding {
 		b(ActionParallelize, GroupWrite, "parallelize the checked revisions", "", "|"),
 		checkTick(),
 		b(ActionBisect, GroupWrite, "bisect between the two checked revisions", "", "B"),
-		withContexts(b(ActionOpLog, GroupRepo, "op log, with the log as it stood at each operation", "ops", "o"),
+		withContexts(b(ActionOpLog, GroupRepo, "operation log, with the log as it stood at each", "ops", "o"),
 			keys.Log|Travel),
 		withContexts(b(ActionOpOlder, GroupRepo, "the log one operation back, read-only", "older", "[ o"),
 			keys.Log|Travel),

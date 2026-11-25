@@ -70,7 +70,7 @@ R        restore content from another revision (the parent: discard) jj restore 
 ── Mark
 space    check for a batch verb (never writes)                      
 ── Repository
-o        op log, with the log as it stood at each operation         jj op log
+o        operation log, with the log as it stood at each            jj op log
 [o       the log one operation back, read-only                      jj log --at-op <op> --ignore-working-copy
 ]o       the log one operation forward                              jj log --at-op <op> --ignore-working-copy
 f        fetch                                                      jj git fetch --all-remotes

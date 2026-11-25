@@ -346,3 +346,23 @@ func TestDiscover_Frames(t *testing.T) {
 		}
 	}
 }
+
+// "operation" in the palette ranked [o, the log one operation back, above o, the op log, so enter on
+// the first match traveled in time rather than opening the log of operations.
+func TestPalette_OperationFindsTheOpLogFirst(t *testing.T) {
+	t.Parallel()
+
+	m := testModel(t, twoRows())
+
+	for _, query := range []string{"operation", "op log", "operation log"} {
+		hits := palette.Rank(m.entries(palette.Run), query, time.Now())[0].Hits
+		if len(hits) == 0 || hits[0].Action != help.ActionOpLog {
+			first := ""
+			if len(hits) > 0 {
+				first = hits[0].Action
+			}
+
+			t.Errorf("%q ranks %s first, want the op log", query, first)
+		}
+	}
+}
