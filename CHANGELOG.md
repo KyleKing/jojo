@@ -1,3 +1,9 @@
+## v0.26.3 (2026-11-25)
+
+### Perf
+
+- **jj**: one snapshot point, a diff cache by commit id, and nothing slow before the first frame
+
 ## v0.26.2 (2026-11-25)
 
 ### Perf
