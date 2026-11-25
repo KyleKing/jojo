@@ -194,3 +194,24 @@ func TestView_NamesOneBookmarkAndCountsTheRest(t *testing.T) {
 		t.Errorf("one bookmark reads %q, want it alone", got)
 	}
 }
+
+// A write's message says u undoes it, and the undo segment said it again beside it, cutting both:
+// "jj abandon luzunqzu · press u to undo  u undoes abandon com…". While a message is up it is the
+// only one.
+func TestView_MessageStandsInForTheUndoSegment(t *testing.T) {
+	t.Parallel()
+
+	ctx := statusbar.Context{
+		Message: "jj abandon luzunqzu, press u to undo", Undo: "abandon commit 0123", Hints: testHints(),
+	}
+
+	got := ansi.Strip(testModel().View(120, ctx))
+	if strings.Contains(got, "u undoes") || !strings.Contains(got, "press u to undo") {
+		t.Errorf("the footer reads %q, want the message alone", got)
+	}
+
+	ctx.Message = ""
+	if got := ansi.Strip(testModel().View(120, ctx)); !strings.Contains(got, "u undoes abandon commit 0123") {
+		t.Errorf("with no message the footer reads %q, want the undo segment", got)
+	}
+}

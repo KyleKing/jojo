@@ -123,7 +123,9 @@ const prefixBudget = 2
 
 func (m Model) prefix(ctx Context, width int) string {
 	main := m.state(ctx)
-	if ctx.Undo == "" {
+	// A message stands in for the undo segment while it is up: a write's message already says u undoes
+	// it, and the two side by side cut each other off.
+	if ctx.Undo == "" || ctx.Message != "" {
 		return main
 	}
 
