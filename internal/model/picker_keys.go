@@ -276,8 +276,13 @@ func (m Model) pickChips() string {
 	verb := pickFlagVerbs[p.verb]
 	var hints []keyhint.Hint
 
+	// bare is each hint's key with the bare letter it also answers to, r/-r, where it has one.
+	var bare []string
+
 	for _, f := range help.PickerFlags(verb) {
-		h, ok := m.keys.Hint(keys.FlagAction(verb, f.Letter))
+		action := keys.FlagAction(verb, f.Letter)
+
+		h, ok := m.keys.Hint(action)
 		if !ok {
 			continue
 		}
@@ -290,6 +295,7 @@ func (m Model) pickChips() string {
 		}
 
 		hints = append(hints, h)
+		bare = append(bare, m.bareKey(action, h.Key))
 	}
 
 	if p.verb == pickBookmark {
@@ -326,5 +332,61 @@ func (m Model) pickChips() string {
 		}
 	}
 
-	return padLine(keyhint.Fit(m.skin.FooterHintStyles(), hints, m.width), m.width)
+	return padLine(fitBare(m.skin.FooterHintStyles(), hints, bare, m.width), m.width)
+}
+
+// bareKey is label with the bare key the action also answers to in front, r/-r, or label alone when
+// it answers to none: the rebase picker's r and s pick their mode without the -.
+func (m Model) bareKey(action, label string) string {
+	b, ok := m.keys.Binding(action)
+	if !ok {
+		return label
+	}
+
+	for _, k := range b.Keys {
+		if len([]rune(k)) == 1 && k != label {
+			return k + "/" + label
+		}
+	}
+
+	return label
+}
+
+// fitBare fits hints to width, the first len(bare) of them named by their bare keys as well where that
+// costs no placement or pinned hint the shorter names would keep. A toggle further down may go to make
+// room, since the letters that pick the mode are what a reader presses first.
+func fitBare(st keyhint.Styles, hints []keyhint.Hint, bare []string, width int) string {
+	short := keyhint.Fit(st, hints, width)
+
+	long := slices.Clone(hints)
+	changed := false
+
+	for i, key := range bare {
+		if key != long[i].Key {
+			long[i].Key, changed = key, true
+		}
+	}
+
+	if !changed {
+		return short
+	}
+
+	if fitted := keyhint.Fit(st, long, width); kept(st, long, fitted) >= kept(st, hints, short) {
+		return fitted
+	}
+
+	return short
+}
+
+// kept counts the placement and pinned hints a fitted line still draws.
+func kept(st keyhint.Styles, hints []keyhint.Hint, line string) int {
+	n := 0
+
+	for _, h := range hints {
+		if (h.Pin || h.Priority >= prioPlace) && strings.Contains(line, keyhint.One(st, h)) {
+			n++
+		}
+	}
+
+	return n
 }

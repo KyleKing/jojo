@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/jojo/internal/components/help"
@@ -344,6 +345,30 @@ func TestRebasePicker_BareModeLettersAnswer(t *testing.T) {
 
 		if got := commandOf(m); got != "jj rebase -r aaaa --onto bbbb" {
 			t.Errorf("%v changed the command to %q", tc.keys, got)
+		}
+	}
+}
+
+// The rebase picker's footer named only -r and -s, though r and s alone pick the mode too. Where the
+// width allows, the chips name both, r/-r, and where it does not they keep the short form rather than
+// shed a chip to fit the longer one.
+func TestRebasePicker_ChipsNameTheBareLetters(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		width int
+		bare  bool
+	}{{160, true}, {120, true}, {40, false}} {
+		m := asModel(t, update(testModel(t, twoRows()), tea.WindowSizeMsg{Width: tc.width, Height: 24}))
+		m, _ = pressOne(t, m, "r")
+
+		chips := tuitest.StripANSI(m.pickChips())
+		if got := strings.Contains(chips, "r/-r revs") && strings.Contains(chips, "s/-s source"); got != tc.bare {
+			t.Errorf("%d columns: bare letters shown %v, want %v:\n%s", tc.width, got, tc.bare, chips)
+		}
+
+		if w := lipgloss.Width(chips); w != tc.width {
+			t.Errorf("%d columns: the chips are %d wide", tc.width, w)
 		}
 	}
 }
